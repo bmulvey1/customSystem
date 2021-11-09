@@ -63,7 +63,11 @@ enum production
     p_addition_op,
     p_multiplication_op,
     p_id,
-    p_literal
+    p_literal,
+    p_lParen,
+    p_rParen,
+    p_lCurly,
+    p_rCurly
 };
 
 char *production_names[] = {
@@ -82,12 +86,21 @@ char *production_names[] = {
     "Addition Operator",
     "Multiplication Operator",
     "ID",
-    "Literal"};
+    "Literal",
+    "lParen",
+    "rParen",
+    "lCurly",
+    "rCurly"};
 
 #define BUF_SIZE 16
 char buffer[BUF_SIZE];
 int buflen;
+enum token nextToken;
 char inChar;
+
+struct parseStack *upcomingStack;
+struct parseStack *inProgressStack;
+struct ASTStack *astStack;
 
 char lookahead()
 {
@@ -233,13 +246,13 @@ enum token scan()
             }
             break;
         case -1:
-        //case '\0':
-        //case ' ':
-        //case '\n':
-        //case '\t':
+            //case '\0':
+            //case ' ':
+            //case '\n':
+            //case '\t':
             buflen--;
             buffer[buflen] = '\0';
-        // don't include whitespace in the buffer
+            // don't include whitespace in the buffer
             scanning = 0;
             break;
         default:
@@ -323,24 +336,270 @@ enum production parseStackPop(struct parseStack *it)
     return retType;
 }
 
+struct ASTNode
+{
+    char *value;
+    enum token type;
+    struct ASTNode *child;
+    struct ASTNode *sibling;
+};
+
+void ASTNode_InsertSibling(struct ASTNode *it, struct ASTNode *newSibling)
+{
+    while (it->sibling != NULL)
+    {
+        it = it->sibling;
+    }
+    it->sibling = newSibling;
+}
+
+void printAST(struct ASTNode *it)
+{
+    if (it->child != NULL)
+    {
+        printAST(it->child);
+    }
+    printf("%s ", it->value);
+    if (it->sibling != NULL)
+    {
+        printAST(it->sibling);
+    }
+}
+
+struct ASTStackNode
+{
+    struct ASTNode *data;
+    struct ASTStackNode *next;
+    struct ASTStackNode *prev;
+};
+
+struct ASTStack
+{
+    struct ASTStackNode *bottom;
+    struct ASTStackNode *top;
+    int size;
+};
+
+void ASTStackPush(struct ASTStack *it)
+{
+    printf("pushing %s to ast stack\n", buffer);
+    struct ASTNode *newNode = malloc(sizeof(struct ASTNode));
+    newNode->value = malloc(strlen(buffer));
+    strcpy(newNode->value, buffer);
+    newNode->type = nextToken;
+
+    struct ASTStackNode *newStackNode = malloc(sizeof(struct ASTStackNode));
+    newStackNode->data = newNode;
+
+    if (it->size == 0)
+    {
+        it->bottom = newNode;
+        it->top = newNode;
+    }
+    else
+    {
+        it->top->next = newNode;
+        newStackNode->prev = it->top;
+        it->top = newStackNode;
+    }
+    it->size++;
+}
+struct ASTNode *ASTStackPop(struct ASTStack *it)
+{
+    if (it->size == 0)
+    {
+        printf("popped from empty stack\n");
+        exit(1);
+    }
+    struct ASTNode *poppedData;
+    struct ASTStackNode *poppedNode;
+    if (it->size == 1)
+    {
+        poppedNode = it->top;
+        it->top = NULL;
+        it->bottom = NULL;
+    }
+    else
+    {
+        poppedNode = it->top;
+        it->top = it->top->prev;
+    }
+    it->size--;
+    poppedData = poppedNode->data;
+    free(poppedNode);
+    return poppedData;
+}
+
+void match()
+{
+    ASTStackPush(astStack);
+    scan();
+}
+
 void stackParse()
 {
-    struct parseStack *stack = malloc(sizeof(struct parseStack));
-    parseStackPush(stack, p_program);
-    while (stack->size > 0)
+    parseStackPush(upcomingStack, p_program);
+    scan();
+    while (upcomingStack->size > 0)
     {
-        switch (parseStackPop(stack))
+        enum production workingOn = parseStackPop(upcomingStack);
+        // keep track of what's being worked on so we can shift and reduce
+        parseStackPush(inProgressStack, workingOn);
+        switch (workingOn)
         {
         case p_program:
-            parseStackPush(stack, p_stmt_list);
+            parseStackPush(upcomingStack, p_stmt_list);
             // need to include EOF token or not?
             break;
         case p_stmt_list:
-            switch (scan())
+            // action only taken for things in FIRST(stmt)
+            // anything else the Stmt List prod. is epsilon
+            // so just do nothing and throw it away
+            switch (nextToken)
             {
             case t_id:
             case t_if:
+                parseStackPush(upcomingStack, p_stmt);
+                parseStackPush(upcomingStack, p_stmt_list);
+                break;
             }
+            break;
+        case p_stmt:
+            switch (nextToken)
+            {
+            case t_id:
+                ASTStackPush(astStack);
+                parseStackPush(upcomingStack, p_assignment);
+                parseStackPush(upcomingStack, p_expression);
+                break;
+            case t_if:
+                ASTStackPush(astStack);
+                parseStackPush(upcomingStack, p_lParen);
+                parseStackPush(upcomingStack, p_condition);
+                parseStackPush(upcomingStack, p_rParen);
+                parseStackPush(upcomingStack, p_lCurly);
+                parseStackPush(upcomingStack, p_stmt_list);
+                parseStackPush(upcomingStack, p_rCurly);
+                break;
+            }
+            break;
+        case p_condition:
+            switch (nextToken)
+            {
+            case t_id:
+            case t_literal:
+            case t_openParen:
+                parseStackPush(upcomingStack, p_expression);
+                parseStackPush(upcomingStack, p_expression_tail);
+                break;
+            }
+            break;
+        case p_expression:
+            switch (nextToken)
+            {
+            case t_id:
+            case t_literal:
+            case t_openParen:
+                parseStackPush(upcomingStack, p_term);
+                parseStackPush(upcomingStack, p_term_tail);
+                break;
+            }
+            break;
+        case p_term:
+            switch (nextToken)
+            {
+            case t_id:
+            case t_literal:
+            case t_openParen:
+                parseStackPush(upcomingStack, p_factor);
+                parseStackPush(upcomingStack, p_factor_tail);
+                break;
+            }
+            break;
+        case p_factor:
+            switch (nextToken)
+            {
+            case t_openParen:
+                parseStackPush(upcomingStack, p_lParen);
+                parseStackPush(upcomingStack, p_condition);
+                parseStackPush(upcomingStack, p_rParen);
+                break;
+            case t_id:
+            case t_literal:
+                match();
+                break;
+            }
+            break;
+        case p_expression_tail:
+            switch (nextToken)
+            {
+            case t_equals:
+            case t_notEquals:
+            case t_lThan:
+            case t_gThan:
+            case t_lThanE:
+            case t_gThanE:
+                parseStackPush(upcomingStack, p_condition_op);
+                parseStackPush(upcomingStack, p_expression);
+                break;
+            default: // do nothing, tail goes to epsilon
+                break;
+            }
+            break;
+        case p_term_tail:
+            switch (nextToken)
+            {
+            case t_plus:
+            case t_minus:
+                parseStackPush(upcomingStack, p_addition_op);
+                parseStackPush(upcomingStack, p_term);
+                parseStackPush(upcomingStack, p_term_tail);
+                break;
+            default: // do nothing, tail goes to epsilon
+                break;
+            }
+            break;
+        case p_factor_tail:
+            switch (nextToken)
+            {
+            case t_times:
+            case t_divide:
+                parseStackPush(upcomingStack, p_multiplication_op);
+                parseStackPush(upcomingStack, p_factor);
+                parseStackPush(upcomingStack, p_factor_tail);
+                break;
+            default: // do nothing, tail goes to epsilon
+                break;
+            }
+            break;
+        case p_addition_op:
+            switch (nextToken)
+            {
+            case t_plus:
+            case t_minus:
+                match();
+            }
+            break;
+        case p_multiplication_op:
+            switch (nextToken)
+            {
+            case t_times:
+            case t_divide:
+                match();
+            }
+        case p_condition_op:
+            switch (nextToken)
+            {
+            case t_equals:
+            case t_notEquals:
+            case t_lThan:
+            case t_gThan:
+            case t_lThanE:
+            case t_gThanE:
+                match();
+                break;
+            }
+            break;
         default:
             break;
         }
@@ -351,6 +610,9 @@ int main(int argc, char **argv)
 {
     printf("%s\n", argv[1]);
     infile = fopen(argv[1], "rb");
+    upcomingStack = malloc(sizeof(struct parseStack));
+    inProgressStack = malloc(sizeof(struct parseStack));
+    astStack = malloc(sizeof(struct ASTStack));
     //struct parseStack *stack = malloc(sizeof(struct parseStack));
     //parseStackPush(stack, p_program);
     //stackParse();
