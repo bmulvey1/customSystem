@@ -47,7 +47,7 @@ char *token_names[] = {
     "Unary Equals",
     "Unary Minus",
     "Unary Not",
-    "Binary Or",
+    "-",
     "Binary And",
     "Binary Equals",
     "Binary Not Equals",
@@ -124,13 +124,25 @@ char *production_names[] = {
 #define BUF_SIZE 16
 char buffer[BUF_SIZE];
 int buflen;
-char inChar;
 enum token currentToken;
+char inChar;
+
+struct parseStack *upcomingStack;
+struct parseStack *inProgressStack;
+struct ASTStack *astStack;
+
+char lookahead_dumb()
+{
+    long offset = ftell(infile);
+    char returnChar = fgetc(infile);
+    fseek(infile, offset, SEEK_SET);
+    return returnChar;
+}
 
 void trimWhitespace()
 {
     int whitespace;
-    switch (lookahead())
+    switch (lookahead_dumb())
     {
     case ' ':
     case '\n':
@@ -140,7 +152,7 @@ void trimWhitespace()
     case '#':
         // recursively handling comments is easy
         // will this come at a cost later?
-        while (lookahead() != '\n')
+        while (lookahead_dumb() != '\n')
         {
             fgetc(infile);
         }
@@ -153,7 +165,7 @@ void trimWhitespace()
     while (whitespace)
     {
         fgetc(infile);
-        switch (lookahead())
+        switch (lookahead_dumb())
         {
         case -1:
         case '\0':
@@ -173,12 +185,8 @@ void trimWhitespace()
 char lookahead()
 {
     trimWhitespace();
-    long offset = ftell(infile);
-    char returnChar = fgetc(infile);
-    fseek(infile, offset, SEEK_SET);
-    return returnChar;
+    return lookahead_dumb();
 }
-
 
 void scan()
 {
@@ -250,6 +258,10 @@ void scan()
         case '=':
             switch (currentToken)
             {
+            case t_binEquals:
+                currentToken = t_binEquals;
+                scanning = 0;
+                break;
             case t_unNot:
                 currentToken = t_binNotEquals;
                 scanning = 0;
@@ -262,6 +274,7 @@ void scan()
                 currentToken = t_binGThanE;
                 scanning = 0;
                 break;
+
             default:
                 if (lookahead() != '=')
                 {
@@ -284,7 +297,6 @@ void scan()
                 break;
             }
             break;
-
         case '|':
             currentToken = t_binOr;
             scanning = 0;
@@ -379,7 +391,7 @@ void scan()
         // if there's a paren or bracket coming up
         // terminate the scanning, our token is done
         //printf("LOOKAHEAD IS %c : %d\n", lookahead());
-        switch (lookahead())
+        switch (lookahead_dumb())
         {
         case '(':
         case ')':
@@ -451,17 +463,117 @@ enum production parseStackPop(struct parseStack *it)
     return retType;
 }
 
+struct ASTNode
+{
+    char *value;
+    enum token type;
+    struct ASTNode *child;
+    struct ASTNode *sibling;
+};
+
+void ASTNode_InsertSibling(struct ASTNode *it, struct ASTNode *newSibling)
+{
+    while (it->sibling != NULL)
+    {
+        it = it->sibling;
+    }
+    it->sibling = newSibling;
+}
+
+void printAST(struct ASTNode *it)
+{
+    if (it->child != NULL)
+    {
+        printAST(it->child);
+    }
+    printf("%s ", it->value);
+    if (it->sibling != NULL)
+    {
+        printAST(it->sibling);
+    }
+}
+
+struct ASTStackNode
+{
+    struct ASTNode *data;
+    struct ASTStackNode *next;
+    struct ASTStackNode *prev;
+};
+
+struct ASTStack
+{
+    struct ASTStackNode *bottom;
+    struct ASTStackNode *top;
+    int size;
+};
+
+void ASTStackPush()
+{
+    struct ASTNode *newNode = malloc(sizeof(struct ASTNode));
+    newNode->value = malloc(strlen(buffer));
+    strcpy(newNode->value, buffer);
+    newNode->type = currentToken;
+
+    struct ASTStackNode *newStackNode = malloc(sizeof(struct ASTStackNode));
+    newStackNode->data = newNode;
+
+    if (astStack->size == 0)
+    {
+        astStack->bottom = newStackNode;
+        astStack->top = newStackNode;
+    }
+    else
+    {
+        astStack->top->next = newStackNode;
+        newStackNode->prev = astStack->top;
+        astStack->top = newStackNode;
+    }
+    astStack->size++;
+}
+
+struct ASTNode *ASTStackPop()
+{
+    if (astStack->size == 0)
+    {
+        printf("popped from empty stack\n");
+        exit(1);
+    }
+    struct ASTNode *poppedData;
+    struct ASTStackNode *poppedNode;
+    if (astStack->size == 1)
+    {
+        poppedNode = astStack->top;
+        astStack->top = NULL;
+        astStack->bottom = NULL;
+    }
+    else
+    {
+        poppedNode = astStack->top;
+        astStack->top = astStack->top->prev;
+    }
+    astStack->size--;
+    poppedData = poppedNode->data;
+    free(poppedNode);
+    return poppedData;
+}
+
+void match()
+{
+    ASTStackPush(astStack);
+    scan();
+}
+
 void stackParse()
 {
-    struct parseStack *stack = malloc(sizeof(struct parseStack));
-    parseStackPush(stack, p_program);
-    while (stack->size > 0)
+    parseStackPush(upcomingStack, p_program);
+    scan();
+    while (upcomingStack->size > 0)
     {
         scan();
-        switch (parseStackPop(stack))
+        switch (parseStackPop(upcomingStack))
         {
         case p_program:
-            parseStackPush(stack, p_definition);
+            parseStackPush(upcomingStack, p_definition);
             // need to include EOF token or not?
             break;
         case p_definition:
@@ -470,14 +582,45 @@ void stackParse()
             case t_name:
                 switch (lookahead())
                 {
+                case '[': // name {[{constant01}]} {ival {, ival}0}01;
+                    ASTStackPush();
+                    scan();
 
+                    if (currentToken == t_constant) // constant is present
+                    {
+                        ASTStackPush();
+                        scan();
+                    }
+
+                    if (lookahead() == ']') // must see close square bracket, otherwise error
+                    {
+                        ASTStackPush();
+                    }
+                    else
+                    {
+                        printf("Error - expected ']', got %s instead!\n", buffer);
+                        exit(1);
+                    }
+                    break;
+                default:
+                    break;
                 }
                 break;
             default:
                 printf("Unexpected token %s [%s], expected [%s]\n", token_names[currentToken], buffer, token_names[t_name]);
-                exit(0);
+                exit(1);
             }
-        default:
+            break;
+            enum production workingOn = parseStackPop(upcomingStack);
+            // keep track of what's being worked on so we can shift and reduce
+            parseStackPush(inProgressStack, workingOn);
+            switch (workingOn)
+            {
+            case p_program:
+                parseStackPush(upcomingStack, p_definition);
+                // need to include EOF token or not?
+                break;
+            }
             break;
         }
     }
@@ -497,7 +640,8 @@ int main(int argc, char **argv)
 
         //printf("%c\n", lookahead());
         //printf("%c %d\n", inc, inc);
-        printf("Scanned %s with token of %s\n", &buffer, token_names[scan()]);
+        scan();
+        printf("Scanned %s with token of %s\n", &buffer, token_names[currentToken]);
         for (int i = 0; i < 0xffffff; i++)
         {
         }
