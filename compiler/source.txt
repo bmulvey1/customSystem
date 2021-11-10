@@ -1,5 +1,5 @@
-word fuck = 2
+auto fuck = 2
 fuck = fuck + 2
 # this is a comment
 # this is another comment
-word test = (fuck == 2)
+auto test = (fuck != 2)
