@@ -1,5 +1,1 @@
-auto fuck = 2
-fuck = fuck + 2
-# this is a comment
-# this is another comment
-auto test = (fuck != 2)
+function(a, b, argumentc)
