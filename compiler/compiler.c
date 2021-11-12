@@ -59,32 +59,32 @@ char *token_names[] = {
     "switch",
     "goto",
     "return",
-    "Unary Equals",
-    "Unary Minus",
-    "Unary Not",
+    "U Equals",
+    "U Minus",
+    "U Not",
     "-",
-    "Binary And",
-    "Binary Equals",
-    "Binary Not Equals",
-    "Binary Less Than",
-    "Binary Less Than or Equal",
-    "Binary Greater Than",
-    "Binary Greater Than or Equal",
-    "Binary Left Shift",
-    "Binary Right Shift",
-    "Binary Minus",
-    "Binary Plus",
-    "Binary Modulo",
-    "Binary Multiply",
-    "Binary Divide",
+    "B And",
+    "B Equals",
+    "B Not Equals",
+    "B LThan",
+    "B LThanE",
+    "B GThan",
+    "B GThan",
+    "B LShift",
+    "B RShift",
+    "B Minus",
+    "B Plus",
+    "B Modulo",
+    "B Multiply",
+    "B Divide",
     "Single Quote",
     "Double Quote",
     "Left Curly",
     "Right Curly",
     "Left Paren",
     "Right Paren",
-    "Left Square Bracket",
-    "Right Square Bracket",
+    "Left Bracket",
+    "Right Bracket",
     "Comma",
     "Semicolon"};
 
@@ -344,11 +344,28 @@ struct ASTNode *ASTStackPop()
 
 void error()
 {
+    printf("Production Stack is:\n");
+    struct PSNode *ps = upcomingStack->top;
+    while (ps != NULL)
+    {
+        printf("[%s]\n", production_names[ps->productionType]);
+        ps = ps->prev;
+    }
+
+    printf("In-Progress Stack is:\n");
+    ps = inProgressStack->top;
+    while (ps != NULL)
+    {
+        printf("[%s]\n", production_names[ps->productionType]);
+        ps = ps->prev;
+    }
+
+    printf("AST Stack is:\n");
     struct ASTStackNode *theNode = astStack->top;
     while (theNode != NULL)
     {
         struct ASTNode *data = theNode->data;
-        printf("[%16s] %s\n", token_names[data->type], data->value);
+        printf("[%8s] %s\n", token_names[data->type], data->value);
         theNode = theNode->prev;
     }
     exit(1);
@@ -683,7 +700,6 @@ char *lookaheadToken() // look ahead at the entire next token, populate the buff
     long offset = ftell(infile);
     scan();                          // simply use the scan function to get exactly what the next token is, no fuss
     fseek(infile, offset, SEEK_SET); // then seek backwards as if we never scanned
-    printf("returning token buffer of %s\n", buffer);
     return buffer;
 }
 
@@ -900,8 +916,8 @@ void stackParse()
                 }
                 else
                 {
-                    printf("Error parsing statement - could be due to unhandled [statement::={rvalue}01;] production\n");
-                    error();
+                        parseStackPush(upcomingStack, p_optionalrvalue);
+
                 }
             }
             break;
@@ -1028,7 +1044,7 @@ int main(int argc, char **argv)
     while (theNode != NULL)
     {
         struct ASTNode *data = theNode->data;
-        printf("[%16s] %s\n", token_names[data->type], data->value);
+        printf("[%8s] %s\n", token_names[data->type], data->value);
         theNode = theNode->prev;
     }
 
