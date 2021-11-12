@@ -1,1 +1,4 @@
-function(a, b, argumentc)
+function(a, b, argumentc){
+    auto c;
+    c = a + b;
+}
