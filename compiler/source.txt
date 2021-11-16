@@ -1,4 +1,4 @@
 function(a, b, argumentc){
-    auto c;
-    c = a + b;
+    auto d;
+    d = a + b;
 }
