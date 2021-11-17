@@ -2,7 +2,14 @@
 #include <cstdint>
 #include "names.h"
 
-uint8_t memory[0xffff] = {0x48, 0x01, 0x12, 0x34};
+uint8_t memory[0xffff] = {
+    0x40,
+    0x01,
+    0x48,
+    0x39,
+    0x30,
+    0x00,
+};
 enum registerNames
 {
     RA,
@@ -20,11 +27,15 @@ uint16_t registers[9] = {0};
 #define readByte(address) memory[address]
 #define readWord(address) memory[address] << 8 + memory[address + 1]
 #define consumeByte(address) memory[address++]
-#define consumeWord(address) (memory[address] << 8) + memory[address + 1]; address += 2
+#define consumeWord(address)                      \
+    (memory[address] << 8) + memory[address + 1]; \
+    address += 2
 
-void printState(){
+void printState()
+{
     std::cout << " RA  RB  RC  RD  RSI RDI RBP RSP" << std::endl;
-    for(int i = 0; i < 8; i++){
+    for (int i = 0; i < 8; i++)
+    {
         printf("[%4x]", registers[i]);
     }
     std::cout << std::endl;
@@ -68,7 +79,7 @@ int main()
             case 0x3: // 0x43: DIV
                 registers[RD] /= registers[RS];
                 break;
-            case 0x4: // 0x44: SHR 
+            case 0x4: // 0x44: SHR
                 registers[RD] >>= registers[RS];
                 break;
             case 0x5: // 0x45: SHL
@@ -85,10 +96,10 @@ int main()
             switch (opCode & 0b1111)
             {
             case 0x6: // 0x46: INC
-                registers[RD]+= 1;
+                registers[RD] += 1;
                 break;
             case 0x7: // 0x47: DEC
-                registers[RD]-= 1;
+                registers[RD] -= 1;
                 break;
             }
         }
@@ -102,24 +113,26 @@ int main()
             uint8_t insByte2 = consumeByte(registers[IP]);
             uint8_t RD = insByte2 & 0b1111;
             uint16_t imm = consumeWord(registers[IP]);
-            switch (opCode & 0b111)
+            printf("Got immediate of %d\n", imm);
+            switch (opCode & 0b1111)
             {
-            case 0x0: // 0x48: ADDI
+            case 0x8: // 0x48: ADDI
+            printf("thats addi %d\n", RD);
                 registers[RD] += imm;
                 break;
-            case 0x1: // 0x49: SUBI
+            case 0x9: // 0x49: SUBI
                 registers[RD] -= imm;
                 break;
-            case 0x2: // 0x4a: MULI
+            case 0xa: // 0x4a: MULI
                 registers[RD] *= imm;
                 break;
-            case 0x3: // 0x4b: DIVI
+            case 0xb: // 0x4b: DIVI
                 registers[RD] /= imm;
                 break;
-            case 0x4: // 0x4c: SHR I
+            case 0xc: // 0x4c: SHR I
                 registers[RD] >>= imm;
                 break;
-            case 0x5: // 0x4d: SHLI
+            case 0xd: // 0x4d: SHLI
                 registers[RD] <<= imm;
                 break;
             }
