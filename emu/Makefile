@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -Wall -Werror
+CFLAGS = -Werror -Wall
 programs: emu
 
 emu: emu.o
