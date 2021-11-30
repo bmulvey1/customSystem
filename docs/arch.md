@@ -1,7 +1,8 @@
 # The Architecture
  - 16-bit address space and registers
- - 8 registers (8086 style)
-   - A/B/C/D (general purpose)
+ - 16 registers (8086 style)
+   - a/b/c/d (general purpose but same conventions as x86)
+   - r0-r7 (completely general purpose for scratch use)
    - Source
    - Destination
    - Stack Pointer
@@ -40,4 +41,11 @@
    - 0x4f: UNUSED
 #### opcodes 0x80-0xbf
 ### Data Transfer
+ - #### MOVs
+ - 0x80: MOV %[RS] %[RD] register -> register
+ - 0x81: MOV %[RS] (%[RD]) register -> dereferenced register
+ - 0x82: MOV (%[RS]) %[RD] dereferenced register -> register
+ -  #### Stack
+ - 0x88: PUSH %[RS] -> push RS to stack
+ - 0x89: POP %[RD] -> pop stack to RD
 #### opcodes 0xc0-0xff

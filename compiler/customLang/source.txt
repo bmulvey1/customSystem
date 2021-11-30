@@ -1,0 +1,5 @@
+v a = 2;
+v b = 3;
+f qwerty(){
+    v c = b - a;
+}
