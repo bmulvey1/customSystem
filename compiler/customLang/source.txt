@@ -1,12 +1,9 @@
 v a = 2;
 v b = 3;
+# this function fucking sucks
 f qwerty(){
     v q;
-    v r;
-    v s
-    v t;
-    v u;
-    v c = b - a;
+    v c = b - (a + 2);
     #v asdf = b + c;
 }
 $$

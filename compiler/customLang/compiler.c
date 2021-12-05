@@ -176,9 +176,6 @@ void trimWhitespace()
 
 char lookahead()
 {
-    for (int i = 0; i < 0xffffff; i++)
-    {
-    }
     trimWhitespace();
     char r = lookahead_dumb();
     return r;
@@ -222,9 +219,6 @@ enum token scan()
 
     while (1)
     {
-        for (int i = 0; i < 0xffffff; i++)
-        {
-        }
         inChar = fgetc(infile);
         if (feof(infile))
         {
