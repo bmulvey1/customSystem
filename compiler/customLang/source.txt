@@ -1,5 +1,12 @@
 v a = 2;
 v b = 3;
 f qwerty(){
+    v q;
+    v r;
+    v s
+    v t;
+    v u;
     v c = b - a;
+    #v asdf = b + c;
 }
+$$
