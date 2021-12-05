@@ -91,9 +91,7 @@ void astNode_insertSibling(struct astNode *it, struct astNode *newSibling)
 {
     struct astNode *runner = it;
     while (runner->sibling != NULL)
-    {
         runner = runner->sibling;
-    }
 
     runner->sibling = newSibling;
 }
@@ -101,13 +99,9 @@ void astNode_insertSibling(struct astNode *it, struct astNode *newSibling)
 void astNode_insertChild(struct astNode *it, struct astNode *newChild)
 {
     if (it->child == NULL)
-    {
         it->child = newChild;
-    }
     else
-    {
         astNode_insertSibling(it->child, newChild);
-    }
 }
 
 void printAST(struct astNode *it, int depth)
@@ -145,9 +139,8 @@ void trimWhitespace()
         // recursively handling comments is easy
         // will this come at a cost later?
         while (lookahead_dumb() != '\n')
-        {
             fgetc(infile);
-        }
+
         fgetc(infile);
         trimWhitespace();
     default:
@@ -221,9 +214,8 @@ enum token scan()
     {
         inChar = fgetc(infile);
         if (feof(infile))
-        {
             return currentToken;
-        }
+
         buffer[buflen++] = inChar;
         buffer[buflen] = '\0';
         // Iterate all reserved keywords
@@ -236,13 +228,9 @@ enum token scan()
         if (buflen == 1)
         {
             if (isdigit(inChar))
-            {
                 currentToken = t_literal;
-            }
             else if (isalpha(inChar))
-            {
                 currentToken = t_name;
-            }
         }
         else
         {
@@ -299,13 +287,9 @@ void consume(enum token t)
 {
     enum token result = scan();
     if (result == t)
-    {
         printf("Consumed token [%s] with image of [%s]\n", token_names[t], buffer);
-    }
     else
-    {
         printf("Error consuming - expected token [%s], got [%s] with image of [%s] instead!\n", token_names[t], token_names[result], buffer);
-    }
 }
 
 struct astNode *parseProgram();
@@ -366,9 +350,8 @@ struct astNode *parseTLD()
             astNode_insertChild(TLD, assignment);
         }
         else
-        {
             astNode_insertChild(TLD, name);
-        }
+
         consume(t_semicolon);
     }
     break;
@@ -436,9 +419,8 @@ struct astNode *parseStatement()
             astNode_insertChild(statement, assign);
         }
         else
-        {
             astNode_insertChild(statement, name);
-        }
+        
         consume(t_semicolon);
         break;
     }
