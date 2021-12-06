@@ -195,9 +195,12 @@ void consume(enum token t)
         printf("Error consuming - expected token [%s], got [%s] with image of [%s] instead!\n", token_names[t], token_names[result], buffer);
 }
 
+char *getTokenName(enum token t)
+{
+    return token_names[t];
+}
 
-
-struct astNode *parseProgram(char* inFileName)
+struct astNode *parseProgram(char *inFileName)
 {
     infile = fopen(inFileName, "rb");
     return parseTLDList();
@@ -264,9 +267,12 @@ struct astNode *parseVariableInit()
     return NULL;
 }
 
-struct astNode *parseAssignment()
+struct astNode *parseAssignment(struct astNode *name)
 {
-    return NULL;
+    struct astNode *assign = match(t_assign);
+    astNode_insertChild(assign, name);
+    astNode_insertChild(assign, parseExpression());
+    return assign;
 }
 
 struct astNode *parseStatementList()
@@ -276,7 +282,8 @@ struct astNode *parseStatementList()
     while (parsing)
     {
         struct astNode *stmt = NULL;
-        switch (lookaheadToken())
+        enum token nextToken = lookaheadToken();
+        switch (nextToken)
         {
         case t_var:
         case t_name:
@@ -290,6 +297,7 @@ struct astNode *parseStatementList()
             parsing = 0;
             break;
         default:
+            printf("Error parsing statement list - saw token %s with value of [%s]\n", token_names[nextToken], buffer);
             exit(1);
         }
     }
@@ -309,18 +317,20 @@ struct astNode *parseStatement()
         statement = match(t_var);
         struct astNode *name = match(t_name);
         if (lookaheadToken() == t_assign)
-        {
-            struct astNode *assign = match(t_assign);
-            astNode_insertChild(assign, name);
-            astNode_insertChild(assign, parseExpression());
-            astNode_insertChild(statement, assign);
-        }
+            astNode_insertChild(statement, parseAssignment(name));
         else
             astNode_insertChild(statement, name);
         
         consume(t_semicolon);
         break;
     }
+    case t_name:
+    {
+        struct astNode *name = match(t_name);
+        statement = parseAssignment(name);
+        consume(t_semicolon);
+    }
+    break;
     default:
         printf("Error parsing statement - saw token [%s]\n", token_names[upcomingToken]);
         exit(1);

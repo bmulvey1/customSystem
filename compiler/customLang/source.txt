@@ -2,8 +2,8 @@ v a = 2;
 v b = 3;
 # this function fucking sucks
 f qwerty(){
-    v q;
-    v c = b - (a + 2);
-    #v asdf = b + c;
+    v c;
+    c = b - (a + 2);
+    v asdf = b + c;
 }
 $$

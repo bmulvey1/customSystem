@@ -10,6 +10,7 @@ char lookahead();
 enum token scan();
 struct astNode *match(enum token t);
 void consume(enum token t);
+char* getTokenName(enum token t);
 
 struct astNode *parseProgram(char* inFileName);
 struct astNode *parseTLDList();
