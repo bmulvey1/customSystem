@@ -9,6 +9,7 @@ enum token
     t_unOp,
     t_binOp,
     t_assign,
+    t_comma,
     t_semicolon,
     t_lParen,
     t_rParen,

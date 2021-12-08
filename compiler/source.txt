@@ -1,4 +1,4 @@
-function(a, b, argumentc){
-    auto d;
-    d = a + b;
+function(variablea, variableb, argumentc){
+    auto variabled;
+    variabled = variablea + variableb;
 }

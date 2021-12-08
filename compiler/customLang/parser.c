@@ -13,6 +13,7 @@ char *token_names[] = {
     "unary operator",
     "binary operator",
     "assignment",
+    "comma",
     "semicolon",
     "l paren",
     "r paren",
@@ -77,9 +78,12 @@ char lookahead()
     return r;
 }
 
-char *reserved[] = {
-    "v",
-    "f",
+#define RESERVED_COUNT 12
+
+char *reserved[RESERVED_COUNT] = {
+    "var",
+    "fun",
+    ",",
     "(",
     ")",
     "{",
@@ -90,9 +94,10 @@ char *reserved[] = {
     "-",
     "$$"};
 
-enum token reserved_t[] = {
+enum token reserved_t[RESERVED_COUNT] = {
     t_var,
     t_fun,
+    t_comma,
     t_lParen,
     t_rParen,
     t_lCurly,
@@ -116,20 +121,23 @@ enum token scan()
     while (1)
     {
         inChar = fgetc(infile);
+        buffer[buflen++] = inChar;
+        buffer[buflen] = '\0';
         if (feof(infile))
             return currentToken;
 
-        buffer[buflen++] = inChar;
-        buffer[buflen] = '\0';
         // Iterate all reserved keywords
-        for (int i = 0; i < 11; i++)
+        for (int i = 0; i < RESERVED_COUNT; i++)
         {
             // if we match a reserved keyword
             if (!strcmp(buffer, reserved[i]))
                 return reserved_t[i]; // return its token
         }
+
+        // if on the first char of the token
         if (buflen == 1)
         {
+            // determine literal or name based on what we started with
             if (isdigit(inChar))
                 currentToken = t_literal;
             else if (isalpha(inChar))
@@ -137,16 +145,19 @@ enum token scan()
         }
         else
         {
+            // simple error checking for letters in literals
             if (currentToken == t_literal && isalpha(inChar))
             {
-                printf("Error - alphabetical character in literal!");
+                printf("Error - alphabetical character in literal [%s]!\n", buffer);
                 exit(1);
             }
         }
-        // if the next input char is whitespace or a single-character token, we're done
+
+        // if the next input char is whitespace or a single-character token, we're done with this token
         switch (lookahead_dumb())
         {
         case ' ':
+        case ',':
         case '(':
         case ')':
         case '{':
@@ -162,6 +173,7 @@ enum token scan()
     }
 }
 
+// return the next token that would be scanned without consuming
 enum token lookaheadToken()
 {
     long offset = ftell(infile);
@@ -170,6 +182,7 @@ enum token lookaheadToken()
     return retToken;
 }
 
+// error-checked method to consume and return AST node of expected token
 struct astNode *match(enum token t)
 {
     enum token result = scan();
@@ -182,10 +195,11 @@ struct astNode *match(enum token t)
     else
     {
         printf("Error matching - expected token [%s], got [%s] with image of [%s] instead!\n", token_names[t], token_names[result], buffer);
-        return NULL;
+        exit(1);
     }
 }
 
+// error-checked method to consume expected token with no return
 void consume(enum token t)
 {
     enum token result = scan();
@@ -213,9 +227,8 @@ struct astNode *parseTLDList()
     {
         if (lookaheadToken() == t_EOF)
             break;
-        //printf("NEXT TOKEN IS\n %s\n", token_names[lookaheadToken()]);
+
         astNode_insertSibling(TLDList, parseTLD());
-        //trimWhitespace();
     }
     printf("done parsing tld list\n");
     return TLDList;
@@ -224,20 +237,24 @@ struct astNode *parseTLDList()
 struct astNode *parseTLD()
 {
     struct astNode *TLD;
-    printf("IN TLD TOKEN IS %s\n", token_names[lookaheadToken()]);
-
     switch (lookaheadToken())
     {
+    // f [function name](){[argument list]}
     case t_fun:
         TLD = match(t_fun);
-        astNode_insertChild(TLD, match(t_name));
+        struct astNode *functionname = match(t_name);
         consume(t_lParen);
+        struct astNode *argList = parseArgList();
+        astNode_insertChild(functionname, argList);
+        astNode_insertChild(TLD, functionname);
         consume(t_rParen);
         consume(t_lCurly);
         astNode_insertChild(TLD, parseStatementList());
         consume(t_rCurly);
         break;
 
+    // v [variable name];
+    // v [variable name] = [expression];
     case t_var:
     {
         TLD = match(t_var);
@@ -262,13 +279,10 @@ struct astNode *parseTLD()
     return TLD;
 }
 
-struct astNode *parseVariableInit()
-{
-    return NULL;
-}
-
 struct astNode *parseAssignment(struct astNode *name)
 {
+    // pre-parsed name node taken as argument
+    // [name] = [expression]
     struct astNode *assign = match(t_assign);
     astNode_insertChild(assign, name);
     astNode_insertChild(assign, parseExpression());
@@ -278,6 +292,7 @@ struct astNode *parseAssignment(struct astNode *name)
 struct astNode *parseStatementList()
 {
     struct astNode *stmtList = NULL;
+    // loop until we see something that's not a statement
     int parsing = 1;
     while (parsing)
     {
@@ -285,6 +300,10 @@ struct astNode *parseStatementList()
         enum token nextToken = lookaheadToken();
         switch (nextToken)
         {
+
+        // v [variable name];
+        // v [variable name] = [expression];
+        // [variable name] = [expression];
         case t_var:
         case t_name:
             stmt = parseStatement();
@@ -293,9 +312,12 @@ struct astNode *parseStatementList()
             else
                 astNode_insertSibling(stmtList, stmt);
             break;
+
+        // currently this is the only token that can terminate a list
         case t_rCurly:
             parsing = 0;
             break;
+
         default:
             printf("Error parsing statement list - saw token %s with value of [%s]\n", token_names[nextToken], buffer);
             exit(1);
@@ -312,18 +334,27 @@ struct astNode *parseStatement()
     enum token upcomingToken = lookaheadToken();
     switch (upcomingToken)
     {
+    // v [variable name];
+    // v [variable name] = [expression];
     case t_var:
     {
         statement = match(t_var);
         struct astNode *name = match(t_name);
+
+        // check whether or not whether this is an assignment or just a declaration
         if (lookaheadToken() == t_assign)
             astNode_insertChild(statement, parseAssignment(name));
-        else
+        else{
+            printf("var with no assignment\n");
             astNode_insertChild(statement, name);
-        
+        }
+
         consume(t_semicolon);
-        break;
+        
     }
+    break;
+
+    // [variable name] = [expression];
     case t_name:
     {
         struct astNode *name = match(t_name);
@@ -344,6 +375,8 @@ struct astNode *parseExpression()
 {
     printf("parsing expression\n");
     struct astNode *expression = NULL;
+
+    // figure out what the left side of the expression is
     struct astNode *lSide = NULL;
     if (isalpha(lookahead()))
         lSide = match(t_name);
@@ -361,14 +394,18 @@ struct astNode *parseExpression()
         exit(1);
     }
 
+    // now, figure out whether there is a right side
     switch (lookahead())
     {
+    // [left side][operator][right side]
     case '+':
     case '-':
         expression = match(t_unOp);
         astNode_insertChild(expression, lSide);
         astNode_insertChild(expression, parseExpression());
         break;
+
+    // end of line or end of expression, there isn't anything more than the left side
     case ';':
     case ')':
         printf("done parsing expression - here's what we got:\n");
@@ -376,12 +413,47 @@ struct astNode *parseExpression()
         printAST(expression, 0);
         return expression;
         break;
+
     default:
-        printf("Error - expected unary operator in expression and got [%s]\n", token_names[scan()]);
+        printf("Error - expected unary operator or terminator in expression and got [%s]\n", token_names[scan()]);
         exit(1);
         break;
     }
+
     printf("done parsing expression - here's what we got:\n");
     printAST(expression, 0);
     return expression;
+}
+
+struct astNode *parseArgList()
+{
+    struct astNode *argList = NULL;
+    int parsing = 1;
+    while (parsing)
+    {
+
+        switch (lookahead())
+        {
+        case 'v':
+        {
+            struct astNode *argument = match(t_var);
+            astNode_insertChild(argument, match(t_name));
+
+            if (argList == NULL)
+                argList = argument;
+            else
+                astNode_insertSibling(argList, argument);
+        }
+        break;
+
+        case ',':
+            consume(t_comma);
+            break;
+
+        default:
+            parsing = 0;
+            break;
+        }
+    }
+    return argList;
 }

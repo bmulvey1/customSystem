@@ -423,7 +423,7 @@ char lookahead()
     }
     trimWhitespace();
     char r = lookahead_dumb();
-    printf("Looking ahead to [%c]\n", r);
+    //printf("Looking ahead to [%c]\n", r);
     return r;
 }
 
@@ -433,7 +433,7 @@ void scan()
     // check if we're looking for whitespace - are we?
     trimWhitespace();
     int scanning;
-    if (infile != EOF)
+    if (!feof(infile))
     {
         scanning = 1;
     }
@@ -707,7 +707,7 @@ char *lookaheadToken() // look ahead at the entire next token, populate the buff
     long offset = ftell(infile);
     scan();                          // simply use the scan function to get exactly what the next token is, no fuss
     fseek(infile, offset, SEEK_SET); // then seek backwards as if we never scanned
-    printf("Looking ahead to token [%s] [%s]\n", buffer, token_names[currentToken]);
+    //printf("Looking ahead to token [%s] [%s]\n", buffer, token_names[currentToken]);
     return buffer;
 }
 
@@ -751,412 +751,6 @@ void consume(enum token t)
         printf("Error consuming - expected token [%s], got [%s] with image of [%s] instead!\n", token_names[t], token_names[currentToken], buffer);
     }
 }
-
-/*
-void stackParse()
-{
-    upcomingStack = malloc(sizeof(struct parseStack));
-    inProgressStack = malloc(sizeof(struct parseStack));
-    astStack = malloc(sizeof(struct ASTStack));
-    printf("Entered stackparse routine\n");
-    parseStackPush(upcomingStack, p_program);
-    while (upcomingStack->size > 0)
-    {
-        // spin so this goes at a sane pace
-        // there *will* be accidental loops, need to read the output
-        for (int i = 0; i < 0xffffff; i++)
-        {
-        }
-        enum production currentProduction = parseStackPop(upcomingStack);
-        printf("Parsing production [%s]\n", production_names[currentProduction]);
-        switch (currentProduction)
-        {
-        case p_program:
-            parseStackPush(upcomingStack, p_definitionlist);
-            // need to include EOF token or not?
-            break;
-
-        case p_definitionlist:
-            if (lookahead() == ',')
-            {
-                consume(t_comma);
-            }
-            if (isalpha(lookahead())) // we have at least 1 more definition to go
-            {
-                parseStackPush(upcomingStack, p_definitionlist);
-                parseStackPush(upcomingStack, p_definition);
-            }
-            // if we have a definition list and don't see something in FIRST(name) (alpha char) we are done
-            break;
-
-        case p_definition:
-            if (isalpha(lookahead()))
-            {
-                match(t_name);
-                char l = lookahead();
-                if (isalpha(l) || isdigit(l) || l == '[')
-                {
-                    // name {[{constant01}]}01 {ival {, ival}0}01;
-                    parseStackPush(upcomingStack, p_semicolon);
-                    parseStackPush(upcomingStack, p_optionalivallist);
-                    parseStackPush(upcomingStack, p_ival);
-                    if (l == '[')
-                    {
-                        parseStackPush(upcomingStack, p_rsquare);
-                        parseStackPush(upcomingStack, p_optionalconstant);
-                        parseStackPush(upcomingStack, p_lsquare);
-                    }
-                }
-                else if (l == '(')
-                {
-                    // name ( {name {, name}0}01 ) statement
-                    parseStackPush(upcomingStack, p_statement);
-                    parseStackPush(upcomingStack, p_rparen);
-                    parseStackPush(upcomingStack, p_optionalnamelist);
-                    parseStackPush(upcomingStack, p_lparen);
-                }
-                else if (l == ';') // just a name declaration
-                {
-                    parseStackPush(upcomingStack, p_semicolon);
-                }
-                else
-                {
-                    printf("Error - expected '[', '(', or ival after name in definition\n");
-                    error();
-                }
-            }
-            else
-            {
-                printf("Error parsing definition - expected name\n");
-                error();
-            }
-            break;
-
-        case p_ival:
-            if (isalpha(lookahead()))
-            {
-                parseStackPush(upcomingStack, p_name);
-            }
-            else if (isdigit(lookahead()))
-            {
-                parseStackPush(upcomingStack, p_constant);
-            }
-            else
-            {
-                printf("Error parsing ival - expected constant or name!\n");
-                error();
-            }
-            break;
-
-        case p_statementlist:
-            // naive?
-            // sure it'll allow unwanted chars in, but the errors will be at match time so better verbosity?
-            // is there any other disadvantage to blindly accepting anything here?
-            if (lookahead() != '}')
-            {
-                parseStackPush(upcomingStack, p_statementlist);
-                parseStackPush(upcomingStack, p_statement);
-            }
-            break;
-
-        case p_statement:
-            char *nextToken = lookaheadToken();
-            if (!strcmp(nextToken, "auto")) // auto name {constant}01 {, name {constant}01}0 ;  statement
-            {
-                // {, name {constant}01}0 PART IS UNHANDLED
-                parseStackPush(upcomingStack, p_statement);
-                parseStackPush(upcomingStack, p_semicolon);
-                parseStackPush(upcomingStack, p_optionalconstant);
-                parseStackPush(upcomingStack, p_name);
-                parseStackPush(upcomingStack, p_auto);
-            }
-            else if (!strcmp(nextToken, "extrn")) // extrn name {, name}0 ; statement
-            {
-                parseStackPush(upcomingStack, p_statement);
-                parseStackPush(upcomingStack, p_semicolon);
-                parseStackPush(upcomingStack, p_optionalnamelist);
-                parseStackPush(upcomingStack, p_name);
-                parseStackPush(upcomingStack, p_extrn);
-            }
-            else if (!strcmp(nextToken, "case"))
-            {
-                parseStackPush(upcomingStack, p_statement);
-                parseStackPush(upcomingStack, p_colon);
-                parseStackPush(upcomingStack, p_name);
-                parseStackPush(upcomingStack, p_case);
-            }
-            else if (!strcmp(nextToken, "if")) // if ( rvalue ) statement {else statement}01
-            {
-                parseStackPush(upcomingStack, p_statement);
-                parseStackPush(upcomingStack, p_rparen);
-                parseStackPush(upcomingStack, p_rvalue);
-                parseStackPush(upcomingStack, p_lparen);
-                parseStackPush(upcomingStack, p_if);
-            }
-            else if (!strcmp(nextToken, "while")) // whit_autoe ( rvalue ) statement
-            {
-                parseStackPush(upcomingStack, p_statement);
-                parseStackPush(upcomingStack, p_rparen);
-                parseStackPush(upcomingStack, p_rvalue);
-                parseStackPush(upcomingStack, p_lparen);
-                parseStackPush(upcomingStack, p_while);
-            }
-            else if (!strcmp(nextToken, "switch"))
-            {
-                parseStackPush(upcomingStack, p_statement);
-                parseStackPush(upcomingStack, p_rvalue);
-                parseStackPush(upcomingStack, p_switch);
-            }
-            else if (!strcmp(nextToken, "goto"))
-            {
-
-                parseStackPush(upcomingStack, p_semicolon);
-                parseStackPush(upcomingStack, p_rvalue);
-                parseStackPush(upcomingStack, p_goto);
-            }
-            else if (!strcmp(nextToken, "return"))
-            {
-                parseStackPush(upcomingStack, p_optionalrvalue);
-                parseStackPush(upcomingStack, p_return);
-            }
-            else
-            {
-                /* name : statement
-                 * what even is this production intended to mean?
-                if (isalpha(lookahead()))
-                {
-                    printf("SWITCH CASE\n");
-                    parseStackPush(upcomingStack, p_statement);
-                    parseStackPush(upcomingStack, p_colon);
-                    parseStackPush(upcomingStack, p_name);
-                }
-                else 
-                
-                if (lookahead() == '{')
-                {
-                    // { {statement}0 }
-                    // NOTE - current production DOES NOT support optional statements ({}), there MUST be something in between the curly braces
-                    parseStackPush(upcomingStack, p_rcurly);
-                    parseStackPush(upcomingStack, p_statementlist);
-                    parseStackPush(upcomingStack, p_lcurly);
-                }
-                else
-                {
-                    parseStackPush(upcomingStack, p_optionalrvalue);
-                }
-            }
-            break;
-
-        case p_auto:
-            match(t_auto);
-            break;
-
-        case p_extrn:
-            match(t_extrn);
-            break;
-
-        case p_case:
-            match(t_case);
-            break;
-
-        case p_if:
-            match(t_if);
-            break;
-
-        case p_while:
-            match(t_while);
-            break;
-
-        case p_switch:
-            match(t_switch);
-            break;
-
-        case p_goto:
-            match(t_goto);
-            break;
-
-        case p_return:
-            match(t_return);
-            break;
-
-        case p_name:
-            match(t_name);
-            break;
-
-        case p_lparen:
-            match(t_lParen);
-            break;
-
-        case p_rparen:
-            match(t_rParen);
-            break;
-
-        case p_lcurly:
-            match(t_lCurly);
-            break;
-
-        case p_rcurly:
-            match(t_rCurly);
-            break;
-
-        case p_namelist:
-            if (lookahead() == ',')
-            {
-                consume(t_comma);
-            }
-            if (isalpha(lookahead()))
-            {
-                parseStackPush(upcomingStack, p_namelist);
-                parseStackPush(upcomingStack, p_name);
-            }
-            break;
-        case p_optionalnamelist:
-            if (isalpha(lookahead()))
-            {
-                parseStackPush(upcomingStack, p_namelist);
-            }
-            else
-            {
-                printf("Optional name List not present\n");
-            }
-            break;
-        case p_optionalivallist:
-            if (isalpha(lookahead()) || isdigit(lookahead()))
-            {
-                parseStackPush(upcomingStack, p_ivallist);
-            }
-            else
-            {
-                printf("Optional ival List not present\n");
-            }
-            break;
-        case p_optionalrvalue:
-            // get both the next and second next token
-            lookaheadToken();
-
-            switch (currentToken)
-            {
-            case t_lParen: // ( rvalue )
-                parseStackPush(upcomingStack, p_rparen);
-                parseStackPush(upcomingStack, p_rvalue);
-                parseStackPush(upcomingStack, p_lparen);
-                break;
-            case t_name: // production starts with lvalue
-                matchlvalue();
-                if (lookahead() == '=')
-                {
-                    parseStackPush(upcomingStack, p_rvalue);
-                    parseStackPush(upcomingStack, p_assign);
-                } // NEED ELSE CASE FOR inc-dec
-                break;
-            case t_binMultiply:                // NEED TO ADD rvalue[rvalue] SUPPORT FOR ARRAYS
-                matchlvalue();
-                if (lookahead() == '=')
-                {
-                    parseStackPush(upcomingStack, p_rvalue);
-                    parseStackPush(upcomingStack, p_assign);
-                } // NEED ELSE CASE FOR inc-dec
-                break;
-
-            case t_constant:
-                parseStackPush(upcomingStack, p_constant);
-                break;
-            // need support for inc-dec
-            case t_binAnd:
-                parseStackPush(upcomingStack, p_ampersand);
-                parseStackPush(upcomingStack, p_lvalue);
-                break;
-            default:
-                switch (secondToken)
-                {
-                case t_binEquals:
-                case t_binOr:
-                case t_binAnd:
-                case t_binNotEquals:
-                case t_binLThan:
-                case t_binLThanE:
-                case t_binGThan:
-                case t_binGThanE:
-                case t_binRShift:
-                case t_binLShift:
-                case t_binMinus:
-                case t_binPlus:
-                case t_binMod:
-                case t_binMultiply:
-                case t_binDivide: // rvalue binary rvalue
-                    parseStackPush(upcomingStack, p_rvalue);
-                    parseStackPush(upcomingStack, p_binary);
-                    parseStackPush(upcomingStack, p_rvalue);
-                    break;
-
-                case t_unEquals: // lvalue assign rvalue
-                    printf("YEAH YEAH\n");
-                    parseStackPush(upcomingStack, p_rvalue);
-                    parseStackPush(upcomingStack, p_assign);
-                    parseStackPush(upcomingStack, p_lvalue);
-                    break;
-
-                case '?':
-                    parseStackPush(upcomingStack, p_rvalue);
-                    parseStackPush(upcomingStack, p_colon);
-                    parseStackPush(upcomingStack, p_rvalue);
-                    parseStackPush(upcomingStack, p_ternary);
-                    parseStackPush(upcomingStack, p_rvalue);
-                }
-            }
-
-            /*
-            switch (l)
-            {
-            case '(': // ( rvalue )
-                parseStackPush(upcomingStack, p_rparen);
-                parseStackPush(upcomingStack, p_rvalue);
-                parseStackPush(upcomingStack, p_lparen);
-                break;
-            case '=': // unary rvalue
-            case '-':
-            case '!':
-                parseStackPush(upcomingStack, p_rvalue);
-                parseStackPush(upcomingStack, p_unary);
-                break;
-
-            case '&':
-                parseStackPush(upcomingStack, p_rvalue);
-                parseStackPush(upcomingStack, p_ampersand);
-                break;
-
-            }
-            break;
-            
-
-        case p_optionalconstant:
-            if (isdigit(lookahead()))
-            {
-                parseStackPush(upcomingStack, p_constant);
-            }
-            else
-            {
-                printf("Optional Constant not present\n");
-            }
-            break;
-        case p_semicolon:
-            match(t_semicolon);
-        }
-
-        /*
-        // keep track of what's being worked on so we can shift and reduce
-        parseStackPush(inProgressStack, currentProduction);
-        switch (inProgressStack->bottom->productionType)
-        {
-            // case for all production types
-            // whenever we see something *not* in that production
-            // decide somehow to reduce and how to build the tree
-        default:
-            break;
-        }
-        
-    }
-}*/
 
 // productions explicitly enumerated by the grammar in the handbook
 struct astNode *parseProgram();
@@ -1224,6 +818,8 @@ struct astNode *parseDefinition()
             printf("yowch\n");
         }
     }
+    printf("Done parsing definition:\n");
+    printAST(definition, 0);
     return definition;
 }
 
@@ -1326,12 +922,14 @@ struct astNode *parseStatement()
     }
 
     printf("done parsing statement\n");
+    //printAST(statement, 0);
     return statement;
 }
 
 struct astNode *parseStatementList()
 {
     lookaheadToken();
+    return NULL;
 }
 
 struct astNode *parseRvalue()
@@ -1342,104 +940,26 @@ struct astNode *parseRvalue()
     lookaheadToken();
     switch (currentToken)
     {
+    case t_name:
+        rValue2 = match(t_name);
+        break;
+    case t_constant:
+        rValue2 = match(t_constant);
+        break;
     case t_lParen:
         consume(t_lParen);
-        rValue = parseRvalue();
+        rValue2 = parseRvalue();
         consume(t_rParen);
         break;
-
-    case t_constant:
-        rValue = match(t_constant);
-        break;
-
-    // unary rvalue
-    case t_unMinus:
-        rValue = match(t_unMinus);
-        astNode_insertChild(rValue, parseRvalue());
-        break;
-
-    case t_unNot:
-        rValue = match(t_unNot);
-        astNode_insertChild(rValue, parseRvalue());
-        break;
-
-    case t_binAnd:
-        rValue = match(t_binAnd);
-        astNode_insertChild(rValue, parseLvalue());
-        break;
-
-    case t_name:
-    case t_binMultiply: // lvalue
-                        // NOTE rvalue[rvalue] NOT INCUDED YET
-        rValue2 = parseLvalue();
-        lookaheadToken();
-        switch (currentToken)
-        {
-        case t_binEquals:
-            rValue = match(t_unEquals);
-            astNode_insertChild(rValue, rValue2);
-            astNode_insertChild(rValue, parseRvalue());
-            break;
-            // NEED TO ADD CASES FOR INC-DEC
-        }
-        break;
-
-    default:
-        rValue2 = parseRvalue();
-        lookaheadToken();
-        switch (currentToken)
-        {
-        case t_binOr:
-        case t_binAnd:
-        case t_binEquals:
-        case t_binNotEquals:
-        case t_binLThan:
-        case t_binLThanE:
-        case t_binGThan:
-        case t_binGThanE:
-        case t_binLShift:
-        case t_binRShift:
-        case t_binMinus:
-        case t_binPlus:
-        case t_binMod:
-        case t_binMultiply:
-        case t_binDivide: // rvalue binary rvalue
-            rValue = match(currentToken);
-            astNode_insertChild(rValue, rValue2);
-            astNode_insertChild(rValue, parseRvalue());
-            break;
-
-        case t_ternary: // rvalue ? rvalue : rvalue
-            rValue = match(t_ternary);
-            astNode_insertChild(rValue, rValue2);
-            astNode_insertChild(rValue, parseRvalue());
-            consume(t_colon);
-            astNode_insertChild(rValue, parseRvalue());
-            break;
-        default:
-            printf("Error parsing rvalue [%s]\n", buffer);
-            rValue = NULL;
-        }
-        /*if (isalpha(lookahead())) // all lvalue cases
-        {
-            struct astNode *lValue = parseLvalue();
-            if (lookahead() == '=') // lvalue assign rvalue
-            {
-                rValue = match(t_unEquals);
-                astNode_insertChild(rValue, lValue);
-                astnode_insertChild(rValue, parseRvalue());
-            }
-            else // lvalue
-            {
-                rValue = lValue;
-            }
-        }
-        else
-        {
-            // sad
-            rValue = NULL;
-        }*/
     }
+
+    lookaheadToken();
+    switch (currentToken)
+    {
+        case t_unEquals:
+        
+    }
+
     return rValue;
 }
 

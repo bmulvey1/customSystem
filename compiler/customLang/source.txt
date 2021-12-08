@@ -1,9 +1,15 @@
-v a = 2;
-v b = 3;
-# this function fucking sucks
-f qwerty(){
-    v c;
-    c = b - (a + 2);
-    v asdf = b + c;
+var a = 2;
+var b = 3;
+# this function sucks but this is a comment
+fun qwerty(var x, var y, var z){
+    var c;
+    var d;
+    var f;
+    c = b - a + 2;
+    #var asdf = b + c;
+}
+
+fun notFun(var argument1, var argument2){
+    var result = argument1 + argument2;
 }
 $$
