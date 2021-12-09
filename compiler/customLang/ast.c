@@ -36,7 +36,7 @@ void printAST(struct astNode *it, int depth)
     if (it->sibling != NULL)
         printAST(it->sibling, depth);
 
-    for (int i = 0; i < depth - 1; i++)
+    for (int i = 0; i < depth; i++)
         printf("\t");
     
     printf("%s\n", it->value);

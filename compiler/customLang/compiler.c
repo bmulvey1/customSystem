@@ -27,7 +27,7 @@ struct symbolTable
 
 struct symTabEntry
 {
-    char* name;
+    char *name;
     enum symTabEntryType type;
     void *entry;
 };
@@ -42,7 +42,7 @@ struct functionEntry
     struct symbolTable *table;
 };
 
-struct symTabEntry *newEntry(char* name, enum symTabEntryType type)
+struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
 {
     struct symTabEntry *wip = malloc(sizeof(struct symTabEntry));
     wip->name = name;
@@ -84,7 +84,8 @@ int symbolTableContains(struct symbolTable *table, char *name)
     return 0;
 }
 
-struct symTabEntry* symbolTableLookup(struct symbolTable *table, char *name){
+struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name)
+{
     for (int i = 0; i < table->size; i++)
         if (!strcmp(table->entries[i]->name, name))
             return table->entries[i];
@@ -92,9 +93,10 @@ struct symTabEntry* symbolTableLookup(struct symbolTable *table, char *name){
     exit(1);
 }
 
-void symTabInsert(struct symbolTable *table, char* name, void *newEntry, enum symTabEntryType type)
+void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum symTabEntryType type)
 {
-    if(symbolTableContains(table, name)){
+    if (symbolTableContains(table, name))
+    {
         printf("Error defining symbol [%s] - name already exists!\n", name);
         exit(1);
     }
@@ -136,20 +138,19 @@ void printSymTabRec(struct symbolTable *it, int depth)
         {
         case e_variable:
         {
-            struct variableEntry* theVariable = it->entries[i]->entry;
+            struct variableEntry *theVariable = it->entries[i]->entry;
             printf("> variable [%s]: (lifespan %d:%d)\n", it->entries[i]->name, theVariable->lsStart, theVariable->lsEnd);
         }
-            break;
+        break;
 
         case e_function:
         {
-            struct functionEntry* theFunction = it->entries[i]->entry;
+            struct functionEntry *theFunction = it->entries[i]->entry;
             printf("> function [%s]: %d symbols\n", it->entries[i]->name, theFunction->table->size);
             printSymTabRec(theFunction->table, depth + 1);
         }
-            break;
+        break;
         }
-        
     }
     for (int i = 0; i < depth; i++)
         printf("\t");
@@ -235,8 +236,135 @@ struct symbolTable *walkAST(struct astNode *it)
     return wip;
 }
 
+struct tacLine
+{
+    char *result, *leftOperand, *rightOperand;
+    enum token operation;
+};
+
+struct tacLine *newtacLine(char *result, char *leftOperand, char *rightOperand, enum token operation)
+{
+    struct tacLine *wip = malloc(sizeof(struct tacLine));
+    wip->result = result;
+    wip->leftOperand = leftOperand;
+    wip->rightOperand = rightOperand;
+    wip->operation = operation;
+    return wip;
+}
+
+int linearizeOperation(struct astNode *it, int tempNum, int depth)
+{
+    char *outString = malloc(1024 * sizeof(char));
+    char *outStringStart = outString;
+    if (depth > 0)
+    {
+        outString += sprintf(outString, "temp%d = ", tempNum);
+    }
+    else
+    {
+        outString += sprintf(outString, "result = ");
+    }
+    // check for subexpression on left side
+    if (it->child->type == t_unOp)
+    {
+        outString += sprintf(outString, "temp%d ", tempNum + 1);
+        tempNum = linearizeOperation(it->child, tempNum + 1, depth + 1);
+    }
+    else
+    {
+        outString += sprintf(outString, "%s ", it->child->value);
+    }
+    outString += sprintf(outString, "%s ", it->value);
+
+    // check for subexpression on right side
+    if (it->child->sibling->type == t_unOp)
+    {
+        outString += sprintf(outString, "temp%d ", tempNum + 1);
+        tempNum = linearizeOperation(it->child->sibling, tempNum + 1, depth + 1);
+    }
+    else
+    {
+        outString += sprintf(outString, it->child->sibling->value);
+    }
+    printf("%s\n", outStringStart);
+    return tempNum;
+}
+
+// this function is going to get very unpleasant
+int linearizeExpression(struct astNode *it, int tempNum, int depth)
+{
+    struct astNode *runner = it;
+    char *outString = malloc(1024 * sizeof(char));
+    char *outStringStart = outString;
+    while (runner != NULL)
+    {
+        //printf("%s\n", getTokenName(runner->type));
+        switch (runner->type)
+        {
+        case t_unOp:
+            tempNum = linearizeOperation(runner, tempNum, 0);
+
+            break;
+        case t_name:
+        case t_literal:
+            outString += sprintf(outString, "%s ", runner->value);
+            break;
+
+        default:
+            printf("something broke :( %s\n", getTokenName(runner->type));
+            //exit(1);
+        }
+        for (int i = 0; i < 0xfffffff; i++)
+        {
+        }
+        runner = runner->sibling;
+    }
+    outString += sprintf(outString, "\n");
+    printf(outStringStart);
+    free(outString);
+    return tempNum;
+}
+
+void linearizeAST(struct astNode *it)
+{
+    struct astNode *runner = it;
+    runner = runner->sibling;
+    while (runner != NULL)
+    {
+        switch (runner->type)
+        {
+        case t_var:
+            if (runner->child->type == t_assign)
+            {
+                // getting multiple children is confusing but necessary
+                // is there a more elegant way to write this?z
+                //printf("%s = ", runner->child->child->value);
+                linearizeExpression(runner->child->child->sibling, 0, 0);
+            }
+            else
+                printf("initialize variable [%s]\n", runner->child->value);
+            break;
+
+        case t_fun:
+            linearizeAST(runner->child);
+            break;
+
+        case t_assign:
+            //printf("%s = ", runner->child->value);
+            linearizeExpression(runner->child->sibling, 0, 0);
+            break;
+
+        default:
+            printf("Something broke :(\n");
+            exit(1);
+        }
+        runner = runner->sibling;
+    }
+}
+
 int main(int argc, char **argv)
 {
+    
     printf("%s\n", argv[1]);
 
     struct astNode *program = parseProgram(argv[1]);
@@ -245,5 +373,6 @@ int main(int argc, char **argv)
 
     struct symbolTable *theTable = walkAST(program);
     printSymTab(theTable);
+    linearizeAST(program);
     printf("done printing\n");
 }
