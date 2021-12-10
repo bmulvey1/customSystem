@@ -238,97 +238,176 @@ struct symbolTable *walkAST(struct astNode *it)
 
 struct tacLine
 {
-    char *result, *leftOperand, *rightOperand;
-    enum token operation;
+    char *addresses[3];
+    char *operation;
+    struct tacLine *nextLine;
+    struct tacLine *prevLine;
 };
 
-struct tacLine *newtacLine(char *result, char *leftOperand, char *rightOperand, enum token operation)
+struct tacLine *newtacLine()
 {
     struct tacLine *wip = malloc(sizeof(struct tacLine));
-    wip->result = result;
-    wip->leftOperand = leftOperand;
-    wip->rightOperand = rightOperand;
-    wip->operation = operation;
     return wip;
 }
 
-int linearizeOperation(struct astNode *it, int tempNum, int depth)
+// stick the child at the end of the parent
+void appendTAC(struct tacLine *parent, struct tacLine *child)
 {
-    char *outString = malloc(1024 * sizeof(char));
-    char *outStringStart = outString;
+    struct tacLine *runner = parent;
+    while (runner->nextLine != NULL)
+        runner = runner->nextLine;
+
+    runner->nextLine = child;
+    child->prevLine = runner;
+}
+
+void printTacLine(struct tacLine *it)
+{
+    while (it != NULL)
+    {
+        printf("\t%8s = %8s %2s %8s\n", it->addresses[0], it->addresses[1], it->operation, it->addresses[2]);
+        it = it->nextLine;
+    }
+}
+
+struct tacLine *prependTAC(struct tacLine *parent, struct tacLine *child)
+{
+    struct tacLine *runner = child;
+    while (runner->nextLine != NULL)
+        runner = runner->nextLine;
+
+    runner->nextLine = parent;
+    return child;
+}
+
+
+struct tacLine *linearizeOperation(struct astNode *it, int *tempNum, int depth)
+{
+    printf("LINEARIZING\n");
+    printAST(it, 0);
+    //char *outString = malloc(1024 * sizeof(char));
+    //char *outStringStart = outString;
+    struct tacLine *thisOperation = newtacLine();
+    struct tacLine *returnOperation = NULL;
     if (depth > 0)
     {
-        outString += sprintf(outString, "temp%d = ", tempNum);
+        thisOperation->addresses[0] = malloc(7 * sizeof(char));
+        sprintf(thisOperation->addresses[0], "temp%d", *tempNum);
+        if(tempNum == 0){
+            printf("FUCK\n\n");
+        }
+        //outString += sprintf(outString, "temp%d = ", *tempNum);
+        (*tempNum)++;
     }
     else
     {
-        outString += sprintf(outString, "result = ");
+        thisOperation->addresses[0] = "result";
+        //outString += sprintf(outString, "result = ");
     }
+
     // check for subexpression on left side
     if (it->child->type == t_unOp)
     {
-        outString += sprintf(outString, "temp%d ", tempNum + 1);
-        tempNum = linearizeOperation(it->child, tempNum + 1, depth + 1);
+        // allocate enough space to store 'tempxx' - will break with >99 temps
+        thisOperation->addresses[1] = malloc(7 * sizeof(char));
+        sprintf(thisOperation->addresses[1], "temp%d", *tempNum);
+        //outString += sprintf(outString, "temp%d ", *tempNum);
+        returnOperation = prependTAC(thisOperation, linearizeOperation(it->child, tempNum, depth + 1));
     }
     else
     {
-        outString += sprintf(outString, "%s ", it->child->value);
+        thisOperation->addresses[1] = it->child->value;
+        //outString += sprintf(outString, "%s ", it->child->value);
     }
-    outString += sprintf(outString, "%s ", it->value);
+
+    // operator
+    //outString += sprintf(outString, "%s ", it->value);
+    thisOperation->operation = it->value;
 
     // check for subexpression on right side
     if (it->child->sibling->type == t_unOp)
     {
-        outString += sprintf(outString, "temp%d ", tempNum + 1);
-        tempNum = linearizeOperation(it->child->sibling, tempNum + 1, depth + 1);
+        // allocate enough space to store 'tempxx' - will break with >99 temps
+        thisOperation->addresses[2] = malloc(6 * sizeof(char));
+        sprintf(thisOperation->addresses[2], "temp%d", *tempNum);
+        //outString += sprintf(outString, "temp%d ", *tempNum);
+        returnOperation = prependTAC(thisOperation, linearizeOperation(it->child->sibling, tempNum, depth + 1));
     }
     else
     {
-        outString += sprintf(outString, it->child->sibling->value);
+        thisOperation->addresses[2] = it->child->sibling->value;
+        //outString += sprintf(outString, it->child->sibling->value);
     }
-    printf("%s\n", outStringStart);
-    return tempNum;
+    //printf("%s\n", outStringStart);
+    //free(outString);
+    if (returnOperation != NULL){
+        printTacLine(returnOperation);
+        printf("\tdone.\n\n");
+        return returnOperation;
+    }else{
+        printTacLine(thisOperation);
+        printf("\tdone.\n\n");
+
+        return thisOperation;
+    }
 }
 
 // this function is going to get very unpleasant
-int linearizeExpression(struct astNode *it, int tempNum, int depth)
+struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, int depth)
 {
+
     struct astNode *runner = it;
-    char *outString = malloc(1024 * sizeof(char));
-    char *outStringStart = outString;
+    //char *outString = malloc(1024 * sizeof(char));
+    //char *outStringStart = outString;
+    struct tacLine *thisExpression = newtacLine();
+    struct tacLine *returnExpression = NULL;
+    int addressIndex = 0;
+    if (depth > 0)
+    {
+        //(*tempNum)++;
+    }
     while (runner != NULL)
     {
         //printf("%s\n", getTokenName(runner->type));
         switch (runner->type)
         {
         case t_unOp:
-            tempNum = linearizeOperation(runner, tempNum, 0);
+            thisExpression->addresses[addressIndex] = malloc(6 * sizeof(char));
+            sprintf(thisExpression->addresses[addressIndex++], "temp%d", *tempNum);
+            thisExpression->operation = runner->value;
+            if (returnExpression == NULL)
+                returnExpression = prependTAC(thisExpression, linearizeOperation(runner, tempNum, 0));
+            else
+                returnExpression = prependTAC(returnExpression, linearizeOperation(runner, tempNum, 0));
 
             break;
         case t_name:
         case t_literal:
-            outString += sprintf(outString, "%s ", runner->value);
+            thisExpression->addresses[addressIndex++] = runner->value;
+            //outString += sprintf(outString, "%s ", runner->value);
             break;
 
         default:
             printf("something broke :( %s\n", getTokenName(runner->type));
             //exit(1);
         }
-        for (int i = 0; i < 0xfffffff; i++)
-        {
-        }
+        printf("skip to sibling\n");
         runner = runner->sibling;
     }
-    outString += sprintf(outString, "\n");
-    printf(outStringStart);
-    free(outString);
-    return tempNum;
+    //outString += sprintf(outString, "\n");
+    //printf(outStringStart);
+    //free(outString);
+    if (returnExpression != NULL)
+        return returnExpression;
+    else
+        return thisExpression;
 }
 
-void linearizeAST(struct astNode *it)
+struct tacLine *linearizeAST(struct astNode *it)
 {
     struct astNode *runner = it;
     runner = runner->sibling;
+    struct tacLine *asttac = NULL;
     while (runner != NULL)
     {
         switch (runner->type)
@@ -339,19 +418,21 @@ void linearizeAST(struct astNode *it)
                 // getting multiple children is confusing but necessary
                 // is there a more elegant way to write this?z
                 //printf("%s = ", runner->child->child->value);
-                linearizeExpression(runner->child->child->sibling, 0, 0);
+                int tempNum = 0;
+                asttac = prependTAC(asttac, linearizeExpression(runner->child->child->sibling, &tempNum, 0));
             }
             else
                 printf("initialize variable [%s]\n", runner->child->value);
             break;
 
         case t_fun:
-            linearizeAST(runner->child);
+            asttac = prependTAC(asttac, linearizeAST(runner->child));
             break;
 
         case t_assign:
             //printf("%s = ", runner->child->value);
-            linearizeExpression(runner->child->sibling, 0, 0);
+            int tempNum = 0;
+            asttac = prependTAC(asttac, linearizeExpression(runner->child->sibling, &tempNum, 0));
             break;
 
         default:
@@ -360,11 +441,12 @@ void linearizeAST(struct astNode *it)
         }
         runner = runner->sibling;
     }
+    return asttac;
 }
 
 int main(int argc, char **argv)
 {
-    
+
     printf("%s\n", argv[1]);
 
     struct astNode *program = parseProgram(argv[1]);
@@ -373,6 +455,19 @@ int main(int argc, char **argv)
 
     struct symbolTable *theTable = walkAST(program);
     printSymTab(theTable);
-    linearizeAST(program);
+    struct tacLine *theTAC = linearizeAST(program);
+    printTacLine(theTAC);
+    struct tacLine *t1 = newtacLine();
+    struct tacLine *t2 = newtacLine();
+    struct tacLine *t3 = newtacLine();
+    t1->addresses[0] = "a";
+    t2->addresses[0] = "b";
+    t3->addresses[0] = "c";
+
+    struct tacLine *head = prependTAC(NULL, t3);
+    head = prependTAC(head, t2);
+    head = prependTAC(head, t1);
+    printTacLine(head);
+
     printf("done printing\n");
 }

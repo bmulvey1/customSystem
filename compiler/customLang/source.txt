@@ -6,7 +6,7 @@ fun qwerty(var x, var y, var z){
     var d;
     var f;
     c = (b - a) + (2 + (b - 1));
-    f = (c + a) - (d + z);
+    #f = (c + a) - (d + z);
     #var asdf = b + c;
 }
 
