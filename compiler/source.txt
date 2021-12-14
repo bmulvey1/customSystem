@@ -1,4 +1,16 @@
-function(variablea, variableb, argumentc){
-    auto variabled;
-    variabled = variablea + variableb;
+var a = 2;
+var b = 3;
+# this function sucks but this is a comment
+fun qwerty(var x, var y, var z){
+    var c;
+    var d;
+    var f;
+    c = (b - a) + (2 + (b - 1));
+    f = (c + a) - (d + z);
+    #var asdf = b + c;
 }
+
+fun notFun(var argument1, var argument2){
+    var compute = argument1 + argument2;
+}
+$$

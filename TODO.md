@@ -1,3 +1,5 @@
 # TODO
 ## Compiler
- - scanner EOF handling? man that's so c
+
+linearizeFunction()
+ -  temp numbering skips 1 index in between statements `[qol/minor]`
