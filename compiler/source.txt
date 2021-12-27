@@ -11,6 +11,6 @@ fun qwerty(var x, var y, var z){
 }
 
 fun notFun(var argument1, var argument2){
-    var compute = argument1 + argument2;
+    var compute = argument1 + (argument2 - 1);
 }
 $$

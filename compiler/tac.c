@@ -8,17 +8,18 @@ struct tacLine *newtacLine()
 
 void printTacLine(struct tacLine *it)
 {
+    int lineIndex = 0;
     while (it != NULL)
     {
-        printf("\t%8s = %8s %2s %8s\n", it->addresses[0], it->addresses[1], it->operation, it->addresses[2]);
+        printf("\t%2d:%8s = %8s %2s %8s\n", lineIndex++, it->addresses[0], it->addresses[1], it->operation, it->addresses[2]);
         it = it->nextLine;
     }
 }
 
 // stick the child at the end of the parent
-struct tacLine* appendTAC(struct tacLine *parent, struct tacLine *child)
+struct tacLine *appendTAC(struct tacLine *parent, struct tacLine *child)
 {
-    if(parent == NULL)
+    if (parent == NULL)
         return child;
 
     struct tacLine *runner = parent;

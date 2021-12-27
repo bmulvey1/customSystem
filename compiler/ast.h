@@ -1,5 +1,7 @@
 #include <stdlib.h>
 
+#pragma once
+
 enum token
 {
     t_var,

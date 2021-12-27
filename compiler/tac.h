@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+
+#pragma once
+
 struct tacLine
 {
     char *addresses[3];
@@ -7,6 +10,7 @@ struct tacLine
     struct tacLine *nextLine;
     struct tacLine *prevLine;
 };
+
 void printTacLine(struct tacLine *it);
 
 struct tacLine *newtacLine();
