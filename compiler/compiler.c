@@ -5,10 +5,8 @@
 #include "parser.h"
 #include "tac.h"
 #include "symtab.h"
-/*
- * SYMBOL TABLE utilities
- *
- */
+
+// walk the AST and generate a symbol table
 struct symbolTable *walkAST(struct astNode *it)
 {
     printf("Walking ast...\n");
@@ -83,56 +81,90 @@ struct symbolTable *walkAST(struct astNode *it)
     return wip;
 }
 
-// this function is going to get very unpleasant
+/*
+~~~~~Symbol table for [Program]
+> variable [a]: (lifespan 0:0)
+> variable [b]: (lifespan 0:0)
+> function [qwerty]: 6 symbols
+    ~~~~~Symbol table for [qwerty]
+    > variable [x]: (lifespan 0:0)
+    > variable [y]: (lifespan 0:0)
+    > variable [z]: (lifespan 0:0)
+    > variable [c]: (lifespan 0:0)
+    > variable [d]: (lifespan 0:0)
+    > variable [f]: (lifespan 0:0)
+
+     0:   temp3 =        b  -        1
+     1:   temp2 =        2  +    temp3
+     2:   temp1 =        b  -        a
+     3:       c =    temp1  +    temp2
+     4:   temp6 =        d  +        z
+     5:   temp5 =        c  +        a
+     6:       f =    temp5  -    temp6
+> function [notFun]: 3 symbols
+    ~~~~~Symbol table for [notFun]
+    > variable [argument1]: (lifespan 0:0)
+    > variable [argument2]: (lifespan 0:0)
+    > variable [compute]: (lifespan 0:0)
+
+     0:   temp1 = argument2  -        1
+     1: compute = argument1  +    temp1
+
+done printing
+
+
+
+
+
+
+
+*/
+/*
+ * These functions walk the AST and convert it to three-address code
+ */
 struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, int depth)
 {
-    // printf("LINEARIZING\n");
-    // printAST(it, 0);
-    // char *outString = malloc(1024 * sizeof(char));
-    // char *outStringStart = outString;
     struct tacLine *thisExpression = newtacLine();
     struct tacLine *returnExpression = NULL;
-    // int addressIndex = 0;
+
+    /*
+     * sort of hacky solution to dealing with parsing only the right hand side of the AST when depth = 0
+     */
     if (depth == 0 && it->child->sibling->type == t_unOp)
     {
         return linearizeExpression(it->child->sibling, tempNum, depth + 1);
     }
-    thisExpression->addresses[0] = malloc(7 * sizeof(char));
-    sprintf(thisExpression->addresses[0], "temp%d", *tempNum);
-    if (tempNum == 0)
-    {
-        printf("FUCK\n\n");
-        exit(1);
-    }
-    // outString += sprintf(outString, "temp%d = ", *tempNum);
+
+    // increment count of temp variables, the parse of this expression will be written to a temp
+    thisExpression->addresses[0] = malloc(4 * sizeof(char));
+    sprintf(thisExpression->addresses[0], "t%d", *tempNum);
+
     (*tempNum)++;
-    // printf("checking l child\n");
-    if (it->child == NULL)
-        printf("OOPS\n");
+
+    // check left child
     if (it->child->type == t_unOp)
     {
-        // printf("L: see unop, recursing\n");
-        //  allocate enough space to store 'tempxx' - will break with >99 temps
-        thisExpression->addresses[1] = malloc(7 * sizeof(char));
-        sprintf(thisExpression->addresses[1], "temp%d", *tempNum);
-        // outString += sprintf(outString, "temp%d ", *tempNum);
+        // found another operator, so will need to use more temporary variables (recurse deeper)
+        //  allocate enough space to store 'txx' - will break with >99 temps
+        thisExpression->addresses[1] = malloc(4 * sizeof(char));
+        sprintf(thisExpression->addresses[1], "t%d", *tempNum);
         returnExpression = prependTAC(thisExpression, linearizeExpression(it->child, tempNum, depth + 1));
     }
     else
     {
-        // printf("L: see value\n");
+        // otherwise we just have an existing variable, write it to the corresponding address in the TAC line
         thisExpression->addresses[1] = it->child->value;
-        // outString += sprintf(outString, "%s ", it->child->value);
     }
     thisExpression->operation = it->value;
-    // printf("checking r child\n");
+
+    // check right child, same as left but with correct address index
     if (it->child->sibling->type == t_unOp)
     {
-        // printf("R: see unop, recursing\n"); 0:
-        //  allocate enough space to store 'tempxx' - will break with >99 temps
-        thisExpression->addresses[2] = malloc(7 * sizeof(char));
-        sprintf(thisExpression->addresses[2], "temp%d", *tempNum);
-        // outString += sprintf(outString, "temp%d ", *tempNum);
+        thisExpression->addresses[2] = malloc(4 * sizeof(char));
+        sprintf(thisExpression->addresses[2], "t%d", *tempNum);
+
+        // when recursing, we need to prepend this line so things happen in the correct order
+        // figure out what to prepend to, then set the return expression TACline to the head of the block
         if (returnExpression != NULL)
             returnExpression = prependTAC(returnExpression, linearizeExpression(it->child->sibling, tempNum, depth + 1));
         else
@@ -140,41 +172,11 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, int depth)
     }
     else
     {
-        // printf("R: see value\n");
         thisExpression->addresses[2] = it->child->sibling->value;
-        // outString += sprintf(outString, "%s ", it->child->value);
     }
 
-    /*while (runner != NULL)
-    {
-        //printf("%s\n", getTokenName(runner->type));
-        switch (runner->type)
-        {
-        case t_unOp:
-            printf("see unop\n");
-            thisExpression->addresses[addressIndex] = malloc(6 * sizeof(char));
-            sprintf(thisExpression->addresses[addressIndex++], "temp%d", *tempNum);
-            thisExpression->operation = runner->value;
-            if (returnExpression == NULL)
-                returnExpression = prependTAC(thisExpression, linearizeExpression(runner, tempNum, 0));
-            else
-                returnExpression = prependTAC(returnExpression, linearizeExpression(runner, tempNum, 0));
-
-            break;
-        case t_name:
-        case t_literal:
-            thisExpression->addresses[addressIndex++] = runner->value;
-            //outString += sprintf(outString, "%s ", runner->value);
-            break;
-
-        default:
-            printf("something broke :( %s\n", getTokenName(runner->type));
-            //exit(1);
-        }
-        printf("skip to sibling\n");
-        runner = runner->sibling;
-    }*/
-
+    // if we have prepended, make sure to return the first line of TAC
+    // otherwise there is only one line of TAC to return, so return that
     if (returnExpression != NULL)
         return returnExpression;
     else
@@ -229,12 +231,8 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
         {
         case t_fun:
         {
-            printf("Linearizing function %s\n", runner->child->value);
-            struct functionEntry* theFunction = symbolTableLookup(table, runner->child->value)->entry;
-            printAST(runner, 0);
-            struct tacLine* generatedTAC = linearizeFunction(runner->child->sibling);
-            printf("linearized to:\n");
-            printTacLine(generatedTAC);
+            struct functionEntry *theFunction = symbolTableLookup(table, runner->child->value)->entry;
+            struct tacLine *generatedTAC = linearizeFunction(runner->child->sibling);
             printf("\n");
             theFunction->codeBlock = generatedTAC;
             break;
@@ -247,16 +245,84 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
     }
 }
 
+struct Lifetime
+{
+    int start, end;
+    char *variable;
+    struct Lifetime *next;
+};
+
+struct Lifetime *newLifetime(char *variable, int start)
+{
+    struct Lifetime *wip = malloc(sizeof(struct Lifetime));
+    wip->variable = variable;
+    wip->start = start;
+    wip->end = start;
+    return wip;
+}
+
+void findLifetimes(struct functionEntry *function)
+{
+    struct Lifetime *ltList = NULL;
+    struct Lifetime *ltTail = NULL;
+    int lineIndex = 0;
+    for (struct tacLine *line = function->codeBlock; line != NULL; line = line->nextLine)
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            char *varName = line->addresses[i];
+
+            int found = 0;
+            for (struct Lifetime *runner = ltList; runner != NULL; runner = runner->next)
+            {
+                if (!strcmp(varName, runner->variable))
+                {
+                    runner->end = lineIndex;
+                    found = 1;
+                }
+            }
+            if (!found)
+            {
+                if (ltList == NULL)
+                {
+                    ltList = newLifetime(varName, lineIndex);
+                    ltTail = ltList;
+                }
+                else
+                {
+                    ltTail->next = newLifetime(varName, lineIndex);
+                    ltTail = ltTail->next;
+                }
+            }
+        }
+        lineIndex++;
+    }
+
+    printTacLine(function->codeBlock);
+    for (struct Lifetime *runner = ltList; runner != NULL; runner = runner->next)
+    {
+        printf("%s: %d - %d\n", runner->variable, runner->start, runner->end);
+    }
+}
+
 int main(int argc, char **argv)
 {
     printf("%s\n", argv[1]);
 
     struct astNode *program = parseProgram(argv[1]);
     printf("DONE PARSING PROGRAM\n");
-    printAST(program, 0);
+    // printAST(program, 0);
 
     struct symbolTable *theTable = walkAST(program);
     linearizeProgram(program, theTable);
+    for (int i = 0; i < theTable->size; i++)
+    {
+        if (theTable->entries[i]->type == e_function)
+        {
+            findLifetimes(theTable->entries[i]->entry);
+        }
+    }
+
     printSymTab(theTable);
 
     // printTacLine(head);

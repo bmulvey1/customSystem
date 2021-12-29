@@ -5,7 +5,8 @@ fun qwerty(var x, var y, var z){
     var c;
     var d;
     var f;
-    c = (b - a) + (2 + (b - 1));
+    #d = 3;
+    c = (b - a) + (2 + (d - 1));
     f = (c + a) - (d + z);
     #var asdf = b + c;
 }

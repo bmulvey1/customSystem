@@ -186,27 +186,23 @@ enum token lookaheadToken()
 struct astNode *match(enum token t)
 {
     enum token result = scan();
-    if (result == t)
-    {
-        printf("Matched token [%s] with image of [%s]\n", token_names[t], buffer);
-        struct astNode *retNode = newastNode(t, buffer);
-        return retNode;
-    }
-    else
+    if (result != t)
     {
         printf("Error matching - expected token [%s], got [%s] with image of [%s] instead!\n", token_names[t], token_names[result], buffer);
         exit(1);
     }
+    return newastNode(result, buffer);
 }
 
 // error-checked method to consume expected token with no return
 void consume(enum token t)
 {
     enum token result = scan();
-    if (result == t)
-        printf("Consumed token [%s] with image of [%s]\n", token_names[t], buffer);
-    else
+    if (result != t)
+    {
         printf("Error consuming - expected token [%s], got [%s] with image of [%s] instead!\n", token_names[t], token_names[result], buffer);
+        exit(1);
+    }
 }
 
 char *getTokenName(enum token t)
@@ -344,13 +340,13 @@ struct astNode *parseStatement()
         // check whether or not whether this is an assignment or just a declaration
         if (lookaheadToken() == t_assign)
             astNode_insertChild(statement, parseAssignment(name));
-        else{
+        else
+        {
             printf("var with no assignment\n");
             astNode_insertChild(statement, name);
         }
 
         consume(t_semicolon);
-        
     }
     break;
 
@@ -408,9 +404,7 @@ struct astNode *parseExpression()
     // end of line or end of expression, there isn't anything more than the left side
     case ';':
     case ')':
-        printf("done parsing expression - here's what we got:\n");
         expression = lSide;
-        printAST(expression, 0);
         return expression;
         break;
 
