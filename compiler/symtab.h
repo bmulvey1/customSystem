@@ -10,7 +10,8 @@
 enum symTabEntryType
 {
     e_variable,
-    e_function
+    e_function,
+    e_argument
 };
 
 
@@ -24,6 +25,7 @@ struct symTabEntry
 struct variableEntry
 {
     int lsStart, lsEnd;
+    int isAssigned;
 };
 
 struct functionEntry

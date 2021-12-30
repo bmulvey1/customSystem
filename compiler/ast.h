@@ -17,7 +17,7 @@ enum token
     t_rParen,
     t_lCurly,
     t_rCurly,
-    t_EOF
+    t_EOF,
 };
 
 struct astNode

@@ -50,6 +50,8 @@
         "cinttypes": "cpp",
         "typeinfo": "cpp",
         "symtab.h": "c",
-        "parser.h": "c"
+        "parser.h": "c",
+        "chrono": "c",
+        "variant": "c"
     }
 }

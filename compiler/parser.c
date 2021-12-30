@@ -226,7 +226,7 @@ struct astNode *parseTLDList()
 
         astNode_insertSibling(TLDList, parseTLD());
     }
-    printf("done parsing tld list\n");
+    //printf("done parsing tld list\n");
     return TLDList;
 }
 
@@ -320,7 +320,7 @@ struct astNode *parseStatementList()
         }
     }
 
-    printf("done parsing statement list");
+    //printf("done parsing statement list");
     return stmtList;
 }
 
@@ -342,7 +342,7 @@ struct astNode *parseStatement()
             astNode_insertChild(statement, parseAssignment(name));
         else
         {
-            printf("var with no assignment\n");
+            //printf("var with no assignment\n");
             astNode_insertChild(statement, name);
         }
 
@@ -362,14 +362,14 @@ struct astNode *parseStatement()
         printf("Error parsing statement - saw token [%s]\n", token_names[upcomingToken]);
         exit(1);
     }
-    printf("Done parsing statement- heres what we got\n");
-    printAST(statement, 0);
+    //printf("Done parsing statement- heres what we got\n");
+    //printAST(statement, 0);
     return statement;
 }
 
 struct astNode *parseExpression()
 {
-    printf("parsing expression\n");
+    //printf("parsing expression\n");
     struct astNode *expression = NULL;
 
     // figure out what the left side of the expression is
@@ -414,8 +414,8 @@ struct astNode *parseExpression()
         break;
     }
 
-    printf("done parsing expression - here's what we got:\n");
-    printAST(expression, 0);
+    //printf("done parsing expression - here's what we got:\n");
+    //printAST(expression, 0);
     return expression;
 }
 

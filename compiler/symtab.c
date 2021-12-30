@@ -1,6 +1,6 @@
 #include "symtab.h"
- 
-char* symbolNames[] = {
+
+char *symbolNames[] = {
     "variable",
     "function"};
 
@@ -13,11 +13,14 @@ struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
     return wip;
 }
 
+// isArgument denotes whether or not this variable is an argument
+// if yes, its lifespan will be ignored since it will live for the entire function
 struct variableEntry *newVariableEntry()
 {
     struct variableEntry *wip = malloc(sizeof(struct variableEntry));
     wip->lsStart = 0;
     wip->lsEnd = 0;
+    wip->isAssigned = 0;
     return wip;
 }
 
@@ -51,8 +54,9 @@ struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name)
     for (int i = 0; i < table->size; i++)
         if (!strcmp(table->entries[i]->name, name))
             return table->entries[i];
-    printf("Unable to find symbol [%s]! Something is broken in the compiler :(\n", name);
-    exit(1);
+    
+    // return NULL if not found
+    return NULL;
 }
 
 void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum symTabEntryType type)
@@ -77,7 +81,7 @@ void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum sy
 
 void symTab_insertVariable(struct symbolTable *table, char *name)
 {
-    symTabInsert(table, name, newVariableEntry(name), e_variable);
+    symTabInsert(table, name, newVariableEntry(), e_variable);
 }
 
 void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolTable *subTable)
@@ -98,10 +102,16 @@ void printSymTabRec(struct symbolTable *it, int depth)
 
         switch (it->entries[i]->type)
         {
+        case e_argument:
+        {
+            printf("> argument [%s]\n", it->entries[i]->name);
+        }
+        break;
+
         case e_variable:
         {
             struct variableEntry *theVariable = it->entries[i]->entry;
-            printf("> variable [%s]: (lifespan %d:%d)\n", it->entries[i]->name, theVariable->lsStart, theVariable->lsEnd);
+            printf("> variable [%s]: lifespan %d - %d\n", it->entries[i]->name, theVariable->lsStart, theVariable->lsEnd);
         }
         break;
 
@@ -124,4 +134,3 @@ void printSymTab(struct symbolTable *it)
 {
     printSymTabRec(it, 0);
 }
-
