@@ -6,7 +6,7 @@
 #include "tac.h"
 #include "symtab.h"
 
-// walk the AST and generate a symbol table
+// given an AST node for a program, walk the AST and generate a symbol table for the entire thing
 struct symbolTable *walkAST(struct astNode *it)
 {
     struct symbolTable *wip = newSymbolTable("Program");
@@ -15,12 +15,14 @@ struct symbolTable *walkAST(struct astNode *it)
     {
         switch (runner->type)
         {
+
         case t_var:
             if (runner->child->type == t_assign)
                 symTab_insertVariable(wip, runner->child->child->value);
             else
                 symTab_insertVariable(wip, runner->child->value);
             break;
+
         case t_fun:
         {
             struct astNode *functionNode = runner->child;
@@ -68,6 +70,7 @@ struct symbolTable *walkAST(struct astNode *it)
             }
         }
         break;
+
         default:
             printf("Error walking AST - expected 'v' or function declaration\n");
             exit(1);
@@ -81,6 +84,8 @@ struct symbolTable *walkAST(struct astNode *it)
 /*
  * These functions walk the AST and convert it to three-address code
  */
+
+// given an AST node of an expression, figure out how to break it down into multiple lines of three address code
 struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, int depth)
 {
     struct tacLine *thisExpression = newtacLine();
@@ -165,12 +170,15 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, int depth)
     return returnExpression;
 }
 
-// given a node with an assignment, return the TAC block necessary to generate the correct value
+// given an AST node of an assignment, return the TAC block necessary to generate the correct value
 struct tacLine *linearizeAssignment(struct astNode *it, int *tempNum)
 {
     struct tacLine *assignment;
+
+    // if this assignment is simply setting one thing to another
     if (it->child->sibling->child == NULL)
     {
+        // pull out the relevant values and generate a single line of TAC to return
         assignment = newtacLine();
         assignment->operands[0] = it->child->value;
         assignment->operands[1] = it->child->sibling->value;
@@ -181,35 +189,41 @@ struct tacLine *linearizeAssignment(struct astNode *it, int *tempNum)
             assignment->operandTypes[2] = vt_null;
         }
     }
+    // otherwise there is some sort of expression, which will need to be broken down into multiple lines of TAC
     else
     {
         assignment = linearizeExpression(it->child->sibling, tempNum, 0);
         struct tacLine *lastLine = findLastTAC(assignment);
+
+        // set the final line's operand 0 to the variable actually being assigned
         lastLine->operands[0] = it->child->value;
         lastLine->operandTypes[0] = vt_var;
     }
+
     return assignment;
 }
 
+// given the AST for a function, generate TAC and return a pointer to the head of the generated block
 struct tacLine *linearizeFunction(struct astNode *it)
 {
+    // scrape along the function
     struct astNode *runner = it;
     struct tacLine *asttac = NULL;
-    int tempNum = 0;
+    int tempNum = 0; // track the number of temporary variables used
     while (runner != NULL)
     {
         switch (runner->type)
         {
+
+        // if we see a variable being declared and then assigned
+        // generate the code and stick it on to the end of the block
         case t_var:
             if (runner->child->type == t_assign)
-            {
                 asttac = appendTAC(asttac, linearizeAssignment(runner->child, &tempNum));
-            }
-            //else
-            //printf("initialize variable [%s]\n", runner->child->value);
 
             break;
 
+        // if we see an assignment, generate the code and stick it on to the end of the block
         case t_assign:
             asttac = appendTAC(asttac, linearizeAssignment(runner, &tempNum));
             break;
@@ -223,13 +237,17 @@ struct tacLine *linearizeFunction(struct astNode *it)
     return asttac;
 }
 
+// given an AST and a populated symbol table, generate three address code for the function entries
 void linearizeProgram(struct astNode *it, struct symbolTable *table)
 {
+    // scrape along the top level of the AST
     struct astNode *runner = it;
     while (runner != NULL)
     {
         switch (runner->type)
         {
+        // if we encounter a function, lookup its symbol table entry
+        // then generate the TAC for it and add a reference to the start of the generated code to the function entry
         case t_fun:
         {
             struct functionEntry *theFunction = symbolTableLookup(table, runner->child->value)->entry;
@@ -238,6 +256,8 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
             break;
         }
         break;
+
+        // ignore everything else
         default:
             break;
         }
@@ -245,6 +265,10 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
     }
 }
 
+/*
+ * setup code for linked list containing variable lifetime info
+ * may belong in its own file, depends on how beginning code generation works out
+ */
 struct Lifetime
 {
     int start, end;
@@ -261,9 +285,16 @@ struct Lifetime *newLifetime(char *variable, int start)
     return wip;
 }
 
+/*
+ * Given a symbol table entry for a function, calculate lifetime for variables defined within
+ * Also enforces some basic error checking (use before declare / use before assign)
+ *
+ * SymTab entries for variables containing their own lifetimes may be redundant since
+ * findLifetimes() will also re-find lifetimes for these variables
+ */
 void checkVariableLifetimes(struct functionEntry *function)
 {
-    int tacIndex = 0;
+    int lineIndex = 0;
     // iterate all lines of TAC in the function's codeblock
     for (struct tacLine *t = function->codeBlock; t != NULL; t = t->nextLine)
     {
@@ -271,26 +302,45 @@ void checkVariableLifetimes(struct functionEntry *function)
         struct symTabEntry *varEntry;
         if (t->operandTypes[2] == vt_var)
         {
+            // attempt to get the variable's entry from the table
             varEntry = symbolTableLookup(function->table, t->operands[2]);
-            
+
+            // if we get nothing back, we have a use before declare
             if (varEntry == NULL)
             {
                 printf("Error: use of undeclared variable %s\n", t->operands[2]);
                 exit(1);
             }
-            // ignore function arguments, their lifetimes will always be valid
-            else if (varEntry->type != e_argument && !((struct variableEntry *)varEntry->entry)->isAssigned)
+
+            switch (varEntry->type)
             {
-                printf("Error: use of variable [%s] before assignment\n", varEntry->name);
-                exit(1);
-            }
-            else if (varEntry->type != e_argument)
-            {
-                printf("Extended lifespan of variable %s to %d\n", varEntry->name, tacIndex);
-                ((struct variableEntry *)varEntry->entry)->lsEnd = tacIndex;
+            // ignore function arguments
+            case e_argument:
+                break;
+
+            case e_variable:
+                // if a variable on the RHS hasn't been assigned yet, we have a use before asssign
+                if (!((struct variableEntry *)varEntry->entry)->isAssigned)
+                {
+                    printf("Error: use of variable [%s] before assignment\n", varEntry->name);
+                    exit(1);
+                }
+                // otherwise, the variable is used normally in this step
+                // this means its lifespan can end no sooner than this index
+                else
+                {
+                    ((struct variableEntry *)varEntry->entry)->lsEnd = lineIndex;
+                }
+                break;
+
+            // won't hit this at the moment, only captures e_function
+            default:
+
+                break;
             }
         }
 
+        // perform the same checks as for operand index 2 on index 1
         varEntry = symbolTableLookup(function->table, t->operands[1]);
         if (t->operandTypes[1] == vt_var)
         {
@@ -299,121 +349,111 @@ void checkVariableLifetimes(struct functionEntry *function)
                 printf("Error: use of undeclared variable %s\n", t->operands[1]);
                 exit(1);
             }
-            // ignore function arguments, their lifetimes will always be valid
-            else if (varEntry->type != e_argument && !((struct variableEntry *)varEntry->entry)->isAssigned)
+            switch (varEntry->type)
             {
-                printf("Error: use of variable [%s] before assignment\n", varEntry->name);
-                exit(1);
-            }
-            else if (varEntry->type != e_argument)
-            {
-                ((struct variableEntry *)varEntry->entry)->lsEnd = tacIndex;
+            case e_argument:
+                break;
+
+            case e_variable:
+                if (!((struct variableEntry *)varEntry->entry)->isAssigned)
+                {
+                    printf("Error: use of variable [%s] before assignment\n", varEntry->name);
+                    exit(1);
+                }
+                else
+                {
+                    ((struct variableEntry *)varEntry->entry)->lsEnd = lineIndex;
+                }
+                break;
+
+            default:
+
+                break;
             }
         }
 
+        // look at operand index 0 (what is being assigned to)
+        // we only care about it if it's an explicitly defined variable (not a temp)
         if (t->operandTypes[0] == vt_var)
         {
+            // do a lookup in the symbol table for a variable with this name
             struct symTabEntry *assignedVar = symbolTableLookup(function->table, t->operands[0]);
+
+            // catch assign before initialize
             if (assignedVar == NULL)
             {
                 printf("Error: assignment to uninitialized variable %s\n", t->operands[0]);
                 exit(1);
             }
+
+            // grab the variable entry itself
             struct variableEntry *theVar = assignedVar->entry;
+            // if it hasn't already been assigned
             if (!theVar->isAssigned)
             {
+                // set the assigned flag and record the start of its lifetime
                 theVar->isAssigned = 1;
-                theVar->lsStart = tacIndex;
+                theVar->lsStart = lineIndex;
             }
 
-            theVar->lsEnd = tacIndex;
+            // regardless of whether or not this variable's lifetime started at this line
+            // its lifetime can end no sooner than this index
+            theVar->lsEnd = lineIndex;
         }
 
-        tacIndex++;
+        lineIndex++;
     }
-
-    printf("exitgint\n");
-
-    /*// iterate all entries in the symbol table
-        for (int e = 0; e < function->table->size; e++)
-        {
-            struct symTabEntry *theEntry = function->table->entries[e];
-            // if looking at a variable entry
-            if (theEntry->type == e_variable)
-            {
-                printf("looking at variable %s\n", theEntry->name);
-                // examine the two operands that are read from to make sure they have been assigned
-                if (!t->literals[0] && !strcmp(theEntry->name, t->operands[2]))
-                {
-                    varFound = 1;
-                    if (!((struct variableEntry *)theEntry->entry)->isAssigned)
-                    {
-                        printf("Error: use of variable [%s] before assignment\n", theEntry->name);
-                        exit(1);
-                    }
-                    else
-                    {
-                        printf("Extended lifespan of variable %s to %d\n", theEntry->name, tacIndex);
-                        ((struct variableEntry *)theEntry->entry)->lsEnd = tacIndex;
-                    }
-                }
-                if (!t->literals[1] && !strcmp(theEntry->name, t->operands[1]))
-                {
-                    varFound = 1;
-                    if (!((struct variableEntry *)theEntry->entry)->isAssigned)
-                    {
-                        printf("Error: use of variable [%s] before assignment\n", theEntry->name);
-                        exit(1);
-                    }
-                    else
-                    {
-                        printf("Extended lifespan of variable %s to %d\n", theEntry->name, tacIndex);
-
-                        ((struct variableEntry *)theEntry->entry)->lsEnd = tacIndex;
-                    }
-                }
-                if (!strcmp(theEntry->name, t->operands[0]))
-                {
-                    printf("Saw assignment to variable %s at %d\n", theEntry->name, tacIndex);
-                    ((struct variableEntry *)theEntry->entry)->lsStart = tacIndex;
-                    ((struct variableEntry *)theEntry->entry)->lsEnd = tacIndex;
-                    ((struct variableEntry *)theEntry->entry)->isAssigned = 1;
-                }
-            }
-        }*/
 }
 
 void findLifetimes(struct functionEntry *function)
 {
     printf("EVALUATING VARIABLE LIFETIMES FOR %s\n", function->table->name);
+
+    // look at explicitly defined variables and do error checking
     checkVariableLifetimes(function);
-    printf("now calculating temporary variable lifetimes\n");
+
+    // make a linked list of variable lifetimes
     struct Lifetime *ltList = NULL;
     struct Lifetime *ltTail = NULL;
+
+    // look at all lines in the TAC block for this function, keeping track of our index
     int lineIndex = 0;
     for (struct tacLine *line = function->codeBlock; line != NULL; line = line->nextLine)
     {
+        // iterate all operands in the line
         for (int i = 0; i < 3; i++)
         {
             char *varName = line->operands[i];
+
+            // ignore if null
             if (line->operands[i] == NULL)
                 continue;
 
-            if (i > 0)
-                if (line->operandTypes[i] == vt_literal)
-                    continue;
+            // if operand is a literal, ignore
+            // (only possible for operands index 1 and 2 which are on the RHS of the assignment)
+            if (line->operandTypes[i] == vt_literal)
+                continue;
 
+            // if we made it here, we must be looking at a variable of some sort
+            // search through the list of existing lifetimes
             int found = 0;
             for (struct Lifetime *runner = ltList; runner != NULL; runner = runner->next)
             {
+                // if we find a lifetime for this variable
                 if (!strcmp(varName, runner->variable))
                 {
+                    // since the variable exists at this lineIndex, update its end
+                    // since it can end no sooner than this line
                     runner->end = lineIndex;
                     found = 1;
+                    break;
                 }
             }
+
+            // if we scanned all existing lifetimes without finding one for this variable
             if (!found)
             {
+                // insert a lifetime for this variable (starting and ending at this step)
                 if (ltList == NULL)
                 {
                     ltList = newLifetime(varName, lineIndex);
@@ -429,6 +469,7 @@ void findLifetimes(struct functionEntry *function)
         lineIndex++;
     }
 
+    // print TAC lines with active variables at that time next to them
     lineIndex = 0;
     for (struct tacLine *line = function->codeBlock; line != NULL; line = line->nextLine)
     {
@@ -443,11 +484,6 @@ void findLifetimes(struct functionEntry *function)
         printf("]\n");
         lineIndex++;
     }
-    //printTacLine(function->codeBlock);
-    //for (struct Lifetime *runner = ltList; runner != NULL; runner = runner->next)
-    //{
-    // printf("%s: %d - %d\n", runner->variable, runner->start, runner->end);
-    //}
 }
 
 int main(int argc, char **argv)
@@ -456,7 +492,6 @@ int main(int argc, char **argv)
 
     struct astNode *program = parseProgram(argv[1]);
     printf("DONE PARSING PROGRAM\n");
-    // printAST(program, 0);
 
     struct symbolTable *theTable = walkAST(program);
     linearizeProgram(program, theTable);

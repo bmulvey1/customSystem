@@ -24,4 +24,4 @@ symtab.o: symtab.c symtab.h
 
 clean:
 	rm *.o
-	rm ./emu
+	rm ./mcc
