@@ -15,12 +15,20 @@ struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
 
 // isArgument denotes whether or not this variable is an argument
 // if yes, its lifespan will be ignored since it will live for the entire function
-struct variableEntry *newVariableEntry()
+struct variableEntry *newVariableEntry(int index)
 {
     struct variableEntry *wip = malloc(sizeof(struct variableEntry));
     wip->lsStart = 0;
     wip->lsEnd = 0;
     wip->isAssigned = 0;
+    wip->index = index;
+    return wip;
+}
+
+struct argumentEntry *newArgumentEntry(int index)
+{
+    struct argumentEntry *wip = malloc(sizeof(struct argumentEntry));
+    wip->index = index;
     return wip;
 }
 
@@ -54,7 +62,7 @@ struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name)
     for (int i = 0; i < table->size; i++)
         if (!strcmp(table->entries[i]->name, name))
             return table->entries[i];
-    
+
     // return NULL if not found
     return NULL;
 }
@@ -79,9 +87,14 @@ void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum sy
     table->entries = newList;
 }
 
-void symTab_insertVariable(struct symbolTable *table, char *name)
+void symTab_insertVariable(struct symbolTable *table, char *name, int index)
 {
-    symTabInsert(table, name, newVariableEntry(), e_variable);
+    symTabInsert(table, name, newVariableEntry(index), e_variable);
+}
+
+void symTab_insertArgument(struct symbolTable *table, char *name, int index)
+{
+    symTabInsert(table, name, newArgumentEntry(index), e_argument);
 }
 
 void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolTable *subTable)

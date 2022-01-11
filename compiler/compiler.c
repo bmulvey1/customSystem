@@ -10,6 +10,7 @@
 struct symbolTable *walkAST(struct astNode *it)
 {
     struct symbolTable *wip = newSymbolTable("Program");
+    int globalVariableCount = 0;
     struct astNode *runner = it;
     while (runner != NULL)
     {
@@ -18,13 +19,15 @@ struct symbolTable *walkAST(struct astNode *it)
 
         case t_var:
             if (runner->child->type == t_assign)
-                symTab_insertVariable(wip, runner->child->child->value);
+                symTab_insertVariable(wip, runner->child->child->value, globalVariableCount++);
             else
-                symTab_insertVariable(wip, runner->child->value);
+                symTab_insertVariable(wip, runner->child->value, globalVariableCount++);
             break;
 
         case t_fun:
         {
+            int functionArgumentCount = 0;
+            int functionVariableCount = 0;
             struct astNode *functionNode = runner->child;
             struct symbolTable *subTable = newSymbolTable(functionNode->value);
             symTab_insertFunction(wip, functionNode->value, subTable);
@@ -34,9 +37,9 @@ struct symbolTable *walkAST(struct astNode *it)
                 {
                 case t_var:
                     if (functionNode->child->type == t_assign)
-                        symTab_insertVariable(subTable, functionNode->child->child->value);
+                        symTab_insertVariable(subTable, functionNode->child->child->value, functionVariableCount++);
                     else
-                        symTab_insertVariable(subTable, functionNode->child->value);
+                        symTab_insertVariable(subTable, functionNode->child->value, functionVariableCount++);
 
                     break;
 
@@ -54,9 +57,9 @@ struct symbolTable *walkAST(struct astNode *it)
                     while (argumentRunner != NULL)
                     {
                         if (argumentRunner->child->type == t_assign)
-                            symTabInsert(subTable, argumentRunner->child->child->value, NULL, e_argument);
+                            symTab_insertArgument(subTable, argumentRunner->child->child->value, functionArgumentCount++);
                         else
-                            symTabInsert(subTable, argumentRunner->child->value, NULL, e_argument);
+                            symTab_insertArgument(subTable, argumentRunner->child->value, functionArgumentCount++);
 
                         argumentRunner = argumentRunner->sibling;
                     }
@@ -405,7 +408,7 @@ void checkVariableLifetimes(struct functionEntry *function)
     }
 }
 
-void findLifetimes(struct functionEntry *function)
+struct Lifetime *findLifetimes(struct functionEntry *function)
 {
     printf("EVALUATING VARIABLE LIFETIMES FOR %s\n", function->table->name);
 
@@ -469,7 +472,7 @@ void findLifetimes(struct functionEntry *function)
         lineIndex++;
     }
 
-    // print TAC lines with active variables at that time next to them
+    /*// print TAC lines with active variables at that time next to them
     lineIndex = 0;
     for (struct tacLine *line = function->codeBlock; line != NULL; line = line->nextLine)
     {
@@ -483,7 +486,296 @@ void findLifetimes(struct functionEntry *function)
         }
         printf("]\n");
         lineIndex++;
+    }*/
+    return ltList;
+}
+
+/*
+ *
+ * Target code generation
+ *
+ */
+struct registerState
+{
+    char live;
+    char dirty;
+    char *contains;
+};
+
+struct registerState *newRegisterState()
+{
+    struct registerState *wip = malloc(sizeof(struct registerState));
+    wip->live = 0;
+    wip->dirty = 0;
+    wip->contains = NULL;
+    return wip;
+}
+
+int findUnalloc(struct registerState **registerStates)
+{
+    for (int i = 0; i < 12; i++)
+    {
+        if (registerStates[i]->dirty == 0)
+            return i;
     }
+
+    printf("All registers are dirty when searching for unallocated register! Need to deal with register spilling!");
+    exit(1);
+
+    return -1;
+}
+
+int findVarInRegs(struct registerState **registerStates, char *var)
+{
+    for (int i = 0; i < 12; i++)
+        if (registerStates[i]->contains != NULL)
+            if (!strcmp(registerStates[i]->contains, var))
+                return i;
+
+    return -1;
+}
+
+void assignRegister(struct registerState **registerStates, int index, char *var)
+{
+    // %s\n", index, var);
+    registerStates[index]->live = 1;
+    registerStates[index]->dirty = 1;
+    registerStates[index]->contains = var;
+}
+
+void printRegisterStates(struct registerState **registerStates)
+{
+    printf("----------\n");
+    for (int i = 0; i < 12; i++)
+    {
+        if (registerStates[i]->contains != NULL)
+            printf("r%2d |", i);
+    }
+    printf("\n");
+    for (int i = 0; i < 12; i++)
+    {
+        if (registerStates[i]->contains != NULL)
+            printf("%4s|", registerStates[i]->contains);
+    }
+    printf("\n----------\n");
+}
+
+/*
+ * TODO:
+ * avoid duplication of variables during multiple assignments
+ * genuine retreival of arguments
+ * ability to handle register spilling and stack variables (proper dirty handling too)
+ *
+ */
+void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
+{
+    printf("Generating target code for function %s\n", function->table->name);
+
+    int lineIndex = 0;
+    for (struct tacLine *line = function->codeBlock; line != NULL; line = line->nextLine)
+    {
+        printf("\t%2d:%8s = %8s %2s %8s [", lineIndex, line->operands[0], line->operands[1], line->operation, line->operands[2]);
+        for (struct Lifetime *runner = lifetimes; runner != NULL; runner = runner->next)
+        {
+            if (lineIndex >= runner->start && lineIndex <= runner->end)
+            {
+                printf("%s ", runner->variable);
+            }
+        }
+        printf("]\n");
+        lineIndex++;
+    }
+
+    struct registerState *registerStates[12];
+    for (int i = 0; i < 12; i++)
+        registerStates[i] = newRegisterState();
+
+    printf("doin the allocation\n");
+    int tacIndex = 0;
+    for (struct tacLine *line = function->codeBlock; line != NULL; line = line->nextLine)
+    {
+        // printf("\nupdating which variables are live...");
+        for (struct Lifetime *lt = lifetimes; lt != NULL; lt = lt->next)
+        {
+            if (tacIndex == lt->end)
+            {
+                int varIndex = findVarInRegs(registerStates, lt->variable);
+                if (varIndex != -1)
+                {
+                    registerStates[varIndex]->live = 0;
+                }
+            }
+        }
+        // printf("done.\n");
+        // printf("\t%2d:%8s = %8s %2s %8s\n", lineIndex, line->operands[0], line->operands[1], line->operation, line->operands[2]);
+
+        if (line->operandTypes[1] != vt_literal)
+        {
+            // see if operand 1 is in a register already
+            int operandRegisterIndex = findVarInRegs(registerStates, line->operands[1]);
+
+            // unable to find
+            if (operandRegisterIndex == -1)
+            {
+                if (line->operandTypes[2] == vt_null) // if this operation is a simple assignment (var1 = var2)
+                {
+                    // find an unallocated register to copy the value to
+                    int freshRegisterIndex = findUnalloc(registerStates);
+                    printf("mov r%d, %s\n", freshRegisterIndex, line->operands[1]);
+                    assignRegister(registerStates, freshRegisterIndex, line->operands[0]);
+                }
+                else // both operands exist in this TAC so an operation must be performed
+                {
+                    // find a fresh register to put the first operand into since it doesn't exist anywhere
+                    int firstOperandIndex = findUnalloc(registerStates);
+                    printf("mov r%d, %s\n", firstOperandIndex, line->operands[1]);
+                    assignRegister(registerStates, firstOperandIndex, line->operands[1]);
+
+                    if (line->operandTypes[2] != vt_literal) // second operand isn't a literal (so neither operand is)
+                    {
+                        // see if operand 2 is in a register already
+                        operandRegisterIndex = findVarInRegs(registerStates, line->operands[2]);
+
+                        // neither operand is in a register
+                        if (operandRegisterIndex == -1)
+                        {
+                            // find an unallocated register to contain the result of this line, assign it
+                            int destinationRegisterIndex = findUnalloc(registerStates);
+
+                            // emit instructions to move the values to the corresponding registers and perform the operation
+                            printf("mov r%d, %s\n", destinationRegisterIndex, line->operands[2]);
+                            printf("%s r%d, r%d\n", line->operation, destinationRegisterIndex, firstOperandIndex);
+                            assignRegister(registerStates, destinationRegisterIndex, line->operands[0]);
+                        }
+                        // found second operand
+                        else
+                        {
+                            // if the second operand isn't live
+                            if (registerStates[operandRegisterIndex]->live == 0)
+                            {
+                                // emit the instruction to manipulate the register containing the second operand into the result
+                                printf("%s r%d, r%d\n", line->operation, operandRegisterIndex, firstOperandIndex);
+                                assignRegister(registerStates, operandRegisterIndex, line->operands[0]);
+                            }
+                            else
+                            {
+                                // otherwise we have to copy the value of operand 2 since it is still live
+                                // then perform the operation on the copied register
+                                int destinationRegisterIndex = findUnalloc(registerStates);
+                                printf("mov r%d, r%d\n", destinationRegisterIndex, operandRegisterIndex);
+                                printf("%s r%d, %d\n", line->operation, destinationRegisterIndex, firstOperandIndex);
+                                assignRegister(registerStates, destinationRegisterIndex, line->operands[0]);
+                            }
+                        }
+                    }
+                    else // operand 2 is a literal, so just modify the register we loaded operand 1 into
+                    {
+                        printf("%s r%d, %s\n", line->operation, firstOperandIndex, line->operands[2]);
+                        assignRegister(registerStates, firstOperandIndex, line->operands[0]);
+                    }
+                }
+            }
+
+            // found operand 1 in a register
+            else
+            {
+                // op2 is not a literal
+                if (line->operandTypes[2] != vt_literal)
+                {
+                    int secondOperandIndex = findVarInRegs(registerStates, line->operands[2]);
+                    if (secondOperandIndex == -1)
+                    {
+                        secondOperandIndex = findUnalloc(registerStates);
+                        assignRegister(registerStates, secondOperandIndex, line->operands[2]);
+                        printf("mov r%d, %s\n", secondOperandIndex, line->operands[2]);
+                    }
+
+                    if (registerStates[operandRegisterIndex]->live == 0)
+                    {
+                        printf("%s r%d, r%d\n", line->operation, operandRegisterIndex, secondOperandIndex);
+                        assignRegister(registerStates, operandRegisterIndex, line->operands[0]);
+                    }
+                    else
+                    {
+                        int destinationRegisterIndex = findUnalloc(registerStates);
+                        printf("mov r%d, r%d\n", destinationRegisterIndex, operandRegisterIndex);
+                        printf("%s r%d, r%d\n", line->operation, destinationRegisterIndex, secondOperandIndex);
+                        assignRegister(registerStates, destinationRegisterIndex, line->operands[0]);
+                    }
+                }
+                else // op2 is a literal
+                {
+                    if (registerStates[operandRegisterIndex]->live == 0)
+                    {
+                        printf("%s r%d, %s\n", line->operation, operandRegisterIndex, line->operands[2]);
+                        assignRegister(registerStates, operandRegisterIndex, line->operands[0]);
+                    }
+                    else
+                    {
+                        int destinationRegisterIndex = findUnalloc(registerStates);
+                        printf("mov r%d, r%d\n", destinationRegisterIndex, operandRegisterIndex);
+                        printf("%s r%d, %s\n", line->operation, destinationRegisterIndex, line->operands[2]);
+                        assignRegister(registerStates, destinationRegisterIndex, line->operands[0]);
+                    }
+                    
+                }
+            }
+        }
+
+        // operand 1 is a literal
+        else
+        {
+            // simple assignment (var1 = 1)
+            if (line->operandTypes[2] == vt_null)
+            {
+                int freshRegisterIndex = findUnalloc(registerStates);
+                printf("mov r%d, %s\n", freshRegisterIndex, line->operands[1]);
+                assignRegister(registerStates, freshRegisterIndex, line->operands[0]);
+            }
+            else if (line->operandTypes[2] == vt_literal)
+            {
+                printf("both operands are literals, calculate result and put it somewhere\n");
+            }
+            else
+            {
+                int secondOperandIndex = findVarInRegs(registerStates, line->operands[2]);
+                if (secondOperandIndex == -1)
+                {
+                    secondOperandIndex = findUnalloc(registerStates);
+
+                    printf("mov r%d, %s\n", secondOperandIndex, line->operands[2]);
+                    assignRegister(registerStates, secondOperandIndex, line->operands[2]);
+                }
+
+                if (registerStates[secondOperandIndex]->live == 0)
+                {
+                    printf("%s r%d, %s\n", line->operation, secondOperandIndex, line->operands[1]);
+                    assignRegister(registerStates, secondOperandIndex, line->operands[0]);
+                }
+                else
+                {
+                    int destinationRegisterIndex = findUnalloc(registerStates);
+                    printf("mov r%d, r%d", destinationRegisterIndex, secondOperandIndex);
+                    printf("%s r%d, %s\n", line->operation, destinationRegisterIndex, line->operands[1]);
+                    assignRegister(registerStates, destinationRegisterIndex, line->operands[0]);
+                }
+            }
+        }
+        /*
+        // attempt to find if the variable exists in a register already
+        int destIndex = findVarInRegs(registerStates, line->operands[0]);
+        if (destIndex == -1)
+        {
+            destIndex = findUnalloc(registerStates);
+            registerStates[destIndex]->live = 1;
+            registerStates[destIndex]->dirty = 1;
+            registerStates[destIndex]->contains = line->operands[0];
+        }*/
+
+        tacIndex++;
+        // printRegisterStates(registerStates);
+    }
+    printRegisterStates(registerStates);
 }
 
 int main(int argc, char **argv)
@@ -496,18 +788,30 @@ int main(int argc, char **argv)
     struct symbolTable *theTable = walkAST(program);
     linearizeProgram(program, theTable);
     printf("DONE LINEARIZING TO TAC\n");
-
+    printSymTab(theTable);
     for (int i = 0; i < theTable->size; i++)
     {
         if (theTable->entries[i]->type == e_function)
         {
-            findLifetimes(theTable->entries[i]->entry);
+            struct Lifetime *theseLifetimes = findLifetimes(theTable->entries[i]->entry);
+            generateCode(theTable->entries[i]->entry, theseLifetimes);
         }
     }
-
-    printSymTab(theTable);
 
     // printTacLine(head);
 
     printf("done printing\n");
 }
+
+/*
+r0:1
+r1:1
+r0 = 0
+r0 = 2
+r2 = x
+r3 = y
+r3 = x - y
+r3 = x - y + 2
+
+
+*/

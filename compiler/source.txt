@@ -3,10 +3,7 @@
 fun qwerty(var x, var y, var z){
     var c;
     var d = 1;
-    #c = d + 1;
-
     c = (x - y) + (2 + (d - 1));
-    #var asdf = b + c;
+    d = d + 1;
 }
-
 $$
