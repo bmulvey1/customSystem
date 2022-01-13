@@ -5,58 +5,91 @@ string:
 #d "hello\0" 
 
 code:
-movw 0, %rd
-code1:
-movb 128, %di
-movw %rd, %ra
-;call fakefunc
-call fibb
-;push %ra
-inc %rd
-cmp $100, %rd
-jg code1
-
+push $9 ; y = 9
+push $10 ; x = 10
+call qwerty
 hlt
 
 
-
-fibb:
-push %rb
-push %rc
-push %rd
-push %r0
-
-movw %ra, %rd ;put arg1 in rd
-movb 0, %ra     ; zero ra
-movb %ra, %rc   ; zero rc (count)
-movb %ra, %r0   ; zero r0 (array index)
-movb 1, %rb     ; initialize rb to 1
-fibb1:
-add %rb, %ra    ; a += b
-cmp %rd, %ra    ; if a > maxval, jump out
-jl fibb2  
-push %ra
-inc %rc         ; else, count++
-add %ra, %rb    ; b += a       
-cmp %rd, %rb    ; if b > maxval, jump out
-jl fibb2
-push %rb 
-inc %rc         ; else, count++
-jmp fibb1       ; loop
-fibb2:
-movb %rc, %ra   ; copy array length to ra
-dec %rc
-fibb3:
-pop %rd         ; pop fib value to rd
-movw %rd, %r0(%di, 16)  ; write rd to array[index]
-inc %r0         ; index++
-dec %rc         ; count--
-jnz fibb3       ; while(count > 0), repeat
-pop %r0
-pop %rd
-pop %rc
-pop %rb
-ret
+qwerty:
+    movw %r0, $1
+    movw %r1, %r0
+    sub %r1, $1
+    movw %r2, $2
+    add %r2, %r1
+    movw %r1, 4(%bp)
+    movw %r3, 6(%bp)
+    sub %r1, %r3
+    movw %r3, %r1
+    add %r3, %r2
+    movw %r1, %r0
+    add %r1, $1
+    hlt
+    ret
 
 
 
+
+
+
+
+
+
+
+
+;movw 0, %rd
+;code1:
+;movb 128, %di
+;movw %rd, %ra
+;;call fakefunc
+;call fibb
+;;push %ra
+;inc %rd
+;cmp $100, %rd
+;jg code1
+;
+;hlt
+;
+;
+;
+;fibb:
+;push %rb
+;push %rc
+;push %rd
+;push %r0
+;
+;movw %ra, %rd ;put arg1 in rd
+;movb 0, %ra     ; zero ra
+;movb %ra, %rc   ; zero rc (count)
+;movb %ra, %r0   ; zero r0 (array index)
+;movb 1, %rb     ; initialize rb to 1
+;fibb1:
+;add %rb, %ra    ; a += b
+;cmp %rd, %ra    ; if a > maxval, jump out
+;jl fibb2  
+;push %ra
+;inc %rc         ; else, count++
+;add %ra, %rb    ; b += a       
+;cmp %rd, %rb    ; if b > maxval, jump out
+;jl fibb2
+;push %rb 
+;inc %rc         ; else, count++
+;jmp fibb1       ; loop
+;fibb2:
+;movb %rc, %ra   ; copy array length to ra
+;dec %rc
+;fibb3:
+;pop %rd         ; pop fib value to rd
+;movw %rd, %r0(%di, 16)  ; write rd to array[index]
+;inc %r0         ; index++
+;dec %rc         ; count--
+;jnz fibb3       ; while(count > 0), repeat
+;pop %r0
+;pop %rd
+;pop %rc
+;pop %rb
+;ret
+;
+;
+;
+;

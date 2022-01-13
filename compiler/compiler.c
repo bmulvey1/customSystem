@@ -549,11 +549,13 @@ int findStackOffset(char *var, struct functionEntry *function)
     switch (theEntry->type)
     {
     case e_variable:
-        spOffset = ((struct variableEntry *)theEntry->entry)->index * 2;
+        // may need a hardcoded offset to avoid overlapping return vector
+        spOffset = (((struct variableEntry *)theEntry->entry)->index * -2);
         break;
 
     case e_argument:
-        spOffset = (((struct argumentEntry *)theEntry->entry)->index * -2) - 2;
+        // + 4 because return address and old base pointer are on stack before current BP
+        spOffset = (((struct argumentEntry *)theEntry->entry)->index * 2) + 4;
         break;
 
     default:
@@ -663,10 +665,26 @@ void printRegisterStates(struct registerState **registerStates)
     printf("\n----------\n");
 }
 
+/*
+ * NOTES/TODO
+ * CRITICAL BUG:
+ * for direct modification of variables (d = d + 1)
+ *  - 'findOrPlaceModifiableVar()' will duplicate the variable we're trying to manipulate
+ *  - need to implement check for whether TAC operand and destination are identical!
+ * 
+ * 
+ * This code generator makes NO consideration of when it may be possible to re-order operands
+ * - Implementing this in some way will probably reduce registers with more complex operations
+ * - will definitely generate higher-quality code with less loads/stores
+ * 
+ * 
+ */
+
 void emitInstruction(struct tacLine *line, struct registerState **registerStates, int destinationRegister, struct functionEntry *function)
 {
     //printf("emit instruction %s\n", line->operation);
-    if(line->operation == NULL){
+    if (line->operation == NULL)
+    {
         return;
     }
     char *operation;
@@ -741,7 +759,7 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
     {
         for (struct Lifetime *lt = lifetimes; lt != NULL; lt = lt->next)
         {
-            if (tacIndex == lt->end)
+            if (tacIndex > lt->end)
             {
                 int varIndex = findTemp(registerStates, lt->variable);
                 if (varIndex != -1)

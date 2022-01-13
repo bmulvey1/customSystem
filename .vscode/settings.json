@@ -52,6 +52,7 @@
         "symtab.h": "c",
         "parser.h": "c",
         "chrono": "c",
-        "variant": "c"
+        "variant": "c",
+        "string.h": "c"
     }
 }

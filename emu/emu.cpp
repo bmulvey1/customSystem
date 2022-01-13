@@ -34,7 +34,7 @@ enum flags
 uint8_t flags[2] = {0};
 
 std::string registerNames[] = {
-    "RA", "RB", "RC", "RD", "R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "SI", "DI", "SP", "BP", "IP"};
+    "R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "SI", "DI", "SP", "BP", "IP"};
 
 #define readByte(address) memory[address]
 #define readWord(address) (memory[address] << 8) + memory[address + 1]
@@ -57,7 +57,7 @@ void printState()
         printf("|%04x|", registers[i]);
     }
     printf("\n");
-    
+
     /*uint32_t stackScan = 0x10000;
     while (stackScan > (uint32_t)registers[SP])
     {
@@ -162,8 +162,8 @@ int main(int argc, char *argv[])
     while (running)
     {
         opCode = consumeByte(registers[IP]);
-        //printf("%02x\n", opCode);
-        //std::cout << opcodeNames[opCode] << std::endl;
+        printf("%02x\n", opCode);
+        std::cout << opcodeNames[opCode] << std::endl;
 
         switch (opCode)
         {
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
             uint8_t insByte2 = consumeByte(registers[IP]);
             uint8_t RD = insByte2 & 0b1111;
             uint8_t RS = insByte2 >> 4;
-            uint8_t offset = consumeByte(registers[IP]);
+            int8_t offset = consumeByte(registers[IP]);
             uint16_t value = readWord(registers[RS] + offset);
             arithmeticOp(RD, value, opCode);
         }
@@ -363,12 +363,13 @@ int main(int argc, char *argv[])
         }
         break;
 
+        // dereferenced register + offset -> register
         case 0xa3:
         {
             uint8_t insByte2 = consumeByte(registers[IP]);
             uint8_t RS = insByte2 >> 4;
             uint8_t RD = insByte2 & 0b1111;
-            uint8_t offset = consumeByte(registers[IP]);
+            int8_t offset = consumeByte(registers[IP]);
             registers[RD] = readByte(registers[RS] + offset);
         }
         break;
@@ -378,7 +379,7 @@ int main(int argc, char *argv[])
             uint8_t insByte2 = consumeByte(registers[IP]);
             uint8_t RS = insByte2 >> 4;
             uint8_t RD = insByte2 & 0b1111;
-            uint8_t offset = consumeByte(registers[IP]);
+            int8_t offset = consumeByte(registers[IP]);
             writeByte(registers[RD] + offset, registers[RS] & 0b11111111);
         }
         break;
@@ -446,12 +447,13 @@ int main(int argc, char *argv[])
         }
         break;
 
+        // (register + offset) dereferenced -> register
         case 0xab: // MOV
         {
             uint8_t insByte2 = consumeByte(registers[IP]);
             uint8_t RS = insByte2 >> 4;
             uint8_t RD = insByte2 & 0b1111;
-            uint8_t offset = consumeByte(registers[IP]);
+            int8_t offset = consumeByte(registers[IP]);
             registers[RD] = readByte(registers[RS] + offset) << 8;
             registers[RD] |= readByte(registers[RS] + offset + 1);
         }
@@ -462,7 +464,7 @@ int main(int argc, char *argv[])
             uint8_t insByte2 = consumeByte(registers[IP]);
             uint8_t RS = insByte2 >> 4;
             uint8_t RD = insByte2 & 0b1111;
-            uint8_t offset = consumeByte(registers[IP]);
+            int8_t offset = consumeByte(registers[IP]);
             writeByte(registers[RD] + offset, registers[RS] >> 8);
             writeByte(registers[RD] + offset + 1, registers[RS] & 0b11111111);
         }
@@ -529,7 +531,7 @@ int main(int argc, char *argv[])
         case 0xc2: // PUSH
         {
             uint8_t insByte2 = consumeByte(registers[IP]);
-            uint8_t offset = consumeByte(registers[IP]);
+            int8_t offset = consumeByte(registers[IP]);
             uint16_t value = readWord(registers[insByte2] + offset);
             stackPush(value);
         }
@@ -581,10 +583,11 @@ int main(int argc, char *argv[])
             running = false;
             break;
         }
-        /*printState();
+        printState();
         for (int i = 0; i < 0xffffff; i++)
         {
-        }*/
+        }
+        printf("\n");
         instructionCount++;
     }
     printState();
