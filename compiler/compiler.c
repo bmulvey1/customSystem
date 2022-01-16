@@ -130,8 +130,18 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, int depth)
             exit(1);
         }
     }
-    thisExpression->operation = it->value;
-    printf("%s, %ld\n", thisExpression->operation, strlen(thisExpression->operation));
+    switch (it->value[0])
+    {
+    case '+':
+        thisExpression->reorderable = 1;
+        thisExpression->operation = tt_add;
+        break;
+
+    case '-':
+        thisExpression->operation = tt_subtract;
+        break;
+    }
+    //thisExpression->operation = it->value;
 
     // check right child, same as left but with correct address index
     if (it->child->sibling->type == t_unOp)
@@ -186,11 +196,22 @@ struct tacLine *linearizeAssignment(struct astNode *it, int *tempNum)
         assignment = newtacLine();
         assignment->operands[0] = it->child->value;
         assignment->operands[1] = it->child->sibling->value;
-        if (it->child->sibling->type == t_literal)
+        assignment->operandTypes[0] = vt_var;
+        assignment->operandTypes[2] = vt_null;
+
+        switch (it->child->sibling->type)
         {
-            assignment->operandTypes[0] = vt_var;
+        case t_literal:
             assignment->operandTypes[1] = vt_literal;
-            assignment->operandTypes[2] = vt_null;
+            break;
+
+        case t_name:
+            assignment->operandTypes[1] = vt_var;
+            break;
+
+        default:
+            printf("Error parsing simple assignment - unexpected type on RHS\n");
+            exit(1);
         }
     }
     // otherwise there is some sort of expression, which will need to be broken down into multiple lines of TAC
@@ -498,7 +519,8 @@ struct Lifetime *findLifetimes(struct functionEntry *function)
  */
 struct registerState
 {
-    char live;
+    char live;  // whether this var will be used in the future
+    char dying; // whether this var will be used in the current instruction but no later
     char dirty;
     char *contains;
 };
@@ -507,6 +529,7 @@ struct registerState *newRegisterState()
 {
     struct registerState *wip = malloc(sizeof(struct registerState));
     wip->live = 0;
+    wip->dying = 0;
     wip->dirty = 0;
     wip->contains = NULL;
     return wip;
@@ -528,15 +551,17 @@ int findUnallocatedRegister(struct registerState **registerStates)
 
 void modifyRegisterContents(struct registerState **registerStates, int index, char *contents)
 {
-    registerStates[index]->live = 1;
-    if (registerStates[index]->contains != NULL && !strcmp(registerStates[index]->contains, contents))
+    struct registerState *destinationRegister = registerStates[index];
+    destinationRegister->live = 1;
+    destinationRegister->dying = 0;
+    if (destinationRegister->contains != NULL && !strcmp(destinationRegister->contains, contents))
     {
-        registerStates[index]->dirty = 1;
+        destinationRegister->dirty = 1;
     }
     else
     {
-        registerStates[index]->contains = contents;
-        registerStates[index]->dirty = 0;
+        destinationRegister->contains = contents;
+        destinationRegister->dirty = 0;
     }
 }
 
@@ -582,6 +607,10 @@ int findOrPlaceVar(struct registerState **registerStates, char *var, struct func
     return freshRegisterIndex;
 }
 
+/*
+ * Find what register a variable lives in
+ * if it isn't currently in a register, retrieve it from the stack
+ */
 int findOrPlaceModifiableVar(struct registerState **registerStates, char *var, struct functionEntry *function)
 {
     int registerIndex = -1;
@@ -596,12 +625,17 @@ int findOrPlaceModifiableVar(struct registerState **registerStates, char *var, s
     if (registerIndex != -1)
     {
         // if the register is live we need to copy the value elsewhere to get a modifiable register containing the value
-        if (registerStates[registerIndex]->live)
+        // note - if the register is dying it shouldn't need to be copied (d = d + d -> `add r0, r0` is allowable if the var is dying)
+        if (registerStates[registerIndex]->live && !registerStates[registerIndex]->dying)
         {
             int sourceIndex = registerIndex;
             registerIndex = findUnallocatedRegister(registerStates);
             printf("movw r%d, r%d\n", registerIndex, sourceIndex);
+            /*
             modifyRegisterContents(registerStates, registerIndex, var);
+            // if a register is being duplicated elsewhere, its value will be dirty if the register still contains that variable at the end
+            registerStates[registerIndex]->dirty = 1;
+            */
         }
     }
     else // if the register couldn't be located, the variable needs to be retrieved from the stack
@@ -624,43 +658,29 @@ int findTemp(struct registerState **registerStates, char *var)
     return -1;
 }
 
-int findModifiableTemp(struct registerState **registerStates, char *var)
-{
-    int registerIndex = -1;
-    for (int i = 0; i < 12; i++)
-        if (registerStates[i]->contains != NULL)
-            if (!strcmp(registerStates[i]->contains, var))
-                registerIndex = i;
-
-    if (registerIndex == -1)
-    {
-        printf("Error finding temp %s\n", var);
-        exit(1);
-    }
-    if (registerStates[registerIndex]->live)
-    {
-        int sourceIndex = registerIndex;
-        registerIndex = findUnallocatedRegister(registerStates);
-        printf("movw r%d, r%d\n", registerIndex, sourceIndex);
-        modifyRegisterContents(registerStates, registerIndex, var);
-    }
-
-    return registerIndex;
-}
-
 void printRegisterStates(struct registerState **registerStates)
 {
     printf("----------\n");
     for (int i = 0; i < 12; i++)
     {
         if (registerStates[i]->contains != NULL)
-            printf("r%2d    |", i);
+            printf("r%2d      |", i);
     }
     printf("\n");
     for (int i = 0; i < 12; i++)
     {
+        // D for dead, L for live, d for Dying
+        char registerLife = 'D';
+        if (registerStates[i]->live)
+        {
+            registerLife = 'L';
+        }
+        if (registerStates[i]->dying)
+        {
+            registerLife = 'd';
+        }
         if (registerStates[i]->contains != NULL)
-            printf("%4s %c%c|", registerStates[i]->contains, (registerStates[i]->live ? 'L' : 'D'), (registerStates[i]->dirty ? 'D' : ' '));
+            printf("[%4s] %c%c|", registerStates[i]->contains, registerLife, (registerStates[i]->dirty ? 'D' : ' '));
     }
     printf("\n----------\n");
 }
@@ -680,42 +700,36 @@ void printRegisterStates(struct registerState **registerStates)
  * 
  */
 
+/*
 void emitInstruction(struct tacLine *line, struct registerState **registerStates, int destinationRegister, struct functionEntry *function)
 {
-    //printf("emit instruction %s\n", line->operation);
-    if (line->operation == NULL)
-    {
-        return;
-    }
-    char *operation;
-    switch (line->operation[0])
-    {
-    case '+':
-        switch (line->operation[1])
-        {
-        case '\0':
-            operation = "add";
-            break;
-        }
-        break;
-    case '-':
-        switch (line->operation[1])
-        {
-        case '\0':
-            operation = "sub";
-            break;
-        }
-        break;
-    }
 
+    char *operation;
+    switch (line->operation)
+    {
+    case tt_add:
+        operation = "add";
+        break;
+
+    case tt_subtract:
+        operation = "sub";
+        break;
+
+    default:
+        printf("Error emitting arithmetic instruction - illegal TAC type %d\n", line->operation);
+        break;
+    }
+    int secondOperandIndex = -1;
     switch (line->operandTypes[2])
     {
     case vt_var:
-        printf("%s r%d, r%d\n", operation, destinationRegister, findOrPlaceVar(registerStates, line->operands[2], function));
+        secondOperandIndex = findOrPlaceVar(registerStates, line->operands[2], function);
+        printf("%s r%d, r%d\n", operation, destinationRegister, secondOperandIndex);
         break;
 
     case vt_temp:
-        printf("%s r%d, r%d\n", operation, destinationRegister, findTemp(registerStates, line->operands[2]));
+        secondOperandIndex = findTemp(registerStates, line->operands[2]);
+        printf("%s r%d, r%d\n", operation, destinationRegister, secondOperandIndex);
         break;
 
     case vt_literal:
@@ -728,26 +742,235 @@ void emitInstruction(struct tacLine *line, struct registerState **registerStates
         //printf("%s r%d\n", operation, destinationRegister);
         break;
     }
+    if (secondOperandIndex != -1)
+    {
+        if (!strcmp(line->operands[0], line->operands[2]))
+        {
+            registerStates[secondOperandIndex]->live = 0;
+            registerStates[secondOperandIndex]->contains = NULL;
+        }
+    }
+}
+*/
+// assign a value into a register, return the destination index
+int generateAssignmentCode(struct tacLine *line, struct registerState **registerStates, struct functionEntry *function)
+{
+    int destinationIndex;
+    if (line->operandTypes[1] == vt_literal)
+    {
+        destinationIndex = findTemp(registerStates, line->operands[0]);
+        if (destinationIndex == -1)
+        {
+            destinationIndex = findUnallocatedRegister(registerStates);
+        }
+        printf("movw r%d, %s\n", destinationIndex, line->operands[1]);
+        modifyRegisterContents(registerStates, destinationIndex, line->operands[0]);
+    }
+    else
+    {
+        int sourceIndex = findOrPlaceVar(registerStates, line->operands[1], function);
+        // if the source variable can't be overwritten (is used after this step)
+        if (registerStates[sourceIndex]->live && !registerStates[sourceIndex]->dying)
+        {
+            // use findTemp here find the register ONLY if the variable exists in a register already
+            destinationIndex = findTemp(registerStates, line->operands[0]);
+            // if the variable isn't in a register already we need to find one to put it in
+            if (destinationIndex == -1)
+            {
+                destinationIndex = findUnallocatedRegister(registerStates);
+            }
+            printf("mov r%d, r%d\n", destinationIndex, sourceIndex);
+        }
+        // source var dies this step, it can be overwritten
+        else
+        {
+            // don't need to do anything
+            destinationIndex = sourceIndex;
+        }
+
+        modifyRegisterContents(registerStates, destinationIndex, line->operands[0]);
+    }
+
+    return destinationIndex;
+}
+
+void generateArithmeticCode(struct tacLine *line, struct registerState **registerStates, struct functionEntry *function)
+{
+    int destinationRegister;
+    if (line->operandTypes[1] == vt_literal)
+    {
+        // both operands are literals
+        if (line->operandTypes[2] == vt_literal)
+        {
+            printf("arithmetic between 2 literals - could precompute this!\n");
+            exit(1);
+        }
+        // op1 literal, op2 var
+        else
+        {
+            char didReorder = 0;
+            if (line->reorderable)
+            {
+                destinationRegister = findTemp(registerStates, line->operands[2]);
+                // only proceed with checks if the second operand exists in a register
+                if (destinationRegister != -1)
+                {
+                    // if the register can be overwritten at this step (or the var is the same as the destination)
+                    char canOverwriteDest = !registerStates[destinationRegister]->live || registerStates[destinationRegister]->dying;
+                    if (canOverwriteDest || !strcmp(line->operands[0], line->operands[2]))
+                    {
+                        // just perform the operation on the existing value
+                        printf("%s r%d, %s\n", getAsmOp(line->operation), destinationRegister, line->operands[1]);
+                        didReorder = 1;
+                    }
+                }
+            }
+
+            if (!didReorder)
+            {
+                // move the first operand into a register
+                destinationRegister = findUnallocatedRegister(registerStates);
+                int sourceIndex = findOrPlaceVar(registerStates, line->operands[2], function);
+                printf("movw r%d, %s\n", destinationRegister, line->operands[1]);
+                printf("%s r%d, r%d\n", getAsmOp(line->operation), destinationRegister, sourceIndex);
+
+                // if the variable has been copied, invalidate the old one
+                if (!strcmp(line->operands[0], line->operands[2]))
+                {
+                    registerStates[sourceIndex]->contains = NULL;
+                    registerStates[sourceIndex]->live = 0;
+                    registerStates[sourceIndex]->dying = 0;
+                    registerStates[sourceIndex]->dirty = 0;
+                }
+            }
+        }
+    }
+    else
+    {
+        // op1 var, op2 literal
+        if (line->operandTypes[2] == vt_literal)
+        {
+            char didReorder = 0;
+            if (line->reorderable)
+            {
+                destinationRegister = findTemp(registerStates, line->operands[1]);
+                // only proceed with checks if the first operand exists in a register
+                if (destinationRegister != -1)
+                {
+                    // if the register can be overwritten at this step (or the var is the same as the destination)
+                    char canOverwriteDest = !registerStates[destinationRegister]->live || registerStates[destinationRegister]->dying;
+                    if (canOverwriteDest || !strcmp(line->operands[0], line->operands[1]))
+                    {
+                        // just perform the operation on the existing value
+                        printf("%s r%d, %s\n", getAsmOp(line->operation), destinationRegister, line->operands[2]);
+                        didReorder = 1;
+                    }
+                }
+            }
+
+            if (!didReorder)
+            {
+                if (line->operandTypes[0] == vt_temp)
+                {
+                    destinationRegister = findTemp(registerStates, line->operands[0]);
+                    if (destinationRegister == -1)
+                    {
+                        destinationRegister = findUnallocatedRegister(registerStates);
+                    }
+                    printf("movw r%d, r%d\n", destinationRegister, findOrPlaceVar(registerStates, line->operands[1], function));
+                }
+                else
+                {
+                    // move the first operand into a register
+                    if (!strcmp(line->operands[0], line->operands[1]))
+                    {
+                        // if the variable is modifying itself, we can indiscriminately get a register for it
+                        destinationRegister = findOrPlaceVar(registerStates, line->operands[0], function);
+                    }
+                    else
+                    {
+                        // otherwise we need to guarantee the register is modifiable
+                        destinationRegister = findOrPlaceModifiableVar(registerStates, line->operands[0], function);
+                    }
+                }
+
+                printf("%s r%d, %s\n", getAsmOp(line->operation), destinationRegister, line->operands[2]);
+            }
+        }
+        // op1 var, op2 var
+        else
+        {
+            // check if we have something that looks like "c = d + d" or "d = d + d"
+            if (!strcmp(line->operands[1], line->operands[2]))
+            {
+                // "d = d + d" case
+                if (!strcmp(line->operands[0], line->operands[2]))
+                {
+                    destinationRegister = findOrPlaceVar(registerStates, line->operands[0], function);
+                }
+                // "c = d + d" case"
+                else
+                {
+                    // attempt to find the variable we're assigning in a register
+                    destinationRegister = findTemp(registerStates, line->operands[0]);
+                    int sourceIndex = findTemp(registerStates, line->operands[1]);
+                    if (destinationRegister == -1 || (registerStates[sourceIndex]->live && !registerStates[sourceIndex]->dying))
+                    {
+                        destinationRegister = findUnallocatedRegister(registerStates);
+                        printf("mov r%d, r%d\n", destinationRegister, sourceIndex);
+                    }
+                }
+                printf("%s r%d, r%d\n", getAsmOp(line->operation), destinationRegister, destinationRegister);
+            }
+            else
+            {
+                // will always find the temp we need, or find/place a var/arg if necessary
+                int firstOperandIndex = findOrPlaceVar(registerStates, line->operands[1], function);
+
+                char didReorder = 0;
+                // only bother trying to reorder if possible and the first operand exists and can't be overwritten at this step
+                char canOverwrite = registerStates[firstOperandIndex]->live && !registerStates[firstOperandIndex]->dying;
+                if (line->reorderable && ((firstOperandIndex != -1 && canOverwrite) || !strcmp(line->operands[0], line->operands[2])))
+                {
+                    destinationRegister = findOrPlaceModifiableVar(registerStates, line->operands[2], function);
+                    printf("%s r%d, r%d\n", getAsmOp(line->operation), destinationRegister, firstOperandIndex);
+                    didReorder = 1;
+                }
+
+                if (!didReorder)
+                {
+                    int secondOperandIndex = findOrPlaceVar(registerStates, line->operands[2], function);
+
+                    // seems there are no side effects of just always doing the "findOrPlaceModifiable()"
+                    /*if (firstOperandIndex != -1)
+                    {
+                        // if this register isn't dying or dead (can't be overwritten at this step)
+                        if (!(registerStates[firstOperandIndex]->dying || !registerStates[firstOperandIndex]->live))
+                        {
+                            destinationRegister = findUnallocatedRegister(registerStates);
+                            printf("movw r%d, r%d\n", destinationRegister, firstOperandIndex);
+                        }
+                        else
+                        {
+                            destinationRegister = firstOperandIndex;
+                        }
+                        printf("%s r%d, r%d\n", getAsmOp(line->operation), destinationRegister, secondOperandIndex);
+                    }
+                    else
+                    {*/
+                    destinationRegister = findOrPlaceModifiableVar(registerStates, line->operands[1], function);
+                    printf("%s r%d, r%d\n", getAsmOp(line->operation), destinationRegister, secondOperandIndex);
+                    //}
+                }
+            }
+        }
+    }
+    modifyRegisterContents(registerStates, destinationRegister, line->operands[0]);
 }
 
 void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
 {
     printf("Generating target code for function %s\n", function->table->name);
-
-    int lineIndex = 0;
-    for (struct tacLine *line = function->codeBlock; line != NULL; line = line->nextLine)
-    {
-        printf("\t%2d:%8s = %8s %2s %8s [", lineIndex, line->operands[0], line->operands[1], line->operation, line->operands[2]);
-        for (struct Lifetime *runner = lifetimes; runner != NULL; runner = runner->next)
-        {
-            if (lineIndex >= runner->start && lineIndex <= runner->end)
-            {
-                printf("%s ", runner->variable);
-            }
-        }
-        printf("]\n");
-        lineIndex++;
-    }
 
     struct registerState *registerStates[12];
     for (int i = 0; i < 12; i++)
@@ -757,6 +980,15 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
     int tacIndex = 0;
     for (struct tacLine *line = function->codeBlock; line != NULL; line = line->nextLine)
     {
+        for (int i = 0; i < 12; i++)
+        {
+            if (registerStates[i]->dying)
+            {
+                registerStates[i]->live = 0;
+            }
+            registerStates[i]->dying = 0;
+        }
+
         for (struct Lifetime *lt = lifetimes; lt != NULL; lt = lt->next)
         {
             if (tacIndex > lt->end)
@@ -767,41 +999,34 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
                     registerStates[varIndex]->live = 0;
                 }
             }
+            else if (tacIndex == lt->end)
+            {
+                int varIndex = findTemp(registerStates, lt->variable);
+                if (varIndex != -1)
+                {
+                    registerStates[varIndex]->dying = 1;
+                }
+            }
         }
 
-        int destinationRegister;
-        switch (line->operandTypes[1])
+        printRegisterStates(registerStates);
+        switch (line->operation)
         {
-
-        case vt_literal:
-            destinationRegister = findUnallocatedRegister(registerStates);
-            printf("movw r%d, %s\n", destinationRegister, line->operands[1]);
-            emitInstruction(line, registerStates, destinationRegister, function);
-            modifyRegisterContents(registerStates, destinationRegister, line->operands[0]);
+        case tt_assign:
+            generateAssignmentCode(line, registerStates, function);
             break;
 
-        case vt_var:
-            destinationRegister = findOrPlaceModifiableVar(registerStates, line->operands[1], function);
-            emitInstruction(line, registerStates, destinationRegister, function);
-            modifyRegisterContents(registerStates, destinationRegister, line->operands[0]);
-
-            //printf("%s r%d, r%d\n", line->operation, firstOperandIndex, findOrPlaceVar(registerStates, line->operands[2], function));
+        case tt_label:
+            printf("emit label\n");
             break;
 
-        case vt_temp:
-            destinationRegister = findModifiableTemp(registerStates, line->operands[1]);
-            emitInstruction(line, registerStates, destinationRegister, function);
-            modifyRegisterContents(registerStates, destinationRegister, line->operands[0]);
-
-            //printf("%s r%d, r%d\n", line->operation, firstOperandIndex, findOrPlaceVar(registerStates, line->operands[2], function));
+        default:
+            //printf("%s = %s %s\n", line->operands[0], line->operands[1], line->operands[2]);
+            generateArithmeticCode(line, registerStates, function);
             break;
-
-        case vt_null:
-            printf("Error: null detected as operand 1 of TAC line!\n");
-            exit(1);
-            break;
-        };
-
+        }
+        printRegisterStates(registerStates);
+        printf("\n\n");
         tacIndex++;
     }
     printRegisterStates(registerStates);

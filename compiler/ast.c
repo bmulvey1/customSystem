@@ -11,14 +11,6 @@ struct astNode *newastNode(enum token t, char *newdata)
     retNode->type = t;
     retNode->value = malloc(strlen(newdata) + 1);
     strcpy(retNode->value, newdata);
-    for(int i = 0; i < strlen(newdata) + 1; i++){
-        printf("%d ", retNode->value[i]);
-    }
-    printf("\n");
-    for(int i = 0; i < strlen(newdata) + 1; i++){
-        printf("%c", retNode->value[i]);
-    }
-    printf("\n");
     return retNode;
 }
 
@@ -46,7 +38,7 @@ void printAST(struct astNode *it, int depth)
 
     for (int i = 0; i < depth; i++)
         printf("\t");
-    
+
     printf("%s\n", it->value);
     if (it->child != NULL)
         printAST(it->child, depth + 1);

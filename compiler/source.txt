@@ -4,6 +4,19 @@ fun qwerty(var x, var y, var z){
     var c;
     var d = 1;
     c = (x - y) + (2 + (d - 1));
-    d = d + 1;
+    d = d - 1;
+    d = 1 - d;
+    d = d - d;
+    c = d;
 }
 $$
+
+0:       d =        1
+1:     .t3 =        d  -        1
+2:     .t2 =        2  +      .t3 - Reorderable
+3:     .t1 =        x  -        y
+4:       c =      .t1  +      .t2 - Reorderable
+5:       d =        d  +        1 - Reorderable
+6:       d =        1  +        d - Reorderable
+7:       d =        d  +        d - Reorderable
+8:       c =        d
