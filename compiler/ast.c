@@ -9,6 +9,7 @@ struct astNode *newastNode(enum token t, char *newdata)
     retNode->child = NULL;
     retNode->sibling = NULL;
     retNode->type = t;
+    // leaks galore :(
     retNode->value = malloc(strlen(newdata) + 1);
     strcpy(retNode->value, newdata);
     return retNode;
@@ -42,4 +43,17 @@ void printAST(struct astNode *it, int depth)
     printf("%s\n", it->value);
     if (it->child != NULL)
         printAST(it->child, depth + 1);
+}
+
+void freeAST(struct astNode *it)
+{
+    if(it->child != NULL){
+        freeAST(it->child);
+    }
+    while(it != NULL){
+        struct astNode* old = it;
+        //free(it->value);
+        it = it->sibling;
+        free(old);
+    }
 }

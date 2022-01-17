@@ -6,16 +6,15 @@ char *getAsmOp(enum tacType t)
     {
     case tt_assign:
         return "";
-        
+
     case tt_add:
         return "add";
-        
+
     case tt_subtract:
         return "sub";
-        
+
     case tt_label:
         return ".";
-        
     }
     return "";
 }
@@ -23,6 +22,11 @@ char *getAsmOp(enum tacType t)
 struct tacLine *newtacLine()
 {
     struct tacLine *wip = malloc(sizeof(struct tacLine));
+    wip->nextLine = NULL;
+    wip->prevLine = NULL;
+    wip->operands[0] = NULL;
+    wip->operands[1] = NULL;
+    wip->operands[2] = NULL;
     wip->operandTypes[0] = vt_null;
     wip->operandTypes[1] = vt_null;
     wip->operandTypes[2] = vt_null;
@@ -98,4 +102,32 @@ struct tacLine *findLastTAC(struct tacLine *head)
         head = head->nextLine;
 
     return head;
+}
+
+void freeTAC(struct tacLine *it)
+{
+    while (it != NULL)
+    {
+        struct tacLine *old = it;
+        /*if (it->operands[0] != NULL)
+        {
+            free(it->operands[0]);
+            it->operands[0] = NULL;
+        }
+
+        if (it->operands[1] != NULL)
+        {
+            free(it->operands[1]);
+            it->operands[1] = NULL;
+        }
+
+        if (it->operands[2] != NULL)
+        {
+            free(it->operands[2]);
+            it->operands[2] = NULL;
+        }*/
+
+        it = it->nextLine;
+        free(old);
+    }
 }

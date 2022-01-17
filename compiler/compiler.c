@@ -10,6 +10,7 @@
 struct symbolTable *walkAST(struct astNode *it)
 {
     struct symbolTable *wip = newSymbolTable("Program");
+    wip->tl = newTempList();
     int globalVariableCount = 0;
     struct astNode *runner = it;
     while (runner != NULL)
@@ -89,27 +90,21 @@ struct symbolTable *walkAST(struct astNode *it)
  */
 
 // given an AST node of an expression, figure out how to break it down into multiple lines of three address code
-struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, int depth)
+struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tempList *tl)
 {
     struct tacLine *thisExpression = newtacLine();
     struct tacLine *returnExpression = NULL;
 
+    thisExpression->operands[0] = getTempString(tl, *tempNum);
     // increment count of temp variables, the parse of this expression will be written to a temp
-    thisExpression->operands[0] = malloc(5 * sizeof(char));
-    thisExpression->operandTypes[0] = vt_temp;
-    sprintf(thisExpression->operands[0], ".t%d", *tempNum);
-
     (*tempNum)++;
 
     // check left child
     if (it->child->type == t_unOp)
     {
-        // found another operator, so will need to use more temporary variables (recurse deeper)
-        //  allocate enough space to store 'txx' - will break with >99 temps
-        thisExpression->operands[1] = malloc(5 * sizeof(char));
         thisExpression->operandTypes[1] = vt_temp;
-        sprintf(thisExpression->operands[1], ".t%d", *tempNum);
-        returnExpression = prependTAC(thisExpression, linearizeExpression(it->child, tempNum, depth + 1));
+        thisExpression->operands[1] = getTempString(tl, *tempNum);
+        returnExpression = prependTAC(thisExpression, linearizeExpression(it->child, tempNum, tl));
     }
     else
     {
@@ -146,16 +141,15 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, int depth)
     // check right child, same as left but with correct address index
     if (it->child->sibling->type == t_unOp)
     {
-        thisExpression->operands[2] = malloc(5 * sizeof(char));
-        sprintf(thisExpression->operands[2], ".t%d", *tempNum);
+        thisExpression->operands[2] = getTempString(tl, *tempNum);
         thisExpression->operandTypes[2] = vt_temp;
 
         // when recursing, we need to prepend this line so things happen in the correct order
         // figure out what to prepend to, then set the return expression TACline to the head of the block
         if (returnExpression != NULL)
-            returnExpression = prependTAC(returnExpression, linearizeExpression(it->child->sibling, tempNum, depth + 1));
+            returnExpression = prependTAC(returnExpression, linearizeExpression(it->child->sibling, tempNum, tl));
         else
-            returnExpression = prependTAC(thisExpression, linearizeExpression(it->child->sibling, tempNum, depth + 1));
+            returnExpression = prependTAC(thisExpression, linearizeExpression(it->child->sibling, tempNum, tl));
     }
     else
     {
@@ -185,7 +179,7 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, int depth)
 }
 
 // given an AST node of an assignment, return the TAC block necessary to generate the correct value
-struct tacLine *linearizeAssignment(struct astNode *it, int *tempNum)
+struct tacLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tempList *tl)
 {
     struct tacLine *assignment;
 
@@ -217,7 +211,7 @@ struct tacLine *linearizeAssignment(struct astNode *it, int *tempNum)
     // otherwise there is some sort of expression, which will need to be broken down into multiple lines of TAC
     else
     {
-        assignment = linearizeExpression(it->child->sibling, tempNum, 0);
+        assignment = linearizeExpression(it->child->sibling, tempNum, tl);
         struct tacLine *lastLine = findLastTAC(assignment);
 
         // set the final line's operand 0 to the variable actually being assigned
@@ -229,7 +223,7 @@ struct tacLine *linearizeAssignment(struct astNode *it, int *tempNum)
 }
 
 // given the AST for a function, generate TAC and return a pointer to the head of the generated block
-struct tacLine *linearizeFunction(struct astNode *it)
+struct tacLine *linearizeFunction(struct astNode *it, struct tempList *tl)
 {
     // scrape along the function
     struct astNode *runner = it;
@@ -244,13 +238,13 @@ struct tacLine *linearizeFunction(struct astNode *it)
         // generate the code and stick it on to the end of the block
         case t_var:
             if (runner->child->type == t_assign)
-                asttac = appendTAC(asttac, linearizeAssignment(runner->child, &tempNum));
+                asttac = appendTAC(asttac, linearizeAssignment(runner->child, &tempNum, tl));
 
             break;
 
         // if we see an assignment, generate the code and stick it on to the end of the block
         case t_assign:
-            asttac = appendTAC(asttac, linearizeAssignment(runner, &tempNum));
+            asttac = appendTAC(asttac, linearizeAssignment(runner, &tempNum, tl));
             break;
 
         default:
@@ -276,7 +270,7 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
         case t_fun:
         {
             struct functionEntry *theFunction = symbolTableLookup(table, runner->child->value)->entry;
-            struct tacLine *generatedTAC = linearizeFunction(runner->child->sibling);
+            struct tacLine *generatedTAC = linearizeFunction(runner->child->sibling, table->tl);
             theFunction->codeBlock = generatedTAC;
             break;
         }
@@ -307,7 +301,18 @@ struct Lifetime *newLifetime(char *variable, int start)
     wip->variable = variable;
     wip->start = start;
     wip->end = start;
+    wip->next = NULL;
     return wip;
+}
+
+void freeLifetime(struct Lifetime *it)
+{
+    while (it != NULL)
+    {
+        struct Lifetime *old = it;
+        it = it->next;
+        free(old);
+    }
 }
 
 /*
@@ -766,7 +771,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                         {
                             registerStates[oldIndex]->contains = NULL;
                             registerStates[oldIndex]->live = 0;
-                            registerStates[oldIndex]->dirty = 0;  
+                            registerStates[oldIndex]->dirty = 0;
                         }
                         // just perform the operation on the existing value
                         printf("%s r%d, %s\n", getAsmOp(line->operation), destinationRegister, line->operands[1]);
@@ -816,7 +821,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                         {
                             registerStates[oldIndex]->contains = NULL;
                             registerStates[oldIndex]->live = 0;
-                            registerStates[oldIndex]->dirty = 0;  
+                            registerStates[oldIndex]->dirty = 0;
                         }
                         // just perform the operation on the existing value
                         printf("%s r%d, %s\n", getAsmOp(line->operation), destinationRegister, line->operands[2]);
@@ -924,6 +929,7 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
 {
     printf("Generating target code for function %s\n", function->table->name);
 
+    // generate register states for the 12 GP registers
     struct registerState *registerStates[12];
     for (int i = 0; i < 12; i++)
         registerStates[i] = newRegisterState();
@@ -982,6 +988,11 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
         tacIndex++;
     }
     printRegisterStates(registerStates);
+    
+    // clean up the registers states
+    for (int i = 0; i < 12; i++)
+        free(registerStates[i]);
+
 }
 
 int main(int argc, char **argv)
@@ -1001,8 +1012,11 @@ int main(int argc, char **argv)
         {
             struct Lifetime *theseLifetimes = findLifetimes(theTable->entries[i]->entry);
             generateCode(theTable->entries[i]->entry, theseLifetimes);
+            freeLifetime(theseLifetimes);
         }
     }
+    freeAST(program);
+    freeSymTab(theTable);
 
     // printTacLine(head);
 

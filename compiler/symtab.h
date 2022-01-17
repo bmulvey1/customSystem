@@ -14,6 +14,11 @@ enum symTabEntryType
     e_argument
 };
 
+struct tempList
+{
+    int size;
+    char **temps;
+};
 
 struct symTabEntry
 {
@@ -45,7 +50,14 @@ struct symbolTable
     char *name;
     struct symTabEntry **entries;
     int size;
+    struct tempList *tl;
 };
+
+char *getTempString(struct tempList *tempList, int tempNum);
+
+struct tempList *newTempList();
+
+void freeTempList(struct tempList *it);
 
 struct variableEntry *newVariableEntry();
 
@@ -70,3 +82,5 @@ void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolT
 void printSymTabRec(struct symbolTable *it, int depth);
 
 void printSymTab(struct symbolTable *it);
+
+void freeSymTab(struct symbolTable *it);

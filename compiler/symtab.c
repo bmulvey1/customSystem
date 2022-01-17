@@ -4,6 +4,53 @@ char *symbolNames[] = {
     "variable",
     "function"};
 
+char *getTempString(struct tempList *tempList, int tempNum)
+{
+    printf("getting temp %d\n", tempNum);
+    // there is no ".t0" so return the index - 1
+    if (tempList->size < tempNum)
+    {
+        int newSize = tempList->size + 10;
+        char **newTemps = malloc(newSize * sizeof(char *));
+        for (int i = 0; i < tempList->size; i++)
+        {
+            newTemps[i] = tempList->temps[i];
+        }
+        for (int i = tempList->size; i < newSize; i++)
+        {
+            newTemps[i] = malloc(5 * sizeof(char));
+            sprintf(newTemps[i], ".t%d", i);
+        }
+        free(tempList->temps);
+        tempList->temps = newTemps;
+        tempList->size = newSize;
+    }
+    return tempList->temps[tempNum];
+}
+
+struct tempList *newTempList()
+{
+    struct tempList *wip = malloc(sizeof(struct tempList));
+    wip->size = 10;
+    wip->temps = malloc(10 * sizeof(char *));
+    for (int i = 0; i < 10; i++)
+    {
+        wip->temps[i] = malloc(5 * sizeof(char));
+        sprintf(wip->temps[i], ".t%d", i);
+    }
+    return wip;
+}
+
+void freeTempList(struct tempList *it)
+{
+    for (int i = 0; i < it->size; i++)
+    {
+        free(it->temps[i]);
+    }
+    free(it->temps);
+    free(it);
+}
+
 struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
 {
     struct symTabEntry *wip = malloc(sizeof(struct symTabEntry));
@@ -45,6 +92,9 @@ struct symbolTable *newSymbolTable(char *name)
     wip->size = 0;
     wip->entries = NULL;
     wip->name = name;
+    // generate a single templist at the top level symTab
+    // leave all others as NULL to avoid duplication
+    wip->tl = NULL;
     return wip;
 }
 
@@ -146,4 +196,36 @@ void printSymTabRec(struct symbolTable *it, int depth)
 void printSymTab(struct symbolTable *it)
 {
     printSymTabRec(it, 0);
+}
+
+void freeSymTab(struct symbolTable *it)
+{
+    for (int i = 0; i < it->size; i++)
+    {
+        struct symTabEntry *currentEntry = it->entries[i];
+        printf("freeing entry %s\n", currentEntry->name);
+        switch (currentEntry->type)
+        {
+        case e_variable:
+            free(currentEntry->entry);
+            break;
+
+        case e_argument:
+            free(currentEntry->entry);
+            break;
+
+        case e_function:
+            freeSymTab(((struct functionEntry *)currentEntry->entry)->table);
+            printf("Freeing TAC of %s\n", currentEntry->name);
+            freeTAC(((struct functionEntry *)currentEntry->entry)->codeBlock);
+            break;
+        }
+        //free(it->name);
+        free(currentEntry);
+    }
+    if (it->tl != NULL)
+    {
+        freeTempList(it->tl);
+    }
+    free(it);
 }

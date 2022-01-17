@@ -41,3 +41,5 @@ struct tacLine *appendTAC(struct tacLine *before, struct tacLine *after);
 struct tacLine *prependTAC(struct tacLine *after, struct tacLine *before);
 
 struct tacLine *findLastTAC(struct tacLine *head);
+
+void freeTAC(struct tacLine* it);

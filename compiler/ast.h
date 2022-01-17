@@ -29,6 +29,11 @@ struct astNode
 };
 
 struct astNode *newastNode(enum token t, char *newdata);
+
 void astNode_insertSibling(struct astNode *it, struct astNode *newSibling);
+
 void astNode_insertChild(struct astNode *it, struct astNode *newChild);
+
 void printAST(struct astNode *it, int depth);
+
+void freeAST(struct astNode *it);
