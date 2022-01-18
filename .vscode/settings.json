@@ -53,6 +53,10 @@
         "parser.h": "c",
         "chrono": "c",
         "variant": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "optional": "c",
+        "ratio": "c",
+        "dict.h": "c",
+        "stdio.h": "c"
     }
 }

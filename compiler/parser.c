@@ -183,7 +183,7 @@ enum token lookaheadToken()
 }
 
 // error-checked method to consume and return AST node of expected token
-struct astNode *match(enum token t)
+struct astNode *match(enum token t, struct Dictionary *dict)
 {
     enum token result = scan();
     if (result != t)
@@ -191,7 +191,7 @@ struct astNode *match(enum token t)
         printf("Error matching - expected token [%s], got [%s] with image of [%s] instead!\n", token_names[t], token_names[result], buffer);
         exit(1);
     }
-    return newastNode(result, buffer);
+    return newastNode(result, DictionaryLookupOrInsert(dict, buffer));
 }
 
 // error-checked method to consume expected token with no return
@@ -210,42 +210,43 @@ char *getTokenName(enum token t)
     return token_names[t];
 }
 
-struct astNode *parseProgram(char *inFileName)
+struct astNode *parseProgram(char *inFileName, struct Dictionary *dict)
 {
     infile = fopen(inFileName, "rb");
-    return parseTLDList();
+    return parseTLDList(dict);
+    fclose(infile);
 }
 
-struct astNode *parseTLDList()
+struct astNode *parseTLDList(struct Dictionary *dict)
 {
-    struct astNode *TLDList = parseTLD();
+    struct astNode *TLDList = parseTLD(dict);
     while (1)
     {
         if (lookaheadToken() == t_EOF)
             break;
 
-        astNode_insertSibling(TLDList, parseTLD());
+        astNode_insertSibling(TLDList, parseTLD(dict));
     }
     //printf("done parsing tld list\n");
     return TLDList;
 }
 
-struct astNode *parseTLD()
+struct astNode *parseTLD(struct Dictionary *dict)
 {
     struct astNode *TLD;
     switch (lookaheadToken())
     {
     // f [function name](){[argument list]}
     case t_fun:
-        TLD = match(t_fun);
-        struct astNode *functionname = match(t_name);
+        TLD = match(t_fun, dict);
+        struct astNode *functionname = match(t_name, dict);
         consume(t_lParen);
-        struct astNode *argList = parseArgList();
+        struct astNode *argList = parseArgList(dict);
         astNode_insertChild(functionname, argList);
         astNode_insertChild(TLD, functionname);
         consume(t_rParen);
         consume(t_lCurly);
-        astNode_insertChild(TLD, parseStatementList());
+        astNode_insertChild(TLD, parseStatementList(dict));
         consume(t_rCurly);
         break;
 
@@ -253,13 +254,13 @@ struct astNode *parseTLD()
     // v [variable name] = [expression];
     case t_var:
     {
-        TLD = match(t_var);
-        struct astNode *name = match(t_name);
+        TLD = match(t_var, dict);
+        struct astNode *name = match(t_name, dict);
         if (lookahead() == '=')
         {
-            struct astNode *assignment = match(t_assign);
+            struct astNode *assignment = match(t_assign, dict);
             astNode_insertChild(assignment, name);
-            astNode_insertChild(assignment, parseExpression());
+            astNode_insertChild(assignment, parseExpression(dict));
             astNode_insertChild(TLD, assignment);
         }
         else
@@ -275,17 +276,17 @@ struct astNode *parseTLD()
     return TLD;
 }
 
-struct astNode *parseAssignment(struct astNode *name)
+struct astNode *parseAssignment(struct astNode *name, struct Dictionary *dict)
 {
     // pre-parsed name node taken as argument
     // [name] = [expression]
-    struct astNode *assign = match(t_assign);
+    struct astNode *assign = match(t_assign, dict);
     astNode_insertChild(assign, name);
-    astNode_insertChild(assign, parseExpression());
+    astNode_insertChild(assign, parseExpression(dict));
     return assign;
 }
 
-struct astNode *parseStatementList()
+struct astNode *parseStatementList(struct Dictionary *dict)
 {
     struct astNode *stmtList = NULL;
     // loop until we see something that's not a statement
@@ -302,7 +303,7 @@ struct astNode *parseStatementList()
         // [variable name] = [expression];
         case t_var:
         case t_name:
-            stmt = parseStatement();
+            stmt = parseStatement(dict);
             if (stmtList == NULL)
                 stmtList = stmt;
             else
@@ -324,7 +325,7 @@ struct astNode *parseStatementList()
     return stmtList;
 }
 
-struct astNode *parseStatement()
+struct astNode *parseStatement(struct Dictionary *dict)
 {
     struct astNode *statement = NULL;
     enum token upcomingToken = lookaheadToken();
@@ -334,12 +335,12 @@ struct astNode *parseStatement()
     // v [variable name] = [expression];
     case t_var:
     {
-        statement = match(t_var);
-        struct astNode *name = match(t_name);
+        statement = match(t_var, dict);
+        struct astNode *name = match(t_name, dict);
 
         // check whether or not whether this is an assignment or just a declaration
         if (lookaheadToken() == t_assign)
-            astNode_insertChild(statement, parseAssignment(name));
+            astNode_insertChild(statement, parseAssignment(name, dict));
         else
         {
             //printf("var with no assignment\n");
@@ -353,8 +354,8 @@ struct astNode *parseStatement()
     // [variable name] = [expression];
     case t_name:
     {
-        struct astNode *name = match(t_name);
-        statement = parseAssignment(name);
+        struct astNode *name = match(t_name, dict);
+        statement = parseAssignment(name, dict);
         consume(t_semicolon);
     }
     break;
@@ -367,7 +368,7 @@ struct astNode *parseStatement()
     return statement;
 }
 
-struct astNode *parseExpression()
+struct astNode *parseExpression(struct Dictionary *dict)
 {
     //printf("parsing expression\n");
     struct astNode *expression = NULL;
@@ -375,13 +376,13 @@ struct astNode *parseExpression()
     // figure out what the left side of the expression is
     struct astNode *lSide = NULL;
     if (isalpha(lookahead()))
-        lSide = match(t_name);
+        lSide = match(t_name, dict);
     else if (isdigit(lookahead()))
-        lSide = match(t_literal);
+        lSide = match(t_literal, dict);
     else if (lookahead() == '(')
     {
         consume(t_lParen);
-        lSide = parseExpression();
+        lSide = parseExpression(dict);
         consume(t_rParen);
     }
     else
@@ -396,9 +397,9 @@ struct astNode *parseExpression()
     // [left side][operator][right side]
     case '+':
     case '-':
-        expression = match(t_unOp);
+        expression = match(t_unOp, dict);
         astNode_insertChild(expression, lSide);
-        astNode_insertChild(expression, parseExpression());
+        astNode_insertChild(expression, parseExpression(dict));
         break;
 
     // end of line or end of expression, there isn't anything more than the left side
@@ -419,7 +420,7 @@ struct astNode *parseExpression()
     return expression;
 }
 
-struct astNode *parseArgList()
+struct astNode *parseArgList(struct Dictionary *dict)
 {
     struct astNode *argList = NULL;
     int parsing = 1;
@@ -430,8 +431,8 @@ struct astNode *parseArgList()
         {
         case 'v':
         {
-            struct astNode *argument = match(t_var);
-            astNode_insertChild(argument, match(t_name));
+            struct astNode *argument = match(t_var, dict);
+            astNode_insertChild(argument, match(t_name, dict));
 
             if (argList == NULL)
                 argList = argument;

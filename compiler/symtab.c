@@ -60,8 +60,6 @@ struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
     return wip;
 }
 
-// isArgument denotes whether or not this variable is an argument
-// if yes, its lifespan will be ignored since it will live for the entire function
 struct variableEntry *newVariableEntry(int index)
 {
     struct variableEntry *wip = malloc(sizeof(struct variableEntry));
@@ -83,6 +81,7 @@ struct functionEntry *newFunctionEntry(struct symbolTable *table)
 {
     struct functionEntry *wip = malloc(sizeof(struct functionEntry));
     wip->table = table;
+    wip->codeBlock = NULL;
     return wip;
 }
 
@@ -119,6 +118,7 @@ struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name)
 
 void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum symTabEntryType type)
 {
+    printf("insert to table with size of %d\n", table->size);
     if (symbolTableContains(table, name))
     {
         printf("Error defining symbol [%s] - name already exists!\n", name);
@@ -128,28 +128,36 @@ void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum sy
     wip->name = name;
     wip->entry = newEntry;
     wip->type = type;
-    struct symTabEntry **newList = malloc(++table->size * sizeof(struct symTabEntry *));
-    for (int i = 0; i < table->size - 1; i++)
-        newList[i] = table->entries[i];
 
-    newList[table->size - 1] = wip;
+    printf("allocating room for %d\n", table->size + 1);
+    struct symTabEntry **newList = malloc((table->size + 1) * sizeof(struct symTabEntry *));
+    for (int i = 0; i < table->size; i++)
+    {
+        newList[i] = table->entries[i];
+    }
+
+    newList[table->size] = wip;
     free(table->entries);
     table->entries = newList;
+    table->size++;
 }
 
 void symTab_insertVariable(struct symbolTable *table, char *name, int index)
 {
-    symTabInsert(table, name, newVariableEntry(index), e_variable);
+    struct variableEntry *newVariable = newVariableEntry(index);
+    symTabInsert(table, name, newVariable, e_variable);
 }
 
 void symTab_insertArgument(struct symbolTable *table, char *name, int index)
 {
-    symTabInsert(table, name, newArgumentEntry(index), e_argument);
+    struct argumentEntry *newArgument = newArgumentEntry(index);
+    symTabInsert(table, name, newArgument, e_argument);
 }
 
 void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolTable *subTable)
 {
-    symTabInsert(table, name, newFunctionEntry(subTable), e_function);
+    struct functionEntry *newFunction = newFunctionEntry(subTable);
+    symTabInsert(table, name, newFunction, e_function);
 }
 
 void printSymTabRec(struct symbolTable *it, int depth)
@@ -203,21 +211,20 @@ void freeSymTab(struct symbolTable *it)
     for (int i = 0; i < it->size; i++)
     {
         struct symTabEntry *currentEntry = it->entries[i];
-        printf("freeing entry %s\n", currentEntry->name);
         switch (currentEntry->type)
         {
         case e_variable:
-            free(currentEntry->entry);
+            free((struct variableEntry *)currentEntry->entry);
             break;
 
         case e_argument:
-            free(currentEntry->entry);
+            free((struct argumentEntry *)currentEntry->entry);
             break;
 
         case e_function:
             freeSymTab(((struct functionEntry *)currentEntry->entry)->table);
-            printf("Freeing TAC of %s\n", currentEntry->name);
             freeTAC(((struct functionEntry *)currentEntry->entry)->codeBlock);
+            free((struct functionEntry *)currentEntry->entry);
             break;
         }
         //free(it->name);
@@ -227,5 +234,6 @@ void freeSymTab(struct symbolTable *it)
     {
         freeTempList(it->tl);
     }
+    free(it->entries);
     free(it);
 }

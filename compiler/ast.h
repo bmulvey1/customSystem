@@ -28,7 +28,7 @@ struct astNode
     struct astNode *sibling;
 };
 
-struct astNode *newastNode(enum token t, char *newdata);
+struct astNode *newastNode(enum token t, char *value);
 
 void astNode_insertSibling(struct astNode *it, struct astNode *newSibling);
 

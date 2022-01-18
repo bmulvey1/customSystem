@@ -5,6 +5,7 @@
 #include "parser.h"
 #include "tac.h"
 #include "symtab.h"
+#include "dict.h"
 
 // given an AST node for a program, walk the AST and generate a symbol table for the entire thing
 struct symbolTable *walkAST(struct astNode *it)
@@ -988,21 +989,34 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
         tacIndex++;
     }
     printRegisterStates(registerStates);
-    
+
     // clean up the registers states
     for (int i = 0; i < 12; i++)
         free(registerStates[i]);
-
 }
 
 int main(int argc, char **argv)
 {
     printf("%s\n", argv[1]);
 
-    struct astNode *program = parseProgram(argv[1]);
+    struct Dictionary *parseDict = newDictionary(10);
+    struct astNode *program = parseProgram(argv[1], parseDict);
+
+    for (int i = 0; i < parseDict->nBuckets; i++)
+    {
+        struct DictionaryEntry *runner = parseDict->buckets[i];
+        printf("%d:", i);
+        while (runner != NULL)
+        {
+            printf("%s,", runner->data);
+            runner = runner->next;
+            printf("\n");
+        }
+    }
     printf("DONE PARSING PROGRAM\n");
 
     struct symbolTable *theTable = walkAST(program);
+    printAST(program, 0);
     linearizeProgram(program, theTable);
     printf("DONE LINEARIZING TO TAC\n");
     printSymTab(theTable);
@@ -1015,6 +1029,7 @@ int main(int argc, char **argv)
             freeLifetime(theseLifetimes);
         }
     }
+    freeDictionary(parseDict);
     freeAST(program);
     freeSymTab(theTable);
 
