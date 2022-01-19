@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -Werror -Wall
+CFLAGS = -O0 -Werror -Wall
 programs: mcc
 
 mcc: compiler.o parser.o ast.o tac.o symtab.o dict.o

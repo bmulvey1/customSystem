@@ -1,4 +1,5 @@
 vgcore.*
+massif.out.*
 a.out
 
 *.out

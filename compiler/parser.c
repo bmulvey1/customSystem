@@ -116,7 +116,7 @@ enum token scan()
     if (feof(infile))
         return t_EOF;
 
-    enum token currentToken;
+    enum token currentToken = -1;
 
     while (1)
     {

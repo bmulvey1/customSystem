@@ -1020,6 +1020,8 @@ int main(int argc, char **argv)
     linearizeProgram(program, theTable);
     printf("DONE LINEARIZING TO TAC\n");
     printSymTab(theTable);
+    freeDictionary(parseDict);
+    freeAST(program);
     for (int i = 0; i < theTable->size; i++)
     {
         if (theTable->entries[i]->type == e_function)
@@ -1029,8 +1031,7 @@ int main(int argc, char **argv)
             freeLifetime(theseLifetimes);
         }
     }
-    freeDictionary(parseDict);
-    freeAST(program);
+    
     freeSymTab(theTable);
 
     // printTacLine(head);
