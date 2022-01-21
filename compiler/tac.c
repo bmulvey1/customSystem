@@ -13,6 +13,12 @@ char *getAsmOp(enum tacType t)
     case tt_subtract:
         return "sub";
 
+    case tt_push:
+        return "push";
+
+    case tt_call:
+        return "call";
+
     case tt_label:
         return ".";
     }
@@ -61,10 +67,21 @@ void printTacLine(struct tacLine *it)
         case tt_assign:
             printf("\t%2d:%8s = %8s", lineIndex, it->operands[0], it->operands[1]);
             break;
+
+        case tt_push:
+            printf("\t%2d: push %s", lineIndex, it->operands[0]);
+            break;
+
+        case tt_call:
+            printf("\t%2d: call %s", lineIndex, it->operands[0]);
+            break;
+
         case tt_label:
+            printf("\t%2d: label %s", lineIndex, it->operands[0]);
             break;
         }
-        printf("%s\n", it->reorderable ? " - Reorderable" : "");
+        printf("%s", it->reorderable ? " - Reorderable" : "");
+        printf("\t%d %d %d\n", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
         lineIndex++;
         it = it->nextLine;
     }
@@ -109,23 +126,6 @@ void freeTAC(struct tacLine *it)
     while (it != NULL)
     {
         struct tacLine *old = it;
-        /*if (it->operands[0] != NULL)
-        {
-            free(it->operands[0]);
-            it->operands[0] = NULL;
-        }
-
-        if (it->operands[1] != NULL)
-        {
-            free(it->operands[1]);
-            it->operands[1] = NULL;
-        }
-
-        if (it->operands[2] != NULL)
-        {
-            free(it->operands[2]);
-            it->operands[2] = NULL;
-        }*/
 
         it = it->nextLine;
         free(old);

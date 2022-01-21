@@ -6,6 +6,7 @@
 #include "tac.h"
 #include "symtab.h"
 #include "dict.h"
+#include "linearizer.h"
 
 // given an AST node for a program, walk the AST and generate a symbol table for the entire thing
 struct symbolTable *walkAST(struct astNode *it)
@@ -16,6 +17,7 @@ struct symbolTable *walkAST(struct astNode *it)
     struct astNode *runner = it;
     while (runner != NULL)
     {
+        printf(".");
         switch (runner->type)
         {
 
@@ -67,8 +69,12 @@ struct symbolTable *walkAST(struct astNode *it)
                     }
                     break;
 
+                // function calls have no implication on symtab entries (for now?)
+                case t_call:
+                    break;
+
                 default:
-                    printf("Error walking AST - expected 'v' or name, saw %s with value of [%s]\n", getTokenName(functionNode->type), functionNode->value);
+                    printf("Error walking AST - expected 'var', name, or function call, saw %s with value of [%s]\n", getTokenName(functionNode->type), functionNode->value);
                     exit(1);
                 }
                 functionNode = functionNode->sibling;
@@ -90,6 +96,51 @@ struct symbolTable *walkAST(struct astNode *it)
  * These functions walk the AST and convert it to three-address code
  */
 
+struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tempList *tl);
+
+struct tacLine *linearizeFunctionCall(struct astNode *it, int *tempNum, struct tempList *tl)
+{
+    printf("Linearizing function call \n");
+    printAST(it, 0);
+    struct astNode *runner = it->child->sibling;
+    struct tacLine *calltac = newtacLine();
+    calltac->operands[0] = it->child->value;
+    calltac->operation = tt_call;
+    while (runner != NULL)
+    {
+        struct tacLine *thisArgument = NULL;
+        switch (runner->type)
+        {
+        case t_name:
+            thisArgument = newtacLine();
+            thisArgument->operandTypes[0] = vt_var;
+        case t_literal:
+            if (thisArgument == NULL)
+            {
+                thisArgument = newtacLine();
+                thisArgument->operandTypes[0] = vt_literal;
+            }
+            thisArgument->operands[0] = runner->value;
+            thisArgument->operation = tt_push;
+            break;
+
+        default:
+
+            struct tacLine *pushOperation = newtacLine();
+            pushOperation->operands[0] = getTempString(tl, *tempNum);
+            pushOperation->operandTypes[0] = vt_temp;
+            pushOperation->operation = tt_push;
+
+            thisArgument = linearizeExpression(runner, tempNum, tl);
+            appendTAC(thisArgument, pushOperation);
+        }
+
+        calltac = prependTAC(calltac, thisArgument);
+        runner = runner->sibling;
+    }
+    return calltac;
+}
+
 // given an AST node of an expression, figure out how to break it down into multiple lines of three address code
 struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tempList *tl)
 {
@@ -97,6 +148,7 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
     struct tacLine *returnExpression = NULL;
 
     thisExpression->operands[0] = getTempString(tl, *tempNum);
+    thisExpression->operandTypes[0] = vt_temp;
     // increment count of temp variables, the parse of this expression will be written to a temp
     (*tempNum)++;
 
@@ -121,8 +173,14 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
             thisExpression->operandTypes[1] = vt_literal;
             break;
 
+        case t_call:
+            thisExpression->operands[1] = getTempString(tl, *tempNum);
+            thisExpression->operandTypes[1] = vt_temp;
+            returnExpression = prependTAC(returnExpression, linearizeFunctionCall(it->child, tempNum, tl));
+            break;
+
         default:
-            printf("Unexpected type seen while linearizing expression!\n Expected variable or literal\n");
+            printf("Unexpected type seen while linearizing expression! Expected variable or literal\n");
             exit(1);
         }
     }
@@ -163,6 +221,12 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
 
         case t_literal:
             thisExpression->operandTypes[2] = vt_literal;
+            break;
+
+        case t_call:
+            thisExpression->operands[2] = getTempString(tl, *tempNum);
+            thisExpression->operandTypes[2] = vt_temp;
+            returnExpression = prependTAC(returnExpression, linearizeFunctionCall(it->child->sibling, tempNum, tl));
             break;
 
         default:
@@ -227,8 +291,12 @@ struct tacLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
 struct tacLine *linearizeFunction(struct astNode *it, struct tempList *tl)
 {
     // scrape along the function
-    struct astNode *runner = it;
-    struct tacLine *asttac = NULL;
+    struct astNode *runner = it->child->sibling;
+    struct tacLine *asttac = newtacLine();
+
+    asttac->operation = tt_label;
+    asttac->operands[0] = it->child->value;
+
     int tempNum = 0; // track the number of temporary variables used
     while (runner != NULL)
     {
@@ -248,6 +316,10 @@ struct tacLine *linearizeFunction(struct astNode *it, struct tempList *tl)
             asttac = appendTAC(asttac, linearizeAssignment(runner, &tempNum, tl));
             break;
 
+        case t_call:
+            asttac = appendTAC(asttac, linearizeFunctionCall(runner, &tempNum, tl));
+            break;
+
         default:
             printf("Something broke :(\n");
             exit(1);
@@ -264,6 +336,7 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
     struct astNode *runner = it;
     while (runner != NULL)
     {
+        printf(".");
         switch (runner->type)
         {
         // if we encounter a function, lookup its symbol table entry
@@ -271,7 +344,7 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
         case t_fun:
         {
             struct functionEntry *theFunction = symbolTableLookup(table, runner->child->value)->entry;
-            struct tacLine *generatedTAC = linearizeFunction(runner->child->sibling, table->tl);
+            struct tacLine *generatedTAC = linearizeFunction(runner, table->tl);
             theFunction->codeBlock = generatedTAC;
             break;
         }
@@ -345,8 +418,8 @@ void checkVariableLifetimes(struct functionEntry *function)
 
             switch (varEntry->type)
             {
-            // ignore function arguments
             case e_argument:
+                // arguments can be used anywhere, so ignore
                 break;
 
             case e_variable:
@@ -372,9 +445,10 @@ void checkVariableLifetimes(struct functionEntry *function)
         }
 
         // perform the same checks as for operand index 2 on index 1
-        varEntry = symbolTableLookup(function->table, t->operands[1]);
+
         if (t->operandTypes[1] == vt_var)
         {
+            varEntry = symbolTableLookup(function->table, t->operands[1]);
             if (varEntry == NULL)
             {
                 printf("Error: use of undeclared variable %s\n", t->operands[1]);
@@ -383,6 +457,7 @@ void checkVariableLifetimes(struct functionEntry *function)
             switch (varEntry->type)
             {
             case e_argument:
+                // arguments can be used anywhere, so ignore
                 break;
 
             case e_variable:
@@ -438,8 +513,6 @@ void checkVariableLifetimes(struct functionEntry *function)
 
 struct Lifetime *findLifetimes(struct functionEntry *function)
 {
-    printf("EVALUATING VARIABLE LIFETIMES FOR %s\n", function->table->name);
-
     // look at explicitly defined variables and do error checking
     checkVariableLifetimes(function);
 
@@ -488,11 +561,19 @@ struct Lifetime *findLifetimes(struct functionEntry *function)
                 if (ltList == NULL)
                 {
                     ltList = newLifetime(varName, lineIndex);
+                    if (line->operandTypes[i] == vt_var && symbolTableLookup(function->table, line->operands[i])->type == e_argument)
+                    {
+                        ltList->start = 0;
+                    }
                     ltTail = ltList;
                 }
                 else
                 {
                     ltTail->next = newLifetime(varName, lineIndex);
+                    if (line->operandTypes[i] == vt_var && symbolTableLookup(function->table, line->operands[i])->type == e_argument)
+                    {
+                        ltTail->next->start = 0;
+                    }
                     ltTail = ltTail->next;
                 }
             }
@@ -500,21 +581,6 @@ struct Lifetime *findLifetimes(struct functionEntry *function)
         lineIndex++;
     }
 
-    /*// print TAC lines with active variables at that time next to them
-    lineIndex = 0;
-    for (struct tacLine *line = function->codeBlock; line != NULL; line = line->nextLine)
-    {
-        printf("\t%2d:%8s = %8s %2s %8s [", lineIndex, line->operands[0], line->operands[1], line->operation, line->operands[2]);
-        for (struct Lifetime *runner = ltList; runner != NULL; runner = runner->next)
-        {
-            if (lineIndex >= runner->start && lineIndex <= runner->end)
-            {
-                printf("%s ", runner->variable);
-            }
-        }
-        printf("]\n");
-        lineIndex++;
-    }*/
     return ltList;
 }
 
@@ -839,6 +905,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                     if (destinationRegister == -1)
                     {
                         destinationRegister = findUnallocatedRegister(registerStates);
+                        modifyRegisterContents(registerStates, destinationRegister, line->operands[0]);
                     }
                     printf("movw r%d, r%d\n", destinationRegister, findOrPlaceVar(registerStates, line->operands[1], function));
                 }
@@ -928,14 +995,12 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
 
 void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
 {
-    printf("Generating target code for function %s\n", function->table->name);
 
     // generate register states for the 12 GP registers
     struct registerState *registerStates[12];
     for (int i = 0; i < 12; i++)
         registerStates[i] = newRegisterState();
 
-    printf("doin the allocation\n");
     int tacIndex = 0;
     for (struct tacLine *line = function->codeBlock; line != NULL; line = line->nextLine)
     {
@@ -972,24 +1037,52 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
         switch (line->operation)
         {
         case tt_assign:
+            printf("%s = %s %s\n", line->operands[0], line->operands[1], line->operands[2]);
             generateAssignmentCode(line, registerStates, function);
             break;
 
+        case tt_push:
+            switch (line->operandTypes[0])
+            {
+
+            case vt_var:
+                printf("push r%d\n", findOrPlaceVar(registerStates, line->operands[0], function));
+                break;
+
+            case vt_temp:
+                printf("push r%d\n", findTemp(registerStates, line->operands[0]));
+                break;
+
+            case vt_literal:
+                printf("push %s\n", line->operands[0]);
+                break;
+
+            case vt_null:
+                printf("Error - NULL type assigned to operand of 'push'\n");
+                exit(1);
+            }
+
+            break;
+
+        case tt_call:
+            printf("call %s\n", line->operands[0]);
+            break;
+
         case tt_label:
-            printf("emit label\n");
+            printf(".%s\n", line->operands[0]);
             break;
 
         default:
-            // printf("%s = %s %s\n", line->operands[0], line->operands[1], line->operands[2]);
+            //printf("%s = %s %s\n", line->operands[0], line->operands[1], line->operands[2]);
             generateArithmeticCode(line, registerStates, function);
             break;
         }
-        // printRegisterStates(registerStates);
-        // printf("\n\n");
+        //printRegisterStates(registerStates);
+        //printf("\n\n");
         tacIndex++;
     }
-    printRegisterStates(registerStates);
-
+    //printRegisterStates(registerStates);
+    printf("\n");
     // clean up the registers states
     for (int i = 0; i < 12; i++)
         free(registerStates[i]);
@@ -997,31 +1090,24 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
 
 int main(int argc, char **argv)
 {
-    printf("%s\n", argv[1]);
-
+    printf("Parsing program from %s\n", argv[1]);
     struct Dictionary *parseDict = newDictionary(10);
     struct astNode *program = parseProgram(argv[1], parseDict);
 
-    for (int i = 0; i < parseDict->nBuckets; i++)
-    {
-        struct DictionaryEntry *runner = parseDict->buckets[i];
-        printf("%d:", i);
-        while (runner != NULL)
-        {
-            printf("%s,", runner->data);
-            runner = runner->next;
-            printf("\n");
-        }
-    }
-    printf("DONE PARSING PROGRAM\n");
+    printf("\n");
 
-    struct symbolTable *theTable = walkAST(program);
     printAST(program, 0);
+    printf("Generating symbol table from AST");
+    struct symbolTable *theTable = walkAST(program);
+    printf("\n");
+
+    printf("Linearizing code to TAC");
     linearizeProgram(program, theTable);
-    printf("DONE LINEARIZING TO TAC\n");
+    printf("\n");
+
     printSymTab(theTable);
-    freeDictionary(parseDict);
-    freeAST(program);
+    printf("\n\n");
+
     for (int i = 0; i < theTable->size; i++)
     {
         if (theTable->entries[i]->type == e_function)
@@ -1031,7 +1117,8 @@ int main(int argc, char **argv)
             freeLifetime(theseLifetimes);
         }
     }
-    
+    freeDictionary(parseDict);
+    freeAST(program);
     freeSymTab(theTable);
 
     // printTacLine(head);

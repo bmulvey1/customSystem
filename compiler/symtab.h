@@ -36,6 +36,7 @@ struct variableEntry
 
 struct argumentEntry
 {
+    int lsStart, lsEnd;
     int index;
 };
 

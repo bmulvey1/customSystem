@@ -84,16 +84,13 @@ char *DictionaryLookup(struct Dictionary *dict, char *value)
 
 char *DictionaryLookupOrInsert(struct Dictionary *dict, char *value)
 {
-    printf("finding or inserting [%s]\n", value);
     char *lookupResult = DictionaryLookup(dict, value);
     if (lookupResult != NULL)
     {
-        printf("no need to insert\n\n");
         return lookupResult;
     }
     else
     {
-        printf("gotta insert\n\n");
         return DictionaryInsert(dict, value);
     }
 }

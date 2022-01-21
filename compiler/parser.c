@@ -236,12 +236,12 @@ struct astNode *parseTLD(struct Dictionary *dict)
     struct astNode *TLD;
     switch (lookaheadToken())
     {
-    // f [function name](){[argument list]}
+    // fun [function name]({[argument list]})
     case t_fun:
         TLD = match(t_fun, dict);
         struct astNode *functionname = match(t_name, dict);
         consume(t_lParen);
-        struct astNode *argList = parseArgList(dict);
+        struct astNode *argList = parseArgDefinitions(dict);
         astNode_insertChild(functionname, argList);
         astNode_insertChild(TLD, functionname);
         consume(t_rParen);
@@ -250,8 +250,8 @@ struct astNode *parseTLD(struct Dictionary *dict)
         consume(t_rCurly);
         break;
 
-    // v [variable name];
-    // v [variable name] = [expression];
+    // var [variable name];
+    // var [variable name] = [expression];
     case t_var:
     {
         TLD = match(t_var, dict);
@@ -355,7 +355,22 @@ struct astNode *parseStatement(struct Dictionary *dict)
     case t_name:
     {
         struct astNode *name = match(t_name, dict);
-        statement = parseAssignment(name, dict);
+        switch (lookahead())
+        {
+        case '=':
+            //printf("assignment\n");
+            statement = parseAssignment(name, dict);
+            break;
+
+        case '(':
+            //printf("function call\n");
+            statement = parseFunctionCall(name, dict);
+            break;
+
+        default:
+            printf("Error - expected '(' or '=' after name\n");
+            exit(1);
+        }
         consume(t_semicolon);
     }
     break;
@@ -376,7 +391,17 @@ struct astNode *parseExpression(struct Dictionary *dict)
     // figure out what the left side of the expression is
     struct astNode *lSide = NULL;
     if (isalpha(lookahead()))
-        lSide = match(t_name, dict);
+    {
+        struct astNode *name = match(t_name, dict);
+        if (lookahead() == '(')
+        {
+            lSide = parseFunctionCall(name, dict);
+        }
+        else
+        {
+            lSide = name;
+        }
+    }
     else if (isdigit(lookahead()))
         lSide = match(t_literal, dict);
     else if (lookahead() == '(')
@@ -404,6 +429,7 @@ struct astNode *parseExpression(struct Dictionary *dict)
 
     // end of line or end of expression, there isn't anything more than the left side
     case ';':
+    case ',':
     case ')':
         expression = lSide;
         return expression;
@@ -412,6 +438,7 @@ struct astNode *parseExpression(struct Dictionary *dict)
     default:
         printf("Error - expected unary operator or terminator in expression and got [%s]\n", token_names[scan()]);
         exit(1);
+
         break;
     }
 
@@ -420,7 +447,7 @@ struct astNode *parseExpression(struct Dictionary *dict)
     return expression;
 }
 
-struct astNode *parseArgList(struct Dictionary *dict)
+struct astNode *parseArgDefinitions(struct Dictionary *dict)
 {
     struct astNode *argList = NULL;
     int parsing = 1;
@@ -451,4 +478,48 @@ struct astNode *parseArgList(struct Dictionary *dict)
         }
     }
     return argList;
+}
+
+struct astNode *parseArgList(struct Dictionary *dict)
+{
+    struct astNode *argList = NULL;
+    int parsing = 1;
+    while (parsing)
+    {
+        switch (lookaheadToken())
+        {
+        case t_rParen:
+            parsing = 0;
+            break;
+
+        case t_comma:
+            consume(t_comma);
+            break;
+
+        case t_literal:
+            /*if (argList == NULL)
+                argList = match(t_literal, dict);
+            else
+                astNode_insertSibling(argList, match(t_literal, dict));
+            break;*/
+
+        default:
+            if (argList == NULL)
+                argList = parseExpression(dict);
+            else
+                astNode_insertSibling(argList, parseExpression(dict));
+            break;
+        }
+    }
+    return argList;
+}
+
+struct astNode *parseFunctionCall(struct astNode *name, struct Dictionary *dict)
+{
+    consume(t_lParen);
+    struct astNode *callNode = newastNode(t_call, "call");
+    astNode_insertChild(callNode, name);
+    astNode_insertChild(callNode, parseArgList(dict));
+    consume(t_rParen);
+    return callNode;
 }

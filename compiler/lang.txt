@@ -30,6 +30,7 @@ statement:
 expression:
     name unOp expression
     literal unOp expression
+    function(arguments);
     name;
     literal;
 

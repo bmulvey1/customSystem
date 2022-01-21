@@ -18,6 +18,8 @@ enum tacType
     tt_assign,
     tt_add,
     tt_subtract,
+    tt_push,
+    tt_call,
     tt_label
 };
 

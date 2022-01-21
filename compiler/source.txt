@@ -1,11 +1,12 @@
 
-# this function sucks but this is a comment
-fun qwerty(var x, var y, var z){
-    var a = 2;
-    var b = 3;
-    var c = 4;
-    var d = c - a + b;
-    c = d - d;
-    a = d + 1;
+# this function will (one day) compute all fibonacci numbers <= n 
+fun fibb(var n){
+    #var a = n + 1;
+    #var b = 1 - a;
+    var a = fibb(n - 1) + fibb(n - 2);
+}
+
+fun main(var a){
+    fibb(10);
 }
 $$

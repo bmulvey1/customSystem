@@ -17,6 +17,7 @@ enum token
     t_rParen,
     t_lCurly,
     t_rCurly,
+    t_call,
     t_EOF,
 };
 

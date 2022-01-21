@@ -6,8 +6,6 @@ char *symbolNames[] = {
 
 char *getTempString(struct tempList *tempList, int tempNum)
 {
-    printf("getting temp %d\n", tempNum);
-    // there is no ".t0" so return the index - 1
     if (tempList->size < tempNum)
     {
         int newSize = tempList->size + 10;
@@ -73,6 +71,8 @@ struct variableEntry *newVariableEntry(int index)
 struct argumentEntry *newArgumentEntry(int index)
 {
     struct argumentEntry *wip = malloc(sizeof(struct argumentEntry));
+    wip->lsStart = 0;
+    wip->lsEnd = 0;
     wip->index = index;
     return wip;
 }
@@ -118,7 +118,6 @@ struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name)
 
 void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum symTabEntryType type)
 {
-    printf("insert to table with size of %d\n", table->size);
     if (symbolTableContains(table, name))
     {
         printf("Error defining symbol [%s] - name already exists!\n", name);
@@ -129,7 +128,6 @@ void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum sy
     wip->entry = newEntry;
     wip->type = type;
 
-    printf("allocating room for %d\n", table->size + 1);
     struct symTabEntry **newList = malloc((table->size + 1) * sizeof(struct symTabEntry *));
     for (int i = 0; i < table->size; i++)
     {
@@ -175,7 +173,8 @@ void printSymTabRec(struct symbolTable *it, int depth)
         {
         case e_argument:
         {
-            printf("> argument [%s]\n", it->entries[i]->name);
+            struct argumentEntry *theArgument = it->entries[i]->entry;
+            printf("> argument [%s]: lifespan %d - %d\n", it->entries[i]->name, theArgument->lsStart, theArgument->lsEnd);
         }
         break;
 
