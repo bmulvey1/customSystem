@@ -5,30 +5,41 @@ string:
 #d "hello\0" 
 
 code:
-push $9 ; y = 9
-push $10 ; x = 10
-call qwerty
-hlt
-
-
-qwerty:
-    movw %r0, $2
-    movw %r1, $3
-    movw %r2, $4
-    add %r1, %r0
-    movw %r3, %r2
-    sub %r3, %r1
-    movw %r2, %r3
-    sub %r2, %r2
-    add %r3, $1
-
+    inc %r1
+    cmp %r1, $10
+    jg halt
+    push %r1
+    call fibb
+    out %r0
+    jmp code
+halt:
     hlt
-    ret
 
 
+fibb:
+    push %r1
+    push %r2
+    movw %r1, 4(%bp)
+    movw %r0, %r1
+    cmp %r0, $2
+    jl fibbdone
+    sub %r0, $2
+    push %r0
+    call fibb
+    movw %r2, %r1
+    sub %r2, $1
+    push %r2
+    movw %r1, %r0
+    call fibb
+    add %r0, %r1
+    
+fibbdone:
+    pop %r2
+    pop %r1
+    ret 1
 
 
-
+    
 
 
 

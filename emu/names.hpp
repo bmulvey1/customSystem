@@ -249,7 +249,7 @@ std::string opcodeNames[256] =
         // 0xd0
         "CALL",
         "RET",
-        "UND",
+        "RETC",
         "UND",
         "UND",
         "UND",

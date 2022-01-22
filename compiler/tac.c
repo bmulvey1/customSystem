@@ -69,15 +69,15 @@ void printTacLine(struct tacLine *it)
             break;
 
         case tt_push:
-            printf("\t%2d: push %s", lineIndex, it->operands[0]);
+            printf("\t%2d:push %s", lineIndex, it->operands[0]);
             break;
 
         case tt_call:
-            printf("\t%2d: call %s", lineIndex, it->operands[0]);
+            printf("\t%2d:%8s = call %s", lineIndex, it->operands[0], it->operands[1]);
             break;
 
         case tt_label:
-            printf("\t%2d: label %s", lineIndex, it->operands[0]);
+            printf("\t%2d:label %s", lineIndex, it->operands[0]);
             break;
         }
         printf("%s", it->reorderable ? " - Reorderable" : "");

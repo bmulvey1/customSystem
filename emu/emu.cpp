@@ -29,9 +29,11 @@ uint16_t registers[17] = {0};
 enum flags
 {
     ZF,
-    SF
+    SF, 
+    LF, 
+    GF
 };
-uint8_t flags[2] = {0};
+uint8_t flags[4] = {0};
 
 std::string registerNames[] = {
     "R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "SI", "DI", "SP", "BP", "IP"};
@@ -135,7 +137,10 @@ void arithmeticOp(uint8_t RD, uint16_t value, uint8_t opCode)
     case 0xc: // 0xXc: CMP
         uint16_t result = registers[RD] - value;
         flags[ZF] = (result == 0);
-        flags[SF] = (value < registers[RD]);
+        // sign flag needs to be set properly
+        //flags[SF] = (value < registers[RD]);
+        flags[GF] = registers[RD] > value;
+        flags[LF] = registers[RD] < value;
         break;
     }
     // set the flags based on the result if the instruction isn't CMP
@@ -162,14 +167,14 @@ int main(int argc, char *argv[])
     while (running)
     {
         opCode = consumeByte(registers[IP]);
-        printf("%02x\n", opCode);
-        std::cout << opcodeNames[opCode] << std::endl;
-
+        //printf("%02x\n", opCode);
+        //std::cout << opcodeNames[opCode] << std::endl;
         switch (opCode)
         {
         case 0x00:
             break;
 
+        // JMP
         case 0x10:
         {
             uint16_t destination = consumeWord(registers[IP]);
@@ -177,6 +182,7 @@ int main(int argc, char *argv[])
         }
         break;
 
+        // JE/JZ
         case 0x11:
         {
             uint16_t destination = consumeWord(registers[IP]);
@@ -187,6 +193,7 @@ int main(int argc, char *argv[])
         }
         break;
 
+        // JNE/JNZ
         case 0x12:
         {
             uint16_t destination = consumeWord(registers[IP]);
@@ -197,20 +204,22 @@ int main(int argc, char *argv[])
         }
         break;
 
+        // JG
         case 0x13:
         {
             uint16_t destination = consumeWord(registers[IP]);
-            if ((flags[ZF] == 0) && (flags[SF] == 0))
+            if (flags[GF])
             {
                 registers[IP] = destination;
             }
         }
         break;
 
+        // JL
         case 0x14:
         {
             uint16_t destination = consumeWord(registers[IP]);
-            if ((flags[ZF] == 0) && (flags[SF] == 1))
+            if (flags[LF])
             {
                 registers[IP] = destination;
             }
@@ -579,14 +588,34 @@ int main(int argc, char *argv[])
         }
         break;
 
+        case 0xd2: // RET {argc}
+        {
+            uint8_t argc = consumeByte(registers[IP]);
+            registers[IP] = stackPop();
+            registers[BP] = stackPop();
+            for (int i = 0; i < argc; i++)
+            {
+                stackPop();
+            }
+        }
+        break;
+
+        // OUT (bootleg print)
+        case 0xd3:
+        {
+            uint8_t rs = consumeByte(registers[IP]);
+            printf("%c%c\n%d\n", registers[rs] >> 8, registers[rs] & 0b11111111, registers[rs]);
+        }
+        break;
+
         case 0xff:
             running = false;
             break;
         }
         //printState();
-        for (int i = 0; i < 0xffffff; i++)
-        {
-        }
+        //for (int i = 0; i < 0xffffff; i++)
+        //{
+        //}
         //printf("\n");
         instructionCount++;
     }

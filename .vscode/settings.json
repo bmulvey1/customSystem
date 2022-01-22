@@ -57,6 +57,7 @@
         "optional": "c",
         "ratio": "c",
         "dict.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "ast.h": "c"
     }
 }

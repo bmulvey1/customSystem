@@ -6,7 +6,6 @@
 #include "tac.h"
 #include "symtab.h"
 #include "dict.h"
-#include "linearizer.h"
 
 // given an AST node for a program, walk the AST and generate a symbol table for the entire thing
 struct symbolTable *walkAST(struct astNode *it)
@@ -40,10 +39,18 @@ struct symbolTable *walkAST(struct astNode *it)
                 switch (functionNode->type)
                 {
                 case t_var:
+                    char *varName;
                     if (functionNode->child->type == t_assign)
-                        symTab_insertVariable(subTable, functionNode->child->child->value, functionVariableCount++);
+                        varName = functionNode->child->child->value;
                     else
-                        symTab_insertVariable(subTable, functionNode->child->value, functionVariableCount++);
+                        varName = functionNode->child->value;
+
+                    // lookup the variable being assigned, only insert if unique
+                    // also covers modification of argument values
+                    if (!symbolTableContains(subTable, varName))
+                    {
+                        symTab_insertVariable(subTable, varName, functionVariableCount++);
+                    }
 
                     break;
 
@@ -61,9 +68,13 @@ struct symbolTable *walkAST(struct astNode *it)
                     while (argumentRunner != NULL)
                     {
                         if (argumentRunner->child->type == t_assign)
+                        {
                             symTab_insertArgument(subTable, argumentRunner->child->child->value, functionArgumentCount++);
+                        }
                         else
+                        {
                             symTab_insertArgument(subTable, argumentRunner->child->value, functionArgumentCount++);
+                        }
 
                         argumentRunner = argumentRunner->sibling;
                     }
@@ -100,12 +111,16 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
 
 struct tacLine *linearizeFunctionCall(struct astNode *it, int *tempNum, struct tempList *tl)
 {
-    printf("Linearizing function call \n");
-    printAST(it, 0);
     struct astNode *runner = it->child->sibling;
     struct tacLine *calltac = newtacLine();
-    calltac->operands[0] = it->child->value;
+    calltac->operands[0] = getTempString(tl, *tempNum);
+    calltac->operandTypes[0] = vt_temp;
+
+    (*tempNum)++;
+    calltac->operands[1] = it->child->value;
+    calltac->operandTypes[1] = vt_returnval;
     calltac->operation = tt_call;
+
     while (runner != NULL)
     {
         struct tacLine *thisArgument = NULL;
@@ -138,6 +153,7 @@ struct tacLine *linearizeFunctionCall(struct astNode *it, int *tempNum, struct t
         calltac = prependTAC(calltac, thisArgument);
         runner = runner->sibling;
     }
+
     return calltac;
 }
 
@@ -152,8 +168,42 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
     // increment count of temp variables, the parse of this expression will be written to a temp
     (*tempNum)++;
 
-    // check left child
-    if (it->child->type == t_unOp)
+    switch (it->child->type)
+    {
+    case t_call:
+        thisExpression->operandTypes[1] = vt_temp;
+        thisExpression->operands[1] = getTempString(tl, *tempNum);
+        returnExpression = prependTAC(thisExpression, linearizeFunctionCall(it->child, tempNum, tl));
+        break;
+
+    case t_unOp:
+        thisExpression->operandTypes[1] = vt_temp;
+        thisExpression->operands[1] = getTempString(tl, *tempNum);
+        returnExpression = prependTAC(thisExpression, linearizeExpression(it->child, tempNum, tl));
+        break;
+
+    case t_name:
+        thisExpression->operands[1] = it->child->value;
+        thisExpression->operandTypes[1] = vt_var;
+        break;
+
+    case t_literal:
+        thisExpression->operands[1] = it->child->value;
+        thisExpression->operandTypes[1] = vt_literal;
+        break;
+
+        /*case t_call:
+            thisExpression->operands[1] = getTempString(tl, *tempNum);
+            thisExpression->operandTypes[1] = vt_temp;
+            returnExpression = prependTAC(returnExpression, linearizeFunctionCall(it->child, tempNum, tl));
+            break;*/
+
+    default:
+        printf("Unexpected type seen while linearizing expression! Expected variable or literal\n");
+        exit(1);
+    }
+    /*// check left child
+    if (it->child->type == t_unOp || it->child->type == t_call)
     {
         thisExpression->operandTypes[1] = vt_temp;
         thisExpression->operands[1] = getTempString(tl, *tempNum);
@@ -173,17 +223,19 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
             thisExpression->operandTypes[1] = vt_literal;
             break;
 
-        case t_call:
+            case t_call:
             thisExpression->operands[1] = getTempString(tl, *tempNum);
             thisExpression->operandTypes[1] = vt_temp;
             returnExpression = prependTAC(returnExpression, linearizeFunctionCall(it->child, tempNum, tl));
             break;
 
-        default:
-            printf("Unexpected type seen while linearizing expression! Expected variable or literal\n");
-            exit(1);
-        }
-    }
+default:
+    printf("Unexpected type seen while linearizing expression! Expected variable or literal\n");
+    exit(1);
+}
+}
+*/
+
     switch (it->value[0])
     {
     case '+':
@@ -197,12 +249,52 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
     }
     // thisExpression->operation = it->value;
 
+    switch (it->child->sibling->type)
+    {
+    case t_call:
+        thisExpression->operandTypes[2] = vt_temp;
+        thisExpression->operands[2] = getTempString(tl, *tempNum);
+        returnExpression = prependTAC(returnExpression, linearizeFunctionCall(it->child->sibling, tempNum, tl));
+        break;
+
+    case t_unOp:
+        thisExpression->operands[2] = getTempString(tl, *tempNum);
+        thisExpression->operandTypes[2] = vt_temp;
+        // when recursing, we need to prepend this line so things happen in the correct order
+        // figure out what to prepend to, then set the return expression TACline to the head of the block
+        if (returnExpression != NULL)
+            returnExpression = prependTAC(returnExpression, linearizeExpression(it->child->sibling, tempNum, tl));
+        else
+            returnExpression = prependTAC(thisExpression, linearizeExpression(it->child->sibling, tempNum, tl));
+        break;
+
+    case t_name:
+        thisExpression->operands[2] = it->child->sibling->value;
+        thisExpression->operandTypes[2] = vt_var;
+        break;
+
+    case t_literal:
+        thisExpression->operands[2] = it->child->sibling->value;
+        thisExpression->operandTypes[2] = vt_literal;
+        break;
+
+        /*case t_call:
+            thisExpression->operands[2] = getTempString(tl, *tempNum);
+            thisExpression->operandTypes[2] = vt_temp;
+            returnExpression = prependTAC(returnExpression, linearizeFunctionCall(it->child->sibling, tempNum, tl));
+            break;*/
+
+    default:
+        printf("Unexpected type seen while linearizing expression!\n Expected variable or literal\n");
+        exit(1);
+    }
+
+    /*
     // check right child, same as left but with correct address index
-    if (it->child->sibling->type == t_unOp)
+    if (it->child->sibling->type == t_unOp || it->child->sibling->type == t_call)
     {
         thisExpression->operands[2] = getTempString(tl, *tempNum);
         thisExpression->operandTypes[2] = vt_temp;
-
         // when recursing, we need to prepend this line so things happen in the correct order
         // figure out what to prepend to, then set the return expression TACline to the head of the block
         if (returnExpression != NULL)
@@ -223,7 +315,7 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
             thisExpression->operandTypes[2] = vt_literal;
             break;
 
-        case t_call:
+            case t_call:
             thisExpression->operands[2] = getTempString(tl, *tempNum);
             thisExpression->operandTypes[2] = vt_temp;
             returnExpression = prependTAC(returnExpression, linearizeFunctionCall(it->child->sibling, tempNum, tl));
@@ -234,6 +326,7 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
             exit(1);
         }
     }
+    */
 
     // if we have prepended, make sure to return the first line of TAC
     // otherwise there is only one line of TAC to return, so return that
@@ -276,7 +369,20 @@ struct tacLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
     // otherwise there is some sort of expression, which will need to be broken down into multiple lines of TAC
     else
     {
-        assignment = linearizeExpression(it->child->sibling, tempNum, tl);
+        switch (it->child->sibling->type)
+        {
+        case t_unOp:
+            assignment = linearizeExpression(it->child->sibling, tempNum, tl);
+            break;
+
+        case t_call:
+            assignment = linearizeFunctionCall(it->child->sibling, tempNum, tl);
+            break;
+
+        default:
+            printf("Error linearizing expression - malformed parse tree (expected unOp or call)\n");
+            exit(1);
+        }
         struct tacLine *lastLine = findLastTAC(assignment);
 
         // set the final line's operand 0 to the variable actually being assigned
@@ -492,19 +598,34 @@ void checkVariableLifetimes(struct functionEntry *function)
                 exit(1);
             }
 
-            // grab the variable entry itself
-            struct variableEntry *theVar = assignedVar->entry;
-            // if it hasn't already been assigned
-            if (!theVar->isAssigned)
+            switch (assignedVar->type)
             {
-                // set the assigned flag and record the start of its lifetime
-                theVar->isAssigned = 1;
-                theVar->lsStart = lineIndex;
+            case e_variable:
+                // grab the variable entry itself
+                struct variableEntry *theVar = assignedVar->entry;
+                // if it hasn't already been assigned
+                if (!theVar->isAssigned)
+                {
+                    // set the assigned flag and record the start of its lifetime
+                    theVar->isAssigned = 1;
+                    theVar->lsStart = lineIndex;
+                }
+                theVar->lsEnd = lineIndex;
+                break;
+
+            case e_argument:
+                // in the case we have an argument, just extend its lifespan end
+                struct variableEntry *theArg = assignedVar->entry;
+                theArg->lsEnd = lineIndex;
+                break;
+
+            default:
+                printf("Error - assignment to something that's not an argument or variable\n");
+                exit(1);
             }
 
             // regardless of whether or not this variable's lifetime started at this line
             // its lifetime can end no sooner than this index
-            theVar->lsEnd = lineIndex;
         }
 
         lineIndex++;
@@ -594,6 +715,7 @@ struct registerState
     char live;  // whether this var will be used in the future
     char dying; // whether this var will be used in the current instruction but no later
     char dirty;
+    char touched;
     char *contains;
 };
 
@@ -603,6 +725,7 @@ struct registerState *newRegisterState()
     wip->live = 0;
     wip->dying = 0;
     wip->dirty = 0;
+    wip->touched = 0;
     wip->contains = NULL;
     return wip;
 }
@@ -625,6 +748,7 @@ void modifyRegisterContents(struct registerState **registerStates, int index, ch
 {
     struct registerState *destinationRegister = registerStates[index];
     destinationRegister->live = 1;
+    destinationRegister->touched = 1;
     destinationRegister->dying = 0;
     if (destinationRegister->contains != NULL && !strcmp(destinationRegister->contains, contents))
     {
@@ -674,7 +798,7 @@ int findOrPlaceVar(struct registerState **registerStates, char *var, struct func
 
     int freshRegisterIndex = findUnallocatedRegister(registerStates);
 
-    printf("movw r%d, %d(rbp)\n", freshRegisterIndex, findStackOffset(var, function));
+    printf("movw %%r%d, %d(%%bp)\n", freshRegisterIndex, findStackOffset(var, function));
     modifyRegisterContents(registerStates, freshRegisterIndex, var);
     return freshRegisterIndex;
 }
@@ -702,7 +826,8 @@ int findOrPlaceModifiableVar(struct registerState **registerStates, char *var, s
         {
             int sourceIndex = registerIndex;
             registerIndex = findUnallocatedRegister(registerStates);
-            printf("movw r%d, r%d\n", registerIndex, sourceIndex);
+            registerStates[registerIndex]->touched = 1;
+            printf("movw %%r%d, %%r%d\n", registerIndex, sourceIndex);
             /*
             modifyRegisterContents(registerStates, registerIndex, var);
             // if a register is being duplicated elsewhere, its value will be dirty if the register still contains that variable at the end
@@ -713,7 +838,7 @@ int findOrPlaceModifiableVar(struct registerState **registerStates, char *var, s
     else // if the register couldn't be located, the variable needs to be retrieved from the stack
     {
         registerIndex = findUnallocatedRegister(registerStates);
-        printf("movw r%d, %d(rbp)\n", registerIndex, findStackOffset(var, function));
+        printf("movw %%r%d, %d(%%bp)\n", registerIndex, findStackOffset(var, function));
         modifyRegisterContents(registerStates, registerIndex, var);
     }
     return registerIndex;
@@ -728,6 +853,20 @@ int findTemp(struct registerState **registerStates, char *var)
                 return i;
 
     return -1;
+}
+
+// copy one register to a different one, freeing up the source
+void relocateRegister(struct registerState **registerStates, int source, int dest)
+{
+    printf("mov %%r%d, %%r%d\n", dest, source);
+    registerStates[dest]->contains = registerStates[source]->contains;
+    registerStates[dest]->live = registerStates[source]->live;
+    registerStates[dest]->dying = registerStates[source]->dying;
+    registerStates[dest]->dirty = registerStates[source]->dirty;
+    registerStates[dest]->touched = 1;
+
+    registerStates[source]->contains = NULL;
+    registerStates[source]->live = 0;
 }
 
 void printRegisterStates(struct registerState **registerStates)
@@ -768,7 +907,7 @@ int generateAssignmentCode(struct tacLine *line, struct registerState **register
         {
             destinationIndex = findUnallocatedRegister(registerStates);
         }
-        printf("movw r%d, %s\n", destinationIndex, line->operands[1]);
+        printf("movw %%r%d, %s\n", destinationIndex, line->operands[1]);
     }
     else
     {
@@ -799,7 +938,7 @@ int generateAssignmentCode(struct tacLine *line, struct registerState **register
             {
                 destinationIndex = findUnallocatedRegister(registerStates);
             }
-            printf("movw r%d, r%d\n", destinationIndex, sourceIndex);
+            printf("movw %%r%d, %%r%d\n", destinationIndex, sourceIndex);
         }
     }
     modifyRegisterContents(registerStates, destinationIndex, line->operands[0]);
@@ -841,7 +980,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                             registerStates[oldIndex]->dirty = 0;
                         }
                         // just perform the operation on the existing value
-                        printf("%s r%d, %s\n", getAsmOp(line->operation), destinationRegister, line->operands[1]);
+                        printf("%s %%r%d, $%s\n", getAsmOp(line->operation), destinationRegister, line->operands[1]);
                         didReorder = 1;
                     }
                 }
@@ -852,8 +991,8 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                 // move the first operand into a register
                 destinationRegister = findUnallocatedRegister(registerStates);
                 int sourceIndex = findOrPlaceVar(registerStates, line->operands[2], function);
-                printf("movw r%d, %s\n", destinationRegister, line->operands[1]);
-                printf("%s r%d, r%d\n", getAsmOp(line->operation), destinationRegister, sourceIndex);
+                printf("movw %%r%d, $%s\n", destinationRegister, line->operands[1]);
+                printf("%s %%r%d, %%r%d\n", getAsmOp(line->operation), destinationRegister, sourceIndex);
 
                 // if the variable has been copied, invalidate the old one
                 if (!strcmp(line->operands[0], line->operands[2]))
@@ -891,7 +1030,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                             registerStates[oldIndex]->dirty = 0;
                         }
                         // just perform the operation on the existing value
-                        printf("%s r%d, %s\n", getAsmOp(line->operation), destinationRegister, line->operands[2]);
+                        printf("%s %%r%d, $%s\n", getAsmOp(line->operation), destinationRegister, line->operands[2]);
                         didReorder = 1;
                     }
                 }
@@ -907,7 +1046,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                         destinationRegister = findUnallocatedRegister(registerStates);
                         modifyRegisterContents(registerStates, destinationRegister, line->operands[0]);
                     }
-                    printf("movw r%d, r%d\n", destinationRegister, findOrPlaceVar(registerStates, line->operands[1], function));
+                    printf("movw %%r%d, %%r%d\n", destinationRegister, findOrPlaceVar(registerStates, line->operands[1], function));
                 }
                 else
                 {
@@ -920,11 +1059,11 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                     else
                     {
                         // otherwise we need to guarantee the register is modifiable
-                        destinationRegister = findOrPlaceModifiableVar(registerStates, line->operands[0], function);
+                        destinationRegister = findOrPlaceModifiableVar(registerStates, line->operands[1], function);
                     }
                 }
 
-                printf("%s r%d, %s\n", getAsmOp(line->operation), destinationRegister, line->operands[2]);
+                printf("%s %%r%d, $%s\n", getAsmOp(line->operation), destinationRegister, line->operands[2]);
             }
         }
         // op1 var, op2 var
@@ -945,7 +1084,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                     destinationRegister = generateAssignmentCode(line, registerStates, function);
                     // after that, it can self-modify just like the "d = d + d" case
                 }
-                printf("%s r%d, r%d\n", getAsmOp(line->operation), destinationRegister, destinationRegister);
+                printf("%s %%r%d, %%r%d\n", getAsmOp(line->operation), destinationRegister, destinationRegister);
             }
             else
             {
@@ -958,7 +1097,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                 if (line->reorderable && ((firstOperandIndex != -1 && canOverwrite) || !strcmp(line->operands[0], line->operands[2])))
                 {
                     destinationRegister = findOrPlaceModifiableVar(registerStates, line->operands[2], function);
-                    printf("%s r%d, r%d\n", getAsmOp(line->operation), destinationRegister, firstOperandIndex);
+                    printf("%s %%r%d, %%r%d\n", getAsmOp(line->operation), destinationRegister, firstOperandIndex);
                     didReorder = 1;
                 }
 
@@ -973,18 +1112,18 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                         if (!(registerStates[firstOperandIndex]->dying || !registerStates[firstOperandIndex]->live))
                         {
                             destinationRegister = findUnallocatedRegister(registerStates);
-                            printf("movw r%d, r%d\n", destinationRegister, firstOperandIndex);
+                            printf("movw %%r%d, %%r%d\n", destinationRegister, firstOperandIndex);
                         }
                         else
                         {
                             destinationRegister = firstOperandIndex;
                         }
-                        printf("%s r%d, r%d\n", getAsmOp(line->operation), destinationRegister, secondOperandIndex);
+                        printf("%s %%r%d, %%r%d\n", getAsmOp(line->operation), destinationRegister, secondOperandIndex);
                     }
                     else
                     {*/
                     destinationRegister = findOrPlaceModifiableVar(registerStates, line->operands[1], function);
-                    printf("%s r%d, r%d\n", getAsmOp(line->operation), destinationRegister, secondOperandIndex);
+                    printf("%s %%r%d, %%r%d\n", getAsmOp(line->operation), destinationRegister, secondOperandIndex);
                     //}
                 }
             }
@@ -1046,15 +1185,18 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
             {
 
             case vt_var:
-                printf("push r%d\n", findOrPlaceVar(registerStates, line->operands[0], function));
+                printf("push %%r%d\n", findOrPlaceVar(registerStates, line->operands[0], function));
                 break;
 
             case vt_temp:
-                printf("push r%d\n", findTemp(registerStates, line->operands[0]));
+                printf("push %%r%d\n", findTemp(registerStates, line->operands[0]));
                 break;
 
             case vt_literal:
                 printf("push %s\n", line->operands[0]);
+                break;
+
+            case vt_returnval:
                 break;
 
             case vt_null:
@@ -1065,11 +1207,25 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
             break;
 
         case tt_call:
-            printf("call %s\n", line->operands[0]);
+            // if: %r0 is live OR %r0 contains a dirty variable (not a temp)
+            if (registerStates[0]->live || (registerStates[0]->contains != NULL && registerStates[0]->contains[0] != '.' && registerStates[0]->dirty))
+            {
+                // right now just move it to an unallocated register
+                relocateRegister(registerStates, 0, findUnallocatedRegister(registerStates));
+            }
+            printf("call %s\n", line->operands[1]);
+            int existingVarIndex = findTemp(registerStates, line->operands[0]);
+            if (existingVarIndex != -1)
+            {
+                registerStates[existingVarIndex]->live = 0;
+                registerStates[existingVarIndex]->contains = NULL;
+            }
+            modifyRegisterContents(registerStates, 0, line->operands[0]);
+
             break;
 
         case tt_label:
-            printf(".%s\n", line->operands[0]);
+            printf("%s:\n", line->operands[0]);
             break;
 
         default:
@@ -1077,8 +1233,8 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
             generateArithmeticCode(line, registerStates, function);
             break;
         }
-        //printRegisterStates(registerStates);
-        //printf("\n\n");
+        printRegisterStates(registerStates);
+        printf("\n\n");
         tacIndex++;
     }
     //printRegisterStates(registerStates);

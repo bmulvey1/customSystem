@@ -109,7 +109,7 @@
     ; data movement (word)
     movw %{rd: reg}, %{rs:reg}                       => 0xa8 @ rs @ rd
     movw %{rd:reg}, (%{rs:reg})                      => 0xa9 @ rs @ rd
-    movw %{rs:reg}, (%{rd:reg})                      => 0xaa @ rs @ rd
+    movw %{rd:reg}, (%{rs:reg})                      => 0xaa @ rs @ rd
     movw %{rd:reg}, {off:i8}(%{rs:reg})              => 0xab @ rs @ rd @ off
     movw {off:i8}(%{rd:reg}), %{rs:reg}              => 0xac @ rs @ rd @ off
     movw %{rd: reg}, %{ro: reg}(%{rs: reg},{scl:i8}) => 0xad @ rs @ rd @ 0b0000 @ ro @ scl
@@ -126,7 +126,9 @@
     call {address: i16}                     => 0xd0 @ address
     ret                                     => 0xd1
     ; dynamically pop x number of args from the stack?
-    ;ret {argc: i8}                          => 0xd2 @ argc
+    ret {argc: i8}                          => 0xd2 @ argc
+
+    out %{rs: reg}                          => 0xd3 @ 0b0000 @ rs
 
     hlt => 0xff
 

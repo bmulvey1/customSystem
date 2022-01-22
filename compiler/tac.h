@@ -10,6 +10,7 @@ enum variableTypes
     vt_null,
     vt_var,
     vt_temp,
+    vt_returnval,
     vt_literal
 };
 

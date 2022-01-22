@@ -174,14 +174,14 @@ void printSymTabRec(struct symbolTable *it, int depth)
         case e_argument:
         {
             struct argumentEntry *theArgument = it->entries[i]->entry;
-            printf("> argument [%s]: lifespan %d - %d\n", it->entries[i]->name, theArgument->lsStart, theArgument->lsEnd);
+            printf("> argument %2d: [%s]: lifespan %d - %d\n", theArgument->index, it->entries[i]->name, theArgument->lsStart, theArgument->lsEnd);
         }
         break;
 
         case e_variable:
         {
             struct variableEntry *theVariable = it->entries[i]->entry;
-            printf("> variable [%s]: lifespan %d - %d\n", it->entries[i]->name, theVariable->lsStart, theVariable->lsEnd);
+            printf("> variable %2d: [%s]: lifespan %d - %d\n", theVariable->index, it->entries[i]->name, theVariable->lsStart, theVariable->lsEnd);
         }
         break;
 
@@ -191,6 +191,7 @@ void printSymTabRec(struct symbolTable *it, int depth)
             printf("> function [%s]: %d symbols\n", it->entries[i]->name, theFunction->table->size);
             printSymTabRec(theFunction->table, depth + 1);
             printTacLine(theFunction->codeBlock);
+            printf("\n");
         }
         break;
         }
