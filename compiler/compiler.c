@@ -135,6 +135,58 @@ void freeLifetime(struct Lifetime *it)
     }
 }
 
+struct ASMline
+{
+    char *data;
+    struct ASMline *next;
+};
+
+struct ASMblock
+{
+    struct ASMline *head;
+    struct ASMline *tail;
+};
+
+struct ASMblock *newASMblock()
+{
+    struct ASMblock *wip = malloc(sizeof(struct ASMblock));
+    wip->head = NULL;
+    wip->tail = NULL;
+    return wip;
+}
+
+void ASMblock_prepend(struct ASMblock *block, char *data)
+{
+    struct ASMline *newLine = malloc(sizeof(struct ASMline));
+    newLine->data = data;
+    if (block->head != NULL)
+    {
+        newLine->next = block->head;
+    }
+    else
+    {
+        newLine->next = NULL;
+        block->tail = newLine;
+    }
+    block->head = newLine;
+}
+
+void ASMblock_append(struct ASMblock *block, char *data)
+{
+    struct ASMline *newLine = malloc(sizeof(struct ASMline));
+    newLine->data = data;
+    newLine->next = NULL;
+    if (block->tail != NULL)
+    {
+        block->tail->next = newLine;
+    }
+    else
+    {
+        block->head = newLine;
+    }
+    block->tail = newLine;
+}
+
 /*
  * Given a symbol table entry for a function, calculate lifetime for variables defined within
  * Also enforces some basic error checking (use before declare / use before assign)
@@ -350,7 +402,7 @@ struct Lifetime *findLifetimes(struct functionEntry *function)
  * Target code generation // Register Allocation
  *
  */
-struct registerState 
+struct registerState
 {
     char live;  // whether this var will be used in the future
     char dying; // whether this var will be used in the current instruction but no later
@@ -429,7 +481,7 @@ int findStackOffset(char *var, struct functionEntry *function)
 
 // TODO: search parent scopes for global vars
 // will require more stack stuff and backwards pointers in function entries pointint to their parent table
-int findOrPlaceVar(struct registerState **registerStates, char *var, struct functionEntry *function)
+int findOrPlaceVar(struct registerState **registerStates, struct ASMblock *outputBlock, char *var, struct functionEntry *function)
 {
     for (int i = 0; i < 12; i++)
         if (registerStates[i]->contains != NULL)
@@ -438,7 +490,9 @@ int findOrPlaceVar(struct registerState **registerStates, char *var, struct func
 
     int freshRegisterIndex = findUnallocatedRegister(registerStates);
 
-    printf("movw %%r%d, %d(%%bp)\n", freshRegisterIndex, findStackOffset(var, function));
+    char *outputStr = malloc(18 * sizeof(char));
+    sprintf(outputStr, "movw %%r%d, %d(%%bp)", freshRegisterIndex, findStackOffset(var, function));
+    ASMblock_append(outputBlock, outputStr);
     modifyRegisterContents(registerStates, freshRegisterIndex, var);
     return freshRegisterIndex;
 }
@@ -447,7 +501,7 @@ int findOrPlaceVar(struct registerState **registerStates, char *var, struct func
  * Find what register a variable lives in
  * if it isn't currently in a register, retrieve it from the stack
  */
-int findOrPlaceModifiableVar(struct registerState **registerStates, char *var, struct functionEntry *function)
+int findOrPlaceModifiableVar(struct registerState **registerStates, struct ASMblock *outputBlock, char *var, struct functionEntry *function)
 {
     int registerIndex = -1;
     for (int i = 0; i < 12; i++)
@@ -467,7 +521,10 @@ int findOrPlaceModifiableVar(struct registerState **registerStates, char *var, s
             int sourceIndex = registerIndex;
             registerIndex = findUnallocatedRegister(registerStates);
             registerStates[registerIndex]->touched = 1;
-            printf("movw %%r%d, %%r%d\n", registerIndex, sourceIndex);
+
+            char *outputStr = malloc(15 * sizeof(char));
+            sprintf(outputStr, "movw %%r%d, %%r%d", registerIndex, sourceIndex);
+            ASMblock_append(outputBlock, outputStr);
             /*
             modifyRegisterContents(registerStates, registerIndex, var);
             // if a register is being duplicated elsewhere, its value will be dirty if the register still contains that variable at the end
@@ -478,7 +535,9 @@ int findOrPlaceModifiableVar(struct registerState **registerStates, char *var, s
     else // if the register couldn't be located, the variable needs to be retrieved from the stack
     {
         registerIndex = findUnallocatedRegister(registerStates);
-        printf("movw %%r%d, %d(%%bp)\n", registerIndex, findStackOffset(var, function));
+        char *outputStr = malloc(18 * sizeof(char));
+        sprintf(outputStr, "movw %%r%d, %d(%%bp)", registerIndex, findStackOffset(var, function));
+        ASMblock_append(outputBlock, outputStr);
         modifyRegisterContents(registerStates, registerIndex, var);
     }
     return registerIndex;
@@ -496,9 +555,11 @@ int findTemp(struct registerState **registerStates, char *var)
 }
 
 // copy one register to a different one, freeing up the source
-void relocateRegister(struct registerState **registerStates, int source, int dest)
+void relocateRegister(struct registerState **registerStates, struct ASMblock *outputBlock, int source, int dest)
 {
-    printf("mov %%r%d, %%r%d\n", dest, source);
+    char *outputStr = malloc(14 * sizeof(char));
+    sprintf(outputStr, "mov %%r%d, %%r%d", dest, source);
+    ASMblock_append(outputBlock, outputStr);
     registerStates[dest]->contains = registerStates[source]->contains;
     registerStates[dest]->live = registerStates[source]->live;
     registerStates[dest]->dying = registerStates[source]->dying;
@@ -537,7 +598,7 @@ void printRegisterStates(struct registerState **registerStates)
 }
 
 // assign a value into a register, return the destination index
-int generateAssignmentCode(struct tacLine *line, struct registerState **registerStates, struct functionEntry *function)
+int generateAssignmentCode(struct tacLine *line, struct registerState **registerStates, struct ASMblock *outputBlock, struct functionEntry *function)
 {
     int destinationIndex;
     if (line->operandTypes[1] == vt_literal)
@@ -547,11 +608,13 @@ int generateAssignmentCode(struct tacLine *line, struct registerState **register
         {
             destinationIndex = findUnallocatedRegister(registerStates);
         }
-        printf("movw %%r%d, %s\n", destinationIndex, line->operands[1]);
+        char *outputStr = malloc(17 * sizeof(char));
+        sprintf(outputStr, "movw %%r%d, %s", destinationIndex, line->operands[1]);
+        ASMblock_append(outputBlock, outputStr);
     }
     else
     {
-        int sourceIndex = findOrPlaceVar(registerStates, line->operands[1], function);
+        int sourceIndex = findOrPlaceVar(registerStates, outputBlock, line->operands[1], function);
         // source var dies this step, it can be overwritten
 
         if (!registerStates[sourceIndex]->live || registerStates[sourceIndex]->dying)
@@ -578,7 +641,9 @@ int generateAssignmentCode(struct tacLine *line, struct registerState **register
             {
                 destinationIndex = findUnallocatedRegister(registerStates);
             }
-            printf("movw %%r%d, %%r%d\n", destinationIndex, sourceIndex);
+            char *outputStr = malloc(15 * sizeof(char));
+            sprintf(outputStr, "movw %%r%d, %%r%d", destinationIndex, sourceIndex);
+            ASMblock_append(outputBlock, outputStr);
         }
     }
     modifyRegisterContents(registerStates, destinationIndex, line->operands[0]);
@@ -586,7 +651,7 @@ int generateAssignmentCode(struct tacLine *line, struct registerState **register
     return destinationIndex;
 }
 
-void generateArithmeticCode(struct tacLine *line, struct registerState **registerStates, struct functionEntry *function)
+void generateArithmeticCode(struct tacLine *line, struct registerState **registerStates, struct ASMblock *outputBlock, struct functionEntry *function)
 {
     int destinationRegister;
     if (line->operandTypes[1] == vt_literal)
@@ -620,7 +685,9 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                             registerStates[oldIndex]->dirty = 0;
                         }
                         // just perform the operation on the existing value
-                        printf("%s %%r%d, $%s\n", getAsmOp(line->operation), destinationRegister, line->operands[1]);
+                        char *outputStr = malloc(15 * sizeof(char));
+                        sprintf(outputStr, "%s %%r%d, $%s", getAsmOp(line->operation), destinationRegister, line->operands[1]);
+                        ASMblock_append(outputBlock, outputStr);
                         didReorder = 1;
                     }
                 }
@@ -630,9 +697,13 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
             {
                 // move the first operand into a register
                 destinationRegister = findUnallocatedRegister(registerStates);
-                int sourceIndex = findOrPlaceVar(registerStates, line->operands[2], function);
-                printf("movw %%r%d, $%s\n", destinationRegister, line->operands[1]);
-                printf("%s %%r%d, %%r%d\n", getAsmOp(line->operation), destinationRegister, sourceIndex);
+                int sourceIndex = findOrPlaceVar(registerStates, outputBlock, line->operands[2], function);
+                char *outputStr = malloc(17 * sizeof(char));
+                sprintf(outputStr, "movw %%r%d, $%s", destinationRegister, line->operands[1]);
+                ASMblock_append(outputBlock, outputStr);
+                outputStr = malloc(12 * sizeof(char));
+                sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, sourceIndex);
+                ASMblock_append(outputBlock, outputStr);
 
                 // if the variable has been copied, invalidate the old one
                 if (!strcmp(line->operands[0], line->operands[2]))
@@ -670,7 +741,9 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                             registerStates[oldIndex]->dirty = 0;
                         }
                         // just perform the operation on the existing value
-                        printf("%s %%r%d, $%s\n", getAsmOp(line->operation), destinationRegister, line->operands[2]);
+                        char *outputStr = malloc(17 * sizeof(char));
+                        sprintf(outputStr, "%s %%r%d, $%s", getAsmOp(line->operation), destinationRegister, line->operands[2]);
+                        ASMblock_append(outputBlock, outputStr);
                         didReorder = 1;
                     }
                 }
@@ -686,7 +759,9 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                         destinationRegister = findUnallocatedRegister(registerStates);
                         modifyRegisterContents(registerStates, destinationRegister, line->operands[0]);
                     }
-                    printf("movw %%r%d, %%r%d\n", destinationRegister, findOrPlaceVar(registerStates, line->operands[1], function));
+                    char *outputStr = malloc(15 * sizeof(char));
+                    sprintf(outputStr, "movw %%r%d, %%r%d", destinationRegister, findOrPlaceVar(registerStates, outputBlock, line->operands[1], function));
+                    ASMblock_append(outputBlock, outputStr);
                 }
                 else
                 {
@@ -694,16 +769,17 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                     if (!strcmp(line->operands[0], line->operands[1]))
                     {
                         // if the variable is modifying itself, we can indiscriminately get a register for it
-                        destinationRegister = findOrPlaceVar(registerStates, line->operands[0], function);
+                        destinationRegister = findOrPlaceVar(registerStates, outputBlock, line->operands[0], function);
                     }
                     else
                     {
                         // otherwise we need to guarantee the register is modifiable
-                        destinationRegister = findOrPlaceModifiableVar(registerStates, line->operands[1], function);
+                        destinationRegister = findOrPlaceModifiableVar(registerStates, outputBlock, line->operands[1], function);
                     }
                 }
-
-                printf("%s %%r%d, $%s\n", getAsmOp(line->operation), destinationRegister, line->operands[2]);
+                char *outputStr = malloc(17 * sizeof(char));
+                sprintf(outputStr, "%s %%r%d, $%s", getAsmOp(line->operation), destinationRegister, line->operands[2]);
+                ASMblock_append(outputBlock, outputStr);
             }
         }
         // op1 var, op2 var
@@ -715,35 +791,40 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                 // "d = d + d" case
                 if (!strcmp(line->operands[0], line->operands[2]))
                 {
-                    destinationRegister = findOrPlaceVar(registerStates, line->operands[0], function);
+                    destinationRegister = findOrPlaceVar(registerStates, outputBlock, line->operands[0], function);
                 }
                 // "c = d + d" case"
                 else
                 {
                     // no reason we can't just use this function to cheese the operand into the correct place
-                    destinationRegister = generateAssignmentCode(line, registerStates, function);
+                    destinationRegister = generateAssignmentCode(line, registerStates, outputBlock, function);
                     // after that, it can self-modify just like the "d = d + d" case
                 }
-                printf("%s %%r%d, %%r%d\n", getAsmOp(line->operation), destinationRegister, destinationRegister);
+                char *outputStr = malloc(18 * sizeof(char));
+                sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, destinationRegister);
+                ASMblock_append(outputBlock, outputStr);
             }
             else
             {
                 // will always find the temp we need, or find/place a var/arg if necessary
-                int firstOperandIndex = findOrPlaceVar(registerStates, line->operands[1], function);
+                int firstOperandIndex = findOrPlaceVar(registerStates, outputBlock, line->operands[1], function);
 
                 char didReorder = 0;
                 // only bother trying to reorder if possible and the first operand exists and can't be overwritten at this step
                 char canOverwrite = registerStates[firstOperandIndex]->live && !registerStates[firstOperandIndex]->dying;
                 if (line->reorderable && ((firstOperandIndex != -1 && canOverwrite) || !strcmp(line->operands[0], line->operands[2])))
                 {
-                    destinationRegister = findOrPlaceModifiableVar(registerStates, line->operands[2], function);
-                    printf("%s %%r%d, %%r%d\n", getAsmOp(line->operation), destinationRegister, firstOperandIndex);
+
+                    destinationRegister = findOrPlaceModifiableVar(registerStates, outputBlock, line->operands[2], function);
+                    char *outputStr = malloc(17 * sizeof(char));
+                    sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, firstOperandIndex);
+                    ASMblock_append(outputBlock, outputStr);
                     didReorder = 1;
                 }
 
                 if (!didReorder)
                 {
-                    int secondOperandIndex = findOrPlaceVar(registerStates, line->operands[2], function);
+                    int secondOperandIndex = findOrPlaceVar(registerStates, outputBlock, line->operands[2], function);
 
                     // seems there are no side effects of just always doing the "findOrPlaceModifiable()"
                     /*if (firstOperandIndex != -1)
@@ -762,8 +843,10 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                     }
                     else
                     {*/
-                    destinationRegister = findOrPlaceModifiableVar(registerStates, line->operands[1], function);
-                    printf("%s %%r%d, %%r%d\n", getAsmOp(line->operation), destinationRegister, secondOperandIndex);
+                    destinationRegister = findOrPlaceModifiableVar(registerStates, outputBlock, line->operands[1], function);
+                    char *outputStr = malloc(18 * sizeof(char));
+                    sprintf(outputStr, "%s %%r%d, %%r%d\n", getAsmOp(line->operation), destinationRegister, secondOperandIndex);
+                    ASMblock_append(outputBlock, outputStr);
                     //}
                 }
             }
@@ -772,15 +855,17 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
     modifyRegisterContents(registerStates, destinationRegister, line->operands[0]);
 }
 
-void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
+struct ASMblock *generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
 {
-
+    struct ASMblock *outputBlock = newASMblock();
     // generate register states for the 12 GP registers
     struct registerState *registerStates[12];
     for (int i = 0; i < 12; i++)
         registerStates[i] = newRegisterState();
 
     int tacIndex = 0;
+    char *outputStr;
+
     for (struct tacLine *line = function->codeBlock; line != NULL; line = line->nextLine)
     {
         for (int i = 0; i < 12; i++)
@@ -816,24 +901,25 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
         switch (line->operation)
         {
         case tt_assign:
-            printf("%s = %s %s\n", line->operands[0], line->operands[1], line->operands[2]);
-            generateAssignmentCode(line, registerStates, function);
+            //printf("%s = %s %s\n", line->operands[0], line->operands[1], line->operands[2]);
+            generateAssignmentCode(line, registerStates, outputBlock, function);
             break;
 
         case tt_push:
+            outputStr = malloc(10 * sizeof(char));
             switch (line->operandTypes[0])
             {
 
             case vt_var:
-                printf("push %%r%d\n", findOrPlaceVar(registerStates, line->operands[0], function));
+                sprintf(outputStr, "push %%r%d", findOrPlaceVar(registerStates, outputBlock, line->operands[0], function));
                 break;
 
             case vt_temp:
-                printf("push %%r%d\n", findTemp(registerStates, line->operands[0]));
+                sprintf(outputStr, "push %%r%d", findTemp(registerStates, line->operands[0]));
                 break;
 
             case vt_literal:
-                printf("push %s\n", line->operands[0]);
+                sprintf(outputStr, "push %s", line->operands[0]);
                 break;
 
             case vt_returnval:
@@ -843,7 +929,7 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
                 printf("Error - NULL type assigned to operand of 'push'\n");
                 exit(1);
             }
-
+            ASMblock_append(outputBlock, outputStr);
             break;
 
         case tt_call:
@@ -851,9 +937,12 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
             if (registerStates[0]->live || (registerStates[0]->contains != NULL && registerStates[0]->contains[0] != '.' && registerStates[0]->dirty))
             {
                 // right now just move it to an unallocated register
-                relocateRegister(registerStates, 0, findUnallocatedRegister(registerStates));
+                relocateRegister(registerStates, outputBlock, 0, findUnallocatedRegister(registerStates));
             }
-            printf("call %s\n", line->operands[1]);
+            // need a larger buffer because of labels
+            outputStr = malloc(32 * sizeof(char));
+            sprintf(outputStr, "call %s", line->operands[1]);
+            ASMblock_append(outputBlock, outputStr);
             int existingVarIndex = findTemp(registerStates, line->operands[0]);
             if (existingVarIndex != -1)
             {
@@ -865,12 +954,14 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
             break;
 
         case tt_label:
-            printf("%s:\n", line->operands[0]);
+            outputStr = malloc(32 * sizeof(char));
+            sprintf(outputStr, "%s:", line->operands[0]);
+            ASMblock_append(outputBlock, outputStr);
             break;
 
         default:
             //printf("%s = %s %s\n", line->operands[0], line->operands[1], line->operands[2]);
-            generateArithmeticCode(line, registerStates, function);
+            generateArithmeticCode(line, registerStates, outputBlock, function);
             break;
         }
         //printRegisterStates(registerStates);
@@ -878,10 +969,30 @@ void generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
         tacIndex++;
     }
     //printRegisterStates(registerStates);
-    printf("\n");
+    //printf("\n");
     // clean up the registers states
+    struct ASMline *entryLabel = outputBlock->head;
+    outputBlock->head = outputBlock->head->next;
+    for (int i = 11; i > 0; i--)
+    {
+        if (registerStates[i]->touched)
+        {
+            outputStr = malloc(9 * sizeof(char));
+            sprintf(outputStr, "push %%r%d", i);
+            ASMblock_prepend(outputBlock, outputStr);
+            outputStr = malloc(8 * sizeof(char));
+            sprintf(outputStr, "pop %%r%d", i);
+            ASMblock_append(outputBlock, outputStr);
+        }
+    }
+    entryLabel->next = outputBlock->head;
+    outputBlock->head = entryLabel;
+
+    // need to get arg count for return statement
     for (int i = 0; i < 12; i++)
         free(registerStates[i]);
+
+    return outputBlock;
 }
 
 int main(int argc, char **argv)
@@ -909,7 +1020,19 @@ int main(int argc, char **argv)
         if (theTable->entries[i]->type == e_function)
         {
             struct Lifetime *theseLifetimes = findLifetimes(theTable->entries[i]->entry);
-            generateCode(theTable->entries[i]->entry, theseLifetimes);
+            struct ASMblock *output = generateCode(theTable->entries[i]->entry, theseLifetimes);
+            // run along all the lines of asm output from this funtcion, printing and freeing as we go
+            struct ASMline *runner = output->head;
+            while (runner != NULL)
+            {
+                printf("%s\n", runner->data);
+                struct ASMline *old = runner;
+                runner = runner->next;
+                free(old->data);
+                free(old);
+            }
+            printf("\n");
+            free(output);
             freeLifetime(theseLifetimes);
         }
     }
