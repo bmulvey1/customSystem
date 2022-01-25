@@ -8,6 +8,7 @@ char inChar;
 char *token_names[] = {
     "var",
     "function",
+    "return",
     "name",
     "literal",
     "unary operator",
@@ -78,11 +79,12 @@ char lookahead()
     return r;
 }
 
-#define RESERVED_COUNT 12
+#define RESERVED_COUNT 13
 
 char *reserved[RESERVED_COUNT] = {
     "var",
     "fun",
+    "return",
     ",",
     "(",
     ")",
@@ -97,6 +99,7 @@ char *reserved[RESERVED_COUNT] = {
 enum token reserved_t[RESERVED_COUNT] = {
     t_var,
     t_fun,
+    t_return,
     t_comma,
     t_lParen,
     t_rParen,
@@ -301,8 +304,10 @@ struct astNode *parseStatementList(struct Dictionary *dict)
         // v [variable name];
         // v [variable name] = [expression];
         // [variable name] = [expression];
+        // return [expression];
         case t_var:
         case t_name:
+        case t_return:
             stmt = parseStatement(dict);
             if (stmtList == NULL)
                 stmtList = stmt;
@@ -371,6 +376,17 @@ struct astNode *parseStatement(struct Dictionary *dict)
             printf("Error - expected '(' or '=' after name\n");
             exit(1);
         }
+        consume(t_semicolon);
+    }
+    break;
+    
+    case t_return:
+    {
+        statement = match(t_return, dict);
+        struct astNode* returnAssignment = newastNode(t_assign, "=");
+        astNode_insertChild(returnAssignment, newastNode(t_name, ".RETVAL"));
+        astNode_insertChild(returnAssignment, parseExpression(dict));
+        astNode_insertChild(statement, returnAssignment);
         consume(t_semicolon);
     }
     break;
@@ -519,7 +535,7 @@ struct astNode *parseFunctionCall(struct astNode *name, struct Dictionary *dict)
     consume(t_lParen);
     struct astNode *callNode = newastNode(t_call, "call");
     astNode_insertChild(callNode, name);
-    astNode_insertChild(callNode, parseArgList(dict));
+    astNode_insertChild(name, parseArgList(dict));
     consume(t_rParen);
     return callNode;
 }

@@ -21,6 +21,9 @@ char *getAsmOp(enum tacType t)
 
     case tt_label:
         return ".";
+
+    case tt_return:
+        return "ret";
     }
     return "";
 }
@@ -78,6 +81,10 @@ void printTacLine(struct tacLine *it)
 
         case tt_label:
             printf("\t%2d:label %s", lineIndex, it->operands[0]);
+            break;
+
+        case tt_return:
+            printf("\t%2d:ret %s", lineIndex, it->operands[0]);
             break;
         }
         printf("%s", it->reorderable ? " - Reorderable" : "");

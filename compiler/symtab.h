@@ -44,6 +44,7 @@ struct functionEntry
 {
     struct symbolTable *table;
     struct tacLine *codeBlock;
+    int argc;
 };
 
 struct symbolTable
@@ -64,7 +65,7 @@ struct variableEntry *newVariableEntry();
 
 struct argumentEntry *newArgumentEntry(int index);
 
-struct functionEntry *newFunctionEntry(struct symbolTable *table);
+struct functionEntry *newFunctionEntry(struct symbolTable *table, int argc);
 
 struct symbolTable *newSymbolTable(char *name);
 
@@ -78,7 +79,7 @@ void symTab_insertVariable(struct symbolTable *table, char *name, int index);
 
 void symTab_insertArgument(struct symbolTable *table, char *name, int index);
 
-void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolTable *subTable);
+void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolTable *subTable, int argc);
 
 void printSymTabRec(struct symbolTable *it, int depth);
 

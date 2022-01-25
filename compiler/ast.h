@@ -6,6 +6,7 @@ enum token
 {
     t_var,
     t_fun,
+    t_return,
     t_name,
     t_literal,
     t_unOp,

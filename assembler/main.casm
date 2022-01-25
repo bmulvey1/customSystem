@@ -5,13 +5,17 @@ string:
 #d "hello\0" 
 
 code:
-    inc %r1
-    cmp %r1, $10
-    jg halt
-    push %r1
-    call fibb
-    out %r0
-    jmp code
+    ;inc %r1
+    ;cmp %r1, $10
+    ;jg halt
+    ;push %r1
+    ;call fibb
+    ;out %r0
+    ;jmp code
+    push $2
+    call double
+    push %r0
+    call double
 halt:
     hlt
 
@@ -39,7 +43,14 @@ fibbdone:
     ret 1
 
 
-    
+double:
+    push %r1
+    movw %r0, 4(%bp)
+    movw %r1, %r0
+    add %r1, %r1
+    movw %r0, %r1
+    pop %r1
+    ret 1  
 
 
 

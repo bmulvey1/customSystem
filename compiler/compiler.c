@@ -33,8 +33,8 @@ struct symbolTable *walkAST(struct astNode *it)
             int functionArgumentCount = 0;
             int functionVariableCount = 0;
             struct astNode *functionNode = runner->child;
+            char *functionName = functionNode->value;
             struct symbolTable *subTable = newSymbolTable(functionNode->value);
-            symTab_insertFunction(wip, functionNode->value, subTable);
             while (functionNode != NULL)
             {
                 switch (functionNode->type)
@@ -81,8 +81,9 @@ struct symbolTable *walkAST(struct astNode *it)
                     }
                     break;
 
-                // function calls have no implication on symtab entries (for now?)
+                // function calls and return statements have no implication on symtab entries (for now?)
                 case t_call:
+                case t_return:
                     break;
 
                 default:
@@ -91,6 +92,7 @@ struct symbolTable *walkAST(struct astNode *it)
                 }
                 functionNode = functionNode->sibling;
             }
+            symTab_insertFunction(wip, functionName, subTable, functionArgumentCount);
         }
         break;
 
@@ -845,7 +847,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                     {*/
                     destinationRegister = findOrPlaceModifiableVar(registerStates, outputBlock, line->operands[1], function);
                     char *outputStr = malloc(18 * sizeof(char));
-                    sprintf(outputStr, "%s %%r%d, %%r%d\n", getAsmOp(line->operation), destinationRegister, secondOperandIndex);
+                    sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, secondOperandIndex);
                     ASMblock_append(outputBlock, outputStr);
                     //}
                 }
@@ -959,6 +961,19 @@ struct ASMblock *generateCode(struct functionEntry *function, struct Lifetime *l
             ASMblock_append(outputBlock, outputStr);
             break;
 
+        case tt_return:
+        {
+            int retValIndex = findTemp(registerStates, ".RETVAL");
+            if (retValIndex != 0)
+            {
+                relocateRegister(registerStates, outputBlock, retValIndex, 0);
+            }
+            outputStr = malloc(10 * sizeof(char));
+            sprintf(outputStr, "ret %d", function->argc);
+            ASMblock_append(outputBlock, outputStr);
+        }
+        break;
+
         default:
             //printf("%s = %s %s\n", line->operands[0], line->operands[1], line->operands[2]);
             generateArithmeticCode(line, registerStates, outputBlock, function);
@@ -973,6 +988,15 @@ struct ASMblock *generateCode(struct functionEntry *function, struct Lifetime *l
     // clean up the registers states
     struct ASMline *entryLabel = outputBlock->head;
     outputBlock->head = outputBlock->head->next;
+    struct ASMline *returnLine = outputBlock->tail;
+    struct ASMline *runner = outputBlock->head;
+    while (runner->next->next != NULL)
+    {
+        runner = runner->next;
+    }
+    outputBlock->tail = runner;
+
+
     for (int i = 11; i > 0; i--)
     {
         if (registerStates[i]->touched)
@@ -987,6 +1011,8 @@ struct ASMblock *generateCode(struct functionEntry *function, struct Lifetime *l
     }
     entryLabel->next = outputBlock->head;
     outputBlock->head = entryLabel;
+    outputBlock->tail->next = returnLine;
+    outputBlock->tail = returnLine;
 
     // need to get arg count for return statement
     for (int i = 0; i < 12; i++)

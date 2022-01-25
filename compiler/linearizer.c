@@ -9,7 +9,7 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
 
 struct tacLine *linearizeFunctionCall(struct astNode *it, int *tempNum, struct tempList *tl)
 {
-    struct astNode *runner = it->child->sibling;
+    struct astNode *runner = it->child->child;
     struct tacLine *calltac = newtacLine();
     calltac->operands[0] = getTempString(tl, *tempNum);
     calltac->operandTypes[0] = vt_temp;
@@ -291,6 +291,7 @@ struct tacLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
     return assignment;
 }
 
+
 // given the AST for a function, generate TAC and return a pointer to the head of the generated block
 struct tacLine *linearizeFunction(struct astNode *it, struct tempList *tl)
 {
@@ -322,6 +323,19 @@ struct tacLine *linearizeFunction(struct astNode *it, struct tempList *tl)
 
         case t_call:
             asttac = appendTAC(asttac, linearizeFunctionCall(runner, &tempNum, tl));
+            break;
+
+        case t_return:
+            struct tacLine* returnAssignment = linearizeAssignment(runner->child, &tempNum, tl);
+            // force the ".RETVAL" variable to a temp type since we don't care about its lifespan
+            findLastTAC(returnAssignment)->operandTypes[0] = vt_temp;
+            asttac = appendTAC(asttac, returnAssignment);
+
+            struct tacLine* returnTac = newtacLine();
+            returnTac->operands[0] = findLastTAC(asttac)->operands[0];
+            returnTac->operation = tt_return;
+            asttac = appendTAC(asttac, returnTac);
+            //printf("return %s\n", findLastTAC(asttac)->operands[0]);
             break;
 
         default:

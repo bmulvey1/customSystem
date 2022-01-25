@@ -21,7 +21,8 @@ enum tacType
     tt_subtract,
     tt_push,
     tt_call,
-    tt_label
+    tt_label,
+    tt_return
 };
 
 struct tacLine

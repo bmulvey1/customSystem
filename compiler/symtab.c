@@ -77,11 +77,12 @@ struct argumentEntry *newArgumentEntry(int index)
     return wip;
 }
 
-struct functionEntry *newFunctionEntry(struct symbolTable *table)
+struct functionEntry *newFunctionEntry(struct symbolTable *table, int argc)
 {
     struct functionEntry *wip = malloc(sizeof(struct functionEntry));
     wip->table = table;
     wip->codeBlock = NULL;
+    wip->argc = argc;
     return wip;
 }
 
@@ -152,9 +153,9 @@ void symTab_insertArgument(struct symbolTable *table, char *name, int index)
     symTabInsert(table, name, newArgument, e_argument);
 }
 
-void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolTable *subTable)
+void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolTable *subTable, int argc)
 {
-    struct functionEntry *newFunction = newFunctionEntry(subTable);
+    struct functionEntry *newFunction = newFunctionEntry(subTable, argc);
     symTabInsert(table, name, newFunction, e_function);
 }
 
