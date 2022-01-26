@@ -560,7 +560,7 @@ int findTemp(struct registerState **registerStates, char *var)
 void relocateRegister(struct registerState **registerStates, struct ASMblock *outputBlock, int source, int dest)
 {
     char *outputStr = malloc(14 * sizeof(char));
-    sprintf(outputStr, "mov %%r%d, %%r%d", dest, source);
+    sprintf(outputStr, "movw %%r%d, %%r%d", dest, source);
     ASMblock_append(outputBlock, outputStr);
     registerStates[dest]->contains = registerStates[source]->contains;
     registerStates[dest]->live = registerStates[source]->live;
@@ -828,28 +828,10 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                 {
                     int secondOperandIndex = findOrPlaceVar(registerStates, outputBlock, line->operands[2], function);
 
-                    // seems there are no side effects of just always doing the "findOrPlaceModifiable()"
-                    /*if (firstOperandIndex != -1)
-                    {
-                        // if this register isn't dying or dead (can't be overwritten at this step)
-                        if (!(registerStates[firstOperandIndex]->dying || !registerStates[firstOperandIndex]->live))
-                        {
-                            destinationRegister = findUnallocatedRegister(registerStates);
-                            printf("movw %%r%d, %%r%d\n", destinationRegister, firstOperandIndex);
-                        }
-                        else
-                        {
-                            destinationRegister = firstOperandIndex;
-                        }
-                        printf("%s %%r%d, %%r%d\n", getAsmOp(line->operation), destinationRegister, secondOperandIndex);
-                    }
-                    else
-                    {*/
                     destinationRegister = findOrPlaceModifiableVar(registerStates, outputBlock, line->operands[1], function);
                     char *outputStr = malloc(18 * sizeof(char));
                     sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, secondOperandIndex);
                     ASMblock_append(outputBlock, outputStr);
-                    //}
                 }
             }
         }
@@ -857,7 +839,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
     modifyRegisterContents(registerStates, destinationRegister, line->operands[0]);
 }
 
-struct ASMblock *generateCode(struct functionEntry *function, struct Lifetime *lifetimes)
+struct ASMblock *generateCode(struct functionEntry *function, char *functionName, struct Lifetime *lifetimes)
 {
     struct ASMblock *outputBlock = newASMblock();
     // generate register states for the 12 GP registers
@@ -996,6 +978,9 @@ struct ASMblock *generateCode(struct functionEntry *function, struct Lifetime *l
     }
     outputBlock->tail = runner;
 
+    outputStr = malloc(32 * sizeof(char));
+    sprintf(outputStr, "%s_done:", functionName);
+    ASMblock_append(outputBlock, outputStr);
 
     for (int i = 11; i > 0; i--)
     {
@@ -1004,6 +989,7 @@ struct ASMblock *generateCode(struct functionEntry *function, struct Lifetime *l
             outputStr = malloc(9 * sizeof(char));
             sprintf(outputStr, "push %%r%d", i);
             ASMblock_prepend(outputBlock, outputStr);
+
             outputStr = malloc(8 * sizeof(char));
             sprintf(outputStr, "pop %%r%d", i);
             ASMblock_append(outputBlock, outputStr);
@@ -1046,12 +1032,16 @@ int main(int argc, char **argv)
         if (theTable->entries[i]->type == e_function)
         {
             struct Lifetime *theseLifetimes = findLifetimes(theTable->entries[i]->entry);
-            struct ASMblock *output = generateCode(theTable->entries[i]->entry, theseLifetimes);
+            struct ASMblock *output = generateCode(theTable->entries[i]->entry, theTable->entries[i]->name, theseLifetimes);
             // run along all the lines of asm output from this funtcion, printing and freeing as we go
             struct ASMline *runner = output->head;
             while (runner != NULL)
             {
+                if(runner->data[strlen(runner->data) - 1] != ':')
+                    printf("\t");
+
                 printf("%s\n", runner->data);
+                
                 struct ASMline *old = runner;
                 runner = runner->next;
                 free(old->data);

@@ -1,6 +1,7 @@
 
 # this function will (one day) compute all fibonacci numbers <= n 
-fun fibb(var n){
+fun fibb(var n)
+{
     return fibb(n - 1) + fibb(n - 2);
     #return z;
     
@@ -16,7 +17,8 @@ fun double(var x)
 }
 
 
-fun main(var a){
+fun main(var a)
+{
     a = fibb(a);
 }
 $$
