@@ -79,12 +79,14 @@ char lookahead()
     return r;
 }
 
-#define RESERVED_COUNT 13
+#define RESERVED_COUNT 20
 
 char *reserved[RESERVED_COUNT] = {
     "var",
     "fun",
     "return",
+    "if",
+    "else",
     ",",
     "(",
     ")",
@@ -94,12 +96,19 @@ char *reserved[RESERVED_COUNT] = {
     "=",
     "+",
     "-",
+    ">",
+    "<",
+    ">=",
+    "<=",
+    "==",
     "$$"};
 
 enum token reserved_t[RESERVED_COUNT] = {
     t_var,
     t_fun,
     t_return,
+    t_if,
+    t_else,
     t_comma,
     t_lParen,
     t_rParen,
@@ -109,6 +118,11 @@ enum token reserved_t[RESERVED_COUNT] = {
     t_assign,
     t_unOp,
     t_unOp,
+    t_compOp,
+    t_compOp,
+    t_compOp,
+    t_compOp,
+    t_compOp,
     t_EOF};
 
 enum token scan()
@@ -308,6 +322,7 @@ struct astNode *parseStatementList(struct Dictionary *dict)
         case t_var:
         case t_name:
         case t_return:
+        case t_if:
             stmt = parseStatement(dict);
             if (stmtList == NULL)
                 stmtList = stmt;
@@ -379,19 +394,24 @@ struct astNode *parseStatement(struct Dictionary *dict)
         consume(t_semicolon);
     }
     break;
-    
+
     case t_return:
     {
         statement = match(t_return, dict);
-        struct astNode* returnAssignment = newastNode(t_assign, "=");
+        struct astNode *returnAssignment = newastNode(t_assign, "=");
         astNode_insertChild(returnAssignment, newastNode(t_name, ".RETVAL"));
         astNode_insertChild(returnAssignment, parseExpression(dict));
         astNode_insertChild(statement, returnAssignment);
         consume(t_semicolon);
     }
     break;
+
+    case t_if:
+        statement = parseIfStatement(dict);
+        break;
+
     default:
-        printf("Error parsing statement - saw token [%s]\n", token_names[upcomingToken]);
+        printf("Error parsing statement - saw token [%s] with value of \n", token_names[upcomingToken]);
         exit(1);
     }
     //printf("Done parsing statement- heres what we got\n");
@@ -439,6 +459,14 @@ struct astNode *parseExpression(struct Dictionary *dict)
     case '+':
     case '-':
         expression = match(t_unOp, dict);
+        astNode_insertChild(expression, lSide);
+        astNode_insertChild(expression, parseExpression(dict));
+        break;
+
+    case '<':
+    case '>':
+    case '=':
+        expression = match(t_compOp, dict);
         astNode_insertChild(expression, lSide);
         astNode_insertChild(expression, parseExpression(dict));
         break;
@@ -538,4 +566,55 @@ struct astNode *parseFunctionCall(struct astNode *name, struct Dictionary *dict)
     astNode_insertChild(name, parseArgList(dict));
     consume(t_rParen);
     return callNode;
+}
+
+struct astNode *parseIfStatement(struct Dictionary *dict)
+{
+    printf("parsing if statement\n");
+    struct astNode *ifStatement = match(t_if, dict);
+    consume(t_lParen);
+    astNode_insertChild(ifStatement, parseExpression(dict));
+    consume(t_rParen);
+    struct astNode *doBlock = newastNode(t_do, "do");
+    astNode_insertChild(ifStatement, doBlock);
+    printf("expression evaluated\n");
+    if (lookahead() == '{')
+    {
+        consume(t_lCurly);
+        astNode_insertChild(doBlock, parseStatementList(dict));
+        consume(t_rCurly);
+    }
+    else
+    {
+        astNode_insertChild(doBlock, parseStatement(dict));
+    }
+
+    if (lookaheadToken() == t_else)
+    {
+        astNode_insertChild(ifStatement, parseElseStatement(dict));
+    }
+
+    //printf("done parsing if statement - here's what we got!\n");
+    //printAST(ifStatement, 0);
+    return ifStatement;
+}
+
+struct astNode *parseElseStatement(struct Dictionary *dict)
+{
+    printf("parsing else\n");
+    struct astNode *elseStatement = match(t_else, dict);
+    struct astNode *doBlock = newastNode(t_do, "do");
+    astNode_insertChild(elseStatement, doBlock);
+    if (lookahead() == '{')
+    {
+        consume(t_lCurly);
+        astNode_insertChild(doBlock, parseStatementList(dict));
+        consume(t_rCurly);
+    }
+    else
+    {
+        astNode_insertChild(doBlock, parseStatement(dict));
+    }
+
+    return elseStatement;
 }

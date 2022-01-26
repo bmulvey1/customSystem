@@ -8,12 +8,139 @@
 #include "dict.h"
 #include "linearizer.h"
 
+void walkStatement(struct astNode *it, struct symbolTable *wip)
+{
+    //printf("walking statement\n");
+    switch (it->type)
+    {
+    case t_var:
+        char *varName;
+        if (it->child->type == t_assign)
+            varName = it->child->child->value;
+        else
+            varName = it->child->value;
+
+        // lookup the variable being assigned, only insert if unique
+        // also covers modification of argument values
+        if (!symbolTableContains(wip, varName))
+        {
+            symTab_insertVariable(wip, varName, wip->varc++);
+        }
+
+        break;
+
+    case t_assign:
+        if (!symbolTableContains(wip, it->child->value))
+        {
+            printf("Error - variable [%s] assigned before declaration\n", it->child->value);
+            exit(1);
+        }
+        break;
+
+    case t_if:
+        // having fun yet?
+        struct astNode *ifRunner = it->child->sibling->child;
+        while (ifRunner != NULL)
+        {
+            walkStatement(ifRunner, wip);
+            ifRunner = ifRunner->sibling;
+        }
+
+        // no, really!
+        if (it->child->sibling->sibling != NULL)
+        {
+            ifRunner = it->child->sibling->sibling->child->child;
+            while (ifRunner != NULL)
+            {
+                walkStatement(ifRunner, wip);
+                ifRunner = ifRunner->sibling;
+            }
+        }
+
+        break;
+
+    // function call/return can't create new symbols so ignore
+    case t_call:
+    case t_return:
+        break;
+
+    default:
+        printf("Error walking AST for function %s - expected 'var', name, or function call, saw %s with value of [%s]\n", it->child->value, getTokenName(it->type), it->value);
+        exit(1);
+    }
+}
+
+void walkFunction(struct astNode *it, struct symbolTable *wip)
+{
+    struct astNode *functionRunner = it->child;
+    char *functionName = functionRunner->value;
+    struct symbolTable *subTable = newSymbolTable(functionName);
+    while (functionRunner != NULL)
+    {
+        //printAST(functionRunner, 0);
+        switch (functionRunner->type)
+        {
+        // looking at function name, which will have argument variables as children
+        case t_name:
+            struct astNode *argumentRunner = functionRunner->child;
+            while (argumentRunner != NULL)
+            {
+                if (argumentRunner->child->type == t_assign)
+                {
+                    if (!symbolTableContains(subTable, argumentRunner->child->child->value))
+                        symTab_insertArgument(subTable, argumentRunner->child->child->value, wip->argc++);
+                }
+                else
+                {
+                    if (!symbolTableContains(subTable, argumentRunner->child->value))
+                        symTab_insertArgument(subTable, argumentRunner->child->value, subTable->argc++);
+                }
+
+                argumentRunner = argumentRunner->sibling;
+            }
+            break;
+
+        // function call/return can't create new symbols so ignore
+        case t_call:
+        case t_return:
+            break;
+
+        case t_if:
+            // having fun yet?
+            struct astNode *ifRunner = functionRunner->child->sibling->child;
+            while (ifRunner != NULL)
+            {
+                walkStatement(ifRunner, subTable);
+                ifRunner = ifRunner->sibling;
+            }
+
+            // no, really!
+            if (functionRunner->child->sibling->sibling != NULL)
+            {
+                ifRunner = functionRunner->child->sibling->sibling->child->child;
+                while (ifRunner != NULL)
+                {
+                    walkStatement(ifRunner, subTable);
+                    ifRunner = ifRunner->sibling;
+                }
+            }
+
+            break;
+
+        // otherwise we are looking at the body of the function, which is a statement list
+        default:
+            walkStatement(functionRunner, subTable);
+        }
+        functionRunner = functionRunner->sibling;
+    }
+    symTab_insertFunction(wip, functionName, subTable);
+}
+
 // given an AST node for a program, walk the AST and generate a symbol table for the entire thing
 struct symbolTable *walkAST(struct astNode *it)
 {
     struct symbolTable *wip = newSymbolTable("Program");
     wip->tl = newTempList();
-    int globalVariableCount = 0;
     struct astNode *runner = it;
     while (runner != NULL)
     {
@@ -21,80 +148,9 @@ struct symbolTable *walkAST(struct astNode *it)
         switch (runner->type)
         {
 
-        case t_var:
-            if (runner->child->type == t_assign)
-                symTab_insertVariable(wip, runner->child->child->value, globalVariableCount++);
-            else
-                symTab_insertVariable(wip, runner->child->value, globalVariableCount++);
-            break;
-
         case t_fun:
-        {
-            int functionArgumentCount = 0;
-            int functionVariableCount = 0;
-            struct astNode *functionNode = runner->child;
-            char *functionName = functionNode->value;
-            struct symbolTable *subTable = newSymbolTable(functionNode->value);
-            while (functionNode != NULL)
-            {
-                switch (functionNode->type)
-                {
-                case t_var:
-                    char *varName;
-                    if (functionNode->child->type == t_assign)
-                        varName = functionNode->child->child->value;
-                    else
-                        varName = functionNode->child->value;
-
-                    // lookup the variable being assigned, only insert if unique
-                    // also covers modification of argument values
-                    if (!symbolTableContains(subTable, varName))
-                    {
-                        symTab_insertVariable(subTable, varName, functionVariableCount++);
-                    }
-
-                    break;
-
-                case t_assign:
-                    if (!symbolTableContains(subTable, functionNode->child->value))
-                    {
-                        printf("Error - variable [%s] assigned before declaration\n", functionNode->child->value);
-                        exit(1);
-                    }
-                    break;
-
-                // looking at function name, which will have argument variables as children
-                case t_name:
-                    struct astNode *argumentRunner = functionNode->child;
-                    while (argumentRunner != NULL)
-                    {
-                        if (argumentRunner->child->type == t_assign)
-                        {
-                            symTab_insertArgument(subTable, argumentRunner->child->child->value, functionArgumentCount++);
-                        }
-                        else
-                        {
-                            symTab_insertArgument(subTable, argumentRunner->child->value, functionArgumentCount++);
-                        }
-
-                        argumentRunner = argumentRunner->sibling;
-                    }
-                    break;
-
-                // function calls and return statements have no implication on symtab entries (for now?)
-                case t_call:
-                case t_return:
-                    break;
-
-                default:
-                    printf("Error walking AST - expected 'var', name, or function call, saw %s with value of [%s]\n", getTokenName(functionNode->type), functionNode->value);
-                    exit(1);
-                }
-                functionNode = functionNode->sibling;
-            }
-            symTab_insertFunction(wip, functionName, subTable, functionArgumentCount);
-        }
-        break;
+            walkFunction(runner, wip);
+            break;
 
         default:
             printf("Error walking AST - expected 'v' or function declaration\n");
@@ -951,7 +1007,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                 relocateRegister(registerStates, outputBlock, retValIndex, 0);
             }
             outputStr = malloc(10 * sizeof(char));
-            sprintf(outputStr, "ret %d", function->argc);
+            sprintf(outputStr, "ret %d", function->table->argc);
             ASMblock_append(outputBlock, outputStr);
         }
         break;
@@ -1018,6 +1074,7 @@ int main(int argc, char **argv)
     printAST(program, 0);
     printf("Generating symbol table from AST");
     struct symbolTable *theTable = walkAST(program);
+    //printSymTab(theTable);
     printf("\n");
 
     printf("Linearizing code to TAC");
@@ -1037,11 +1094,11 @@ int main(int argc, char **argv)
             struct ASMline *runner = output->head;
             while (runner != NULL)
             {
-                if(runner->data[strlen(runner->data) - 1] != ':')
+                if (runner->data[strlen(runner->data) - 1] != ':')
                     printf("\t");
 
                 printf("%s\n", runner->data);
-                
+
                 struct ASMline *old = runner;
                 runner = runner->next;
                 free(old->data);

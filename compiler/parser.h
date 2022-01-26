@@ -17,10 +17,9 @@ struct astNode *match(enum token t, struct Dictionary *dict);
 
 void consume(enum token t);
 
-char* getTokenName(enum token t);
+char *getTokenName(enum token t);
 
-
-struct astNode *parseProgram(char* inFileName, struct Dictionary *dict);
+struct astNode *parseProgram(char *inFileName, struct Dictionary *dict);
 
 struct astNode *parseTLDList(struct Dictionary *dict);
 
@@ -38,4 +37,8 @@ struct astNode *parseArgDefinitions(struct Dictionary *dict);
 
 struct astNode *parseArgList(struct Dictionary *dict);
 
-struct astNode *parseFunctionCall(struct astNode* name, struct Dictionary* dict);
+struct astNode *parseFunctionCall(struct astNode *name, struct Dictionary *dict);
+
+struct astNode *parseIfStatement(struct Dictionary *dict);
+
+struct astNode *parseElseStatement(struct Dictionary *dict);

@@ -2,19 +2,14 @@
 # this function will (one day) compute all fibonacci numbers <= n 
 fun fibb(var n)
 {
-    return fibb(n - 1) + fibb(n - 2);
+    if(n > 1)
+        return n;
+    else
+        return fibb(n - 1) + fibb(n - 2);
     #return z;
-    
-    #var a = n + 1;
-    #var b = (a + 1) - (a + (18 - a));
-    
-    #var z = 1 + fibb(n - 2);
+
 }
 
-fun double(var x)
-{
-    return x + x;
-}
 
 
 fun main(var a)
