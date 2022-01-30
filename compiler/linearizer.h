@@ -11,6 +11,6 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
 
 struct tacLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tempList *tl);
 
-struct tacLine *linearizeFunction(struct astNode *it, struct tempList *tl);
+struct tacLine *linearizeStatementList(struct astNode *it, int* tempNum, int* labelCount, struct tempList *tl);
 
 void linearizeProgram(struct astNode *it, struct symbolTable *table);

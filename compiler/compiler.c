@@ -258,124 +258,139 @@ void checkVariableLifetimes(struct functionEntry *function)
     // iterate all lines of TAC in the function's codeblock
     for (struct tacLine *t = function->codeBlock; t != NULL; t = t->nextLine)
     {
-        // only examine RHS operands if they are variables
-        struct symTabEntry *varEntry;
-        if (t->operandTypes[2] == vt_var)
+        switch (t->operation)
         {
-            // attempt to get the variable's entry from the table
-            varEntry = symbolTableLookup(function->table, t->operands[2]);
+            // jmp's have no bearing on variable lifetimes
+        case tt_jg:
+        case tt_jge:
+        case tt_jl:
+        case tt_jle:
+        case tt_je:
+        case tt_jne:
+        case tt_jmp:
+            break;
 
-            // if we get nothing back, we have a use before declare
-            if (varEntry == NULL)
+        default:
+
+            // only examine RHS operands if they are variables
+            struct symTabEntry *varEntry;
+            if (t->operandTypes[2] == vt_var)
             {
-                printf("Error: use of undeclared variable %s\n", t->operands[2]);
-                exit(1);
-            }
+                // attempt to get the variable's entry from the table
+                varEntry = symbolTableLookup(function->table, t->operands[2]);
 
-            switch (varEntry->type)
-            {
-            case e_argument:
-                // arguments can be used anywhere, so ignore
-                break;
-
-            case e_variable:
-                // if a variable on the RHS hasn't been assigned yet, we have a use before asssign
-                if (!((struct variableEntry *)varEntry->entry)->isAssigned)
+                // if we get nothing back, we have a use before declare
+                if (varEntry == NULL)
                 {
-                    printf("Error: use of variable [%s] before assignment\n", varEntry->name);
+                    printf("Error: use of undeclared variable %s\n", t->operands[2]);
                     exit(1);
                 }
-                // otherwise, the variable is used normally in this step
-                // this means its lifespan can end no sooner than this index
-                else
+
+                switch (varEntry->type)
                 {
-                    ((struct variableEntry *)varEntry->entry)->lsEnd = lineIndex;
+                case e_argument:
+                    // arguments can be used anywhere, so ignore
+                    break;
+
+                case e_variable:
+                    // if a variable on the RHS hasn't been assigned yet, we have a use before asssign
+                    if (!((struct variableEntry *)varEntry->entry)->isAssigned)
+                    {
+                        printf("Error: use of variable [%s] before assignment\n", varEntry->name);
+                        exit(1);
+                    }
+                    // otherwise, the variable is used normally in this step
+                    // this means its lifespan can end no sooner than this index
+                    else
+                    {
+                        ((struct variableEntry *)varEntry->entry)->lsEnd = lineIndex;
+                    }
+                    break;
+
+                // won't hit this at the moment, only captures e_function
+                default:
+
+                    break;
                 }
-                break;
-
-            // won't hit this at the moment, only captures e_function
-            default:
-
-                break;
             }
-        }
 
-        // perform the same checks as for operand index 2 on index 1
+            // perform the same checks as for operand index 2 on index 1
 
-        if (t->operandTypes[1] == vt_var)
-        {
-            varEntry = symbolTableLookup(function->table, t->operands[1]);
-            if (varEntry == NULL)
+            if (t->operandTypes[1] == vt_var)
             {
-                printf("Error: use of undeclared variable %s\n", t->operands[1]);
-                exit(1);
-            }
-            switch (varEntry->type)
-            {
-            case e_argument:
-                // arguments can be used anywhere, so ignore
-                break;
-
-            case e_variable:
-                if (!((struct variableEntry *)varEntry->entry)->isAssigned)
+                varEntry = symbolTableLookup(function->table, t->operands[1]);
+                if (varEntry == NULL)
                 {
-                    printf("Error: use of variable [%s] before assignment\n", varEntry->name);
+                    printf("Error: use of undeclared variable %s\n", t->operands[1]);
                     exit(1);
                 }
-                else
+                switch (varEntry->type)
                 {
-                    ((struct variableEntry *)varEntry->entry)->lsEnd = lineIndex;
+                case e_argument:
+                    // arguments can be used anywhere, so ignore
+                    break;
+
+                case e_variable:
+                    if (!((struct variableEntry *)varEntry->entry)->isAssigned)
+                    {
+                        printf("Error: use of variable [%s] before assignment\n", varEntry->name);
+                        exit(1);
+                    }
+                    else
+                    {
+                        ((struct variableEntry *)varEntry->entry)->lsEnd = lineIndex;
+                    }
+                    break;
+
+                default:
+
+                    break;
                 }
-                break;
-
-            default:
-
-                break;
-            }
-        }
-
-        // look at operand index 0 (what is being assigned to)
-        // we only care about it if it's an explicitly defined variable (not a temp)
-        if (t->operandTypes[0] == vt_var)
-        {
-            // do a lookup in the symbol table for a variable with this name
-            struct symTabEntry *assignedVar = symbolTableLookup(function->table, t->operands[0]);
-
-            // catch assign before initialize
-            if (assignedVar == NULL)
-            {
-                printf("Error: assignment to uninitialized variable %s\n", t->operands[0]);
-                exit(1);
             }
 
-            switch (assignedVar->type)
+            // look at operand index 0 (what is being assigned to)
+            // we only care about it if it's an explicitly defined variable (not a temp)
+            if (t->operandTypes[0] == vt_var)
             {
-            case e_variable:
-                // grab the variable entry itself
-                struct variableEntry *theVar = assignedVar->entry;
-                // if it hasn't already been assigned
-                if (!theVar->isAssigned)
+                // do a lookup in the symbol table for a variable with this name
+                struct symTabEntry *assignedVar = symbolTableLookup(function->table, t->operands[0]);
+
+                // catch assign before initialize
+                if (assignedVar == NULL)
                 {
-                    // set the assigned flag and record the start of its lifetime
-                    theVar->isAssigned = 1;
-                    theVar->lsStart = lineIndex;
+                    printf("Error: assignment to uninitialized variable %s\n", t->operands[0]);
+                    exit(1);
                 }
-                theVar->lsEnd = lineIndex;
-                break;
 
-            case e_argument:
-                // in the case we have an argument, just extend its lifespan end
-                struct variableEntry *theArg = assignedVar->entry;
-                theArg->lsEnd = lineIndex;
-                break;
+                switch (assignedVar->type)
+                {
+                case e_variable:
+                    // grab the variable entry itself
+                    struct variableEntry *theVar = assignedVar->entry;
+                    // if it hasn't already been assigned
+                    if (!theVar->isAssigned)
+                    {
+                        // set the assigned flag and record the start of its lifetime
+                        theVar->isAssigned = 1;
+                        theVar->lsStart = lineIndex;
+                    }
+                    theVar->lsEnd = lineIndex;
+                    break;
 
-            default:
-                printf("Error - assignment to something that's not an argument or variable\n");
-                exit(1);
+                case e_argument:
+                    // in the case we have an argument, just extend its lifespan end
+                    struct variableEntry *theArg = assignedVar->entry;
+                    theArg->lsEnd = lineIndex;
+                    break;
+
+                default:
+                    printf("Error - assignment to something that's not an argument or variable\n");
+                    exit(1);
+                }
+
+                // regardless of whether or not this variable's lifetime started at this line
+                // its lifetime can end no sooner than this index
             }
-
-            // regardless of whether or not this variable's lifetime started at this line
-            // its lifetime can end no sooner than this index
         }
 
         lineIndex++;
@@ -395,57 +410,72 @@ struct Lifetime *findLifetimes(struct functionEntry *function)
     int lineIndex = 0;
     for (struct tacLine *line = function->codeBlock; line != NULL; line = line->nextLine)
     {
-        // iterate all operands in the line
-        for (int i = 0; i < 3; i++)
+        switch (line->operation)
         {
-            char *varName = line->operands[i];
+        case tt_label:
+        case tt_jg:
+        case tt_jge:
+        case tt_jl:
+        case tt_jle:
+        case tt_je:
+        case tt_jne:
+        case tt_jmp:
+            break;
 
-            // ignore if null
-            if (line->operands[i] == NULL)
-                continue;
+        default:
 
-            // if operand is a literal, ignore
-            // (only possible for operands index 1 and 2 which are on the RHS of the assignment)
-            if (line->operandTypes[i] == vt_literal)
-                continue;
-
-            // if we made it here, we must be looking at a variable of some sort
-            // search through the list of existing lifetimes
-            int found = 0;
-            for (struct Lifetime *runner = ltList; runner != NULL; runner = runner->next)
+            // iterate all operands in the line
+            for (int i = 0; i < 3; i++)
             {
-                // if we find a lifetime for this variable
-                if (!strcmp(varName, runner->variable))
-                {
-                    // since the variable exists at this lineIndex, update its end
-                    // since it can end no sooner than this line
-                    runner->end = lineIndex;
-                    found = 1;
-                    break;
-                }
-            }
+                char *varName = line->operands[i];
 
-            // if we scanned all existing lifetimes without finding one for this variable
-            if (!found)
-            {
-                // insert a lifetime for this variable (starting and ending at this step)
-                if (ltList == NULL)
+                // ignore if null
+                if (line->operands[i] == NULL)
+                    continue;
+
+                // if operand is a literal, ignore
+                // (only possible for operands index 1 and 2 which are on the RHS of the assignment)
+                if (line->operandTypes[i] == vt_literal)
+                    continue;
+
+                // if we made it here, we must be looking at a variable of some sort
+                // search through the list of existing lifetimes
+                int found = 0;
+                for (struct Lifetime *runner = ltList; runner != NULL; runner = runner->next)
                 {
-                    ltList = newLifetime(varName, lineIndex);
-                    if (line->operandTypes[i] == vt_var && symbolTableLookup(function->table, line->operands[i])->type == e_argument)
+                    // if we find a lifetime for this variable
+                    if (!strcmp(varName, runner->variable))
                     {
-                        ltList->start = 0;
+                        // since the variable exists at this lineIndex, update its end
+                        // since it can end no sooner than this line
+                        runner->end = lineIndex;
+                        found = 1;
+                        break;
                     }
-                    ltTail = ltList;
                 }
-                else
+
+                // if we scanned all existing lifetimes without finding one for this variable
+                if (!found)
                 {
-                    ltTail->next = newLifetime(varName, lineIndex);
-                    if (line->operandTypes[i] == vt_var && symbolTableLookup(function->table, line->operands[i])->type == e_argument)
+                    // insert a lifetime for this variable (starting and ending at this step)
+                    if (ltList == NULL)
                     {
-                        ltTail->next->start = 0;
+                        ltList = newLifetime(varName, lineIndex);
+                        if (line->operandTypes[i] == vt_var && symbolTableLookup(function->table, line->operands[i])->type == e_argument)
+                        {
+                            ltList->start = 0;
+                        }
+                        ltTail = ltList;
                     }
-                    ltTail = ltTail->next;
+                    else
+                    {
+                        ltTail->next = newLifetime(varName, lineIndex);
+                        if (line->operandTypes[i] == vt_var && symbolTableLookup(function->table, line->operands[i])->type == e_argument)
+                        {
+                            ltTail->next->start = 0;
+                        }
+                        ltTail = ltTail->next;
+                    }
                 }
             }
         }
@@ -478,6 +508,53 @@ struct registerState *newRegisterState()
     wip->touched = 0;
     wip->contains = NULL;
     return wip;
+}
+
+struct registerState **duplicateRegisterStates(struct registerState **theStates)
+{
+    struct registerState **duplicateStates = malloc(12 * sizeof(struct registerState *));
+    memcpy(duplicateRegisterStates, theStates, 12 * sizeof(struct registerState));
+    return duplicateStates;
+}
+
+struct RegisterStateStack
+{
+    struct registerState ***stack;
+    int size;
+};
+
+struct RegisterStateStack *newRegisterStateStack()
+{
+    struct RegisterStateStack *wip = malloc(sizeof(struct RegisterStateStack));
+    wip->stack = NULL;
+    wip->size = 0;
+    return wip;
+}
+
+void RegisterStateStack_push(struct RegisterStateStack *s, struct registerState **stateList)
+{
+    struct registerState ***newStack = malloc((s->size + 1) * sizeof(struct registerState **));
+    for (int i = 0; i < s->size; i++)
+    {
+        newStack[i] = s->stack[i];
+    }
+    newStack[s->size++] = stateList;
+    free(s->stack);
+    s->stack = newStack;
+}
+
+struct registerState **RegisterStateStack_pop(struct RegisterStateStack *s)
+{
+    struct registerState** popped = s->stack[s->size - 1];
+    struct registerState ***newStack = malloc((s->size - 1) * sizeof(struct registerState **));
+    for (int i = 0; i < s->size - 1; i++)
+    {
+        newStack[i] = s->stack[i];
+    }
+    s->size--;
+    free(s->stack);
+    s->stack = newStack;
+    return popped;
 }
 
 int findUnallocatedRegister(struct registerState **registerStates)
@@ -626,6 +703,10 @@ void relocateRegister(struct registerState **registerStates, struct ASMblock *ou
 
     registerStates[source]->contains = NULL;
     registerStates[source]->live = 0;
+}
+
+void restoreRegisterStates(struct registerState **current, struct registerState **desired, struct functionEntry *function)
+{
 }
 
 void printRegisterStates(struct registerState **registerStates)
@@ -824,7 +905,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                 else
                 {
                     // move the first operand into a register
-                    if (!strcmp(line->operands[0], line->operands[1]))
+                    if (line->operands[0] == NULL || !strcmp(line->operands[0], line->operands[1]))
                     {
                         // if the variable is modifying itself, we can indiscriminately get a register for it
                         destinationRegister = findOrPlaceVar(registerStates, outputBlock, line->operands[0], function);
@@ -899,7 +980,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
 {
     struct ASMblock *outputBlock = newASMblock();
     // generate register states for the 12 GP registers
-    struct registerState *registerStates[12];
+    struct registerState **registerStates = malloc(12 * sizeof(struct registerState *));
     for (int i = 0; i < 12; i++)
         registerStates[i] = newRegisterState();
 
@@ -995,7 +1076,14 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
 
         case tt_label:
             outputStr = malloc(32 * sizeof(char));
-            sprintf(outputStr, "%s:", line->operands[0]);
+            if (line->operands[0] > 0)
+            {
+                sprintf(outputStr, "%s_%ld:", functionName, (long int)line->operands[0]);
+            }
+            else
+            {
+                sprintf(outputStr, "%s:", functionName);
+            }
             ASMblock_append(outputBlock, outputStr);
             break;
 
@@ -1007,10 +1095,48 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                 relocateRegister(registerStates, outputBlock, retValIndex, 0);
             }
             outputStr = malloc(10 * sizeof(char));
-            sprintf(outputStr, "ret %d", function->table->argc);
+            sprintf(outputStr, "jmp %s_done", functionName);
             ASMblock_append(outputBlock, outputStr);
         }
         break;
+
+        case tt_cmp:
+            outputStr = malloc(16 * sizeof(char));
+            if (line->operandTypes[1] == vt_literal)
+            {
+                if (line->operandTypes[2] == vt_literal)
+                {
+                    printf("Error - comparison between 2 literals! This should be impossible with previous error checking!\n");
+                    exit(1);
+                }
+                // problem - this instruction doesn't exist so need to flip operands and use opposite comparison!
+                sprintf(outputStr, "cmp $%s, %%r%d", line->operands[1], findOrPlaceVar(registerStates, outputBlock, line->operands[2], function));
+            }
+            else
+            {
+                if (line->operandTypes[2] == vt_literal)
+                {
+                    sprintf(outputStr, "cmp %%r%d, $%s", findOrPlaceVar(registerStates, outputBlock, line->operands[1], function), line->operands[2]);
+                }
+                else
+                {
+                    sprintf(outputStr, "cmp %%r%d, %%r%d", findOrPlaceVar(registerStates, outputBlock, line->operands[1], function), findOrPlaceVar(registerStates, outputBlock, line->operands[2], function));
+                }
+            }
+            ASMblock_append(outputBlock, outputStr);
+            break;
+
+        case tt_jg:
+        case tt_jge:
+        case tt_jl:
+        case tt_jle:
+        case tt_je:
+        case tt_jne:
+        case tt_jmp:
+            outputStr = malloc(32 * sizeof(char));
+            sprintf(outputStr, "%s %s_%ld", getAsmOp(line->operation), functionName, (long int)line->operands[0]);
+            ASMblock_append(outputBlock, outputStr);
+            break;
 
         default:
             //printf("%s = %s %s\n", line->operands[0], line->operands[1], line->operands[2]);
@@ -1026,13 +1152,13 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
     // clean up the registers states
     struct ASMline *entryLabel = outputBlock->head;
     outputBlock->head = outputBlock->head->next;
-    struct ASMline *returnLine = outputBlock->tail;
+    /*struct ASMline *returnLine = outputBlock->tail;
     struct ASMline *runner = outputBlock->head;
     while (runner->next->next != NULL)
     {
         runner = runner->next;
     }
-    outputBlock->tail = runner;
+    outputBlock->tail = runner;*/
 
     outputStr = malloc(32 * sizeof(char));
     sprintf(outputStr, "%s_done:", functionName);
@@ -1053,8 +1179,12 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
     }
     entryLabel->next = outputBlock->head;
     outputBlock->head = entryLabel;
-    outputBlock->tail->next = returnLine;
-    outputBlock->tail = returnLine;
+    //outputBlock->tail->next = returnLine;
+    //outputBlock->tail = returnLine;
+
+    outputStr = malloc(6 * sizeof(char));
+    sprintf(outputStr, "ret %d", function->table->argc);
+    ASMblock_append(outputBlock, outputStr);
 
     // need to get arg count for return statement
     for (int i = 0; i < 12; i++)
@@ -1074,7 +1204,8 @@ int main(int argc, char **argv)
     printAST(program, 0);
     printf("Generating symbol table from AST");
     struct symbolTable *theTable = walkAST(program);
-    //printSymTab(theTable);
+    printf("\n");
+    printSymTab(theTable);
     printf("\n");
 
     printf("Linearizing code to TAC");

@@ -19,10 +19,20 @@ enum tacType
     tt_assign,
     tt_add,
     tt_subtract,
+    tt_cmp,
+    tt_jg,
+    tt_jge,
+    tt_jl,
+    tt_jle,
+    tt_je,
+    tt_jne,
+    tt_jmp,
     tt_push,
     tt_call,
     tt_label,
-    tt_return
+    tt_return,
+    tt_snapshot,
+    tt_restore
 };
 
 struct tacLine

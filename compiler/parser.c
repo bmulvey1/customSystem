@@ -148,7 +148,20 @@ enum token scan()
         {
             // if we match a reserved keyword
             if (!strcmp(buffer, reserved[i]))
-                return reserved_t[i]; // return its token
+            {
+                // allow catching both '<', '>', and '<=', '>='
+                if (buffer[0] == '<' || buffer[0] == '>')
+                {
+                    if (lookahead() != '=')
+                    {
+                        return reserved_t[i];
+                    }
+                }
+                else
+                {
+                    return reserved_t[i]; // return its token
+                }
+            }
         }
 
         // if on the first char of the token
@@ -208,6 +221,7 @@ struct astNode *match(enum token t, struct Dictionary *dict)
         printf("Error matching - expected token [%s], got [%s] with image of [%s] instead!\n", token_names[t], token_names[result], buffer);
         exit(1);
     }
+    printf("consumed %s\n", buffer);
     return newastNode(result, DictionaryLookupOrInsert(dict, buffer));
 }
 
@@ -244,7 +258,7 @@ struct astNode *parseTLDList(struct Dictionary *dict)
 
         astNode_insertSibling(TLDList, parseTLD(dict));
     }
-    //printf("done parsing tld list\n");
+    // printf("done parsing tld list\n");
     return TLDList;
 }
 
@@ -341,7 +355,7 @@ struct astNode *parseStatementList(struct Dictionary *dict)
         }
     }
 
-    //printf("done parsing statement list");
+    // printf("done parsing statement list");
     return stmtList;
 }
 
@@ -363,7 +377,7 @@ struct astNode *parseStatement(struct Dictionary *dict)
             astNode_insertChild(statement, parseAssignment(name, dict));
         else
         {
-            //printf("var with no assignment\n");
+            // printf("var with no assignment\n");
             astNode_insertChild(statement, name);
         }
 
@@ -378,12 +392,12 @@ struct astNode *parseStatement(struct Dictionary *dict)
         switch (lookahead())
         {
         case '=':
-            //printf("assignment\n");
+            // printf("assignment\n");
             statement = parseAssignment(name, dict);
             break;
 
         case '(':
-            //printf("function call\n");
+            // printf("function call\n");
             statement = parseFunctionCall(name, dict);
             break;
 
@@ -414,14 +428,14 @@ struct astNode *parseStatement(struct Dictionary *dict)
         printf("Error parsing statement - saw token [%s] with value of \n", token_names[upcomingToken]);
         exit(1);
     }
-    //printf("Done parsing statement- heres what we got\n");
-    //printAST(statement, 0);
+    // printf("Done parsing statement- heres what we got\n");
+    // printAST(statement, 0);
     return statement;
 }
 
 struct astNode *parseExpression(struct Dictionary *dict)
 {
-    //printf("parsing expression\n");
+    // printf("parsing expression\n");
     struct astNode *expression = NULL;
 
     // figure out what the left side of the expression is
@@ -486,8 +500,8 @@ struct astNode *parseExpression(struct Dictionary *dict)
         break;
     }
 
-    //printf("done parsing expression - here's what we got:\n");
-    //printAST(expression, 0);
+    // printf("done parsing expression - here's what we got:\n");
+    // printAST(expression, 0);
     return expression;
 }
 
@@ -594,8 +608,8 @@ struct astNode *parseIfStatement(struct Dictionary *dict)
         astNode_insertChild(ifStatement, parseElseStatement(dict));
     }
 
-    //printf("done parsing if statement - here's what we got!\n");
-    //printAST(ifStatement, 0);
+    // printf("done parsing if statement - here's what we got!\n");
+    // printAST(ifStatement, 0);
     return ifStatement;
 }
 

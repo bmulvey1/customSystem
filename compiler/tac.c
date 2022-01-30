@@ -10,6 +10,9 @@ char *getAsmOp(enum tacType t)
     case tt_add:
         return "add";
 
+    case tt_cmp:
+        return "cmp";
+
     case tt_subtract:
         return "sub";
 
@@ -24,6 +27,33 @@ char *getAsmOp(enum tacType t)
 
     case tt_return:
         return "ret";
+
+    case tt_jg:
+        return "jg";
+
+    case tt_jge:
+        return "jge";
+
+    case tt_jl:
+        return "jl";
+
+    case tt_jle:
+        return "jle";
+
+    case tt_je:
+        return "je";
+
+    case tt_jne:
+        return "jne";
+
+    case tt_jmp:
+        return "jmp";
+
+    case tt_snapshot:
+        return "SNAPSHOT";
+
+    case tt_restore:
+        return "RESTORE";
     }
     return "";
 }
@@ -64,7 +94,20 @@ void printTacLine(struct tacLine *it)
                 operationStr = "-";
 
             printf("\t%2d:%8s = %8s %2s %8s", lineIndex, it->operands[0], it->operands[1], operationStr, it->operands[2]);
+            break;
 
+        case tt_jg:
+        case tt_jge:
+        case tt_jl:
+        case tt_jle:
+        case tt_je:
+        case tt_jne:
+        case tt_jmp:
+            printf("\t%2d:%s label %ld", lineIndex, getAsmOp(it->operation), (long int)it->operands[0]);
+            break;
+
+        case tt_cmp:
+            printf("\t%2d:cmp %s %s", lineIndex, it->operands[1], it->operands[2]);
             break;
 
         case tt_assign:
@@ -80,21 +123,29 @@ void printTacLine(struct tacLine *it)
             break;
 
         case tt_label:
-            printf("\t%2d:label %s", lineIndex, it->operands[0]);
+            printf("\t%2d:label %ld", lineIndex, (long int)it->operands[0]);
             break;
 
         case tt_return:
             printf("\t%2d:ret %s", lineIndex, it->operands[0]);
             break;
+
+        case tt_snapshot:
+            printf("\t%2d:SNAPSHOT", lineIndex);
+            break;
+
+        case tt_restore:
+            printf("\t%2d:RESTORE", lineIndex);
+            break;
         }
-        printf("%s", it->reorderable ? " - Reorderable" : "");
-        printf("\t%d %d %d\n", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
+        printf("%s\n", it->reorderable ? " - Reorderable" : "");
+        // printf("\t%d %d %d\n", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
         lineIndex++;
         it = it->nextLine;
     }
 }
 
-// stick the child at the end of the parent
+// stick the "after" block at the end of the "before" block, returning the head of the full block
 struct tacLine *appendTAC(struct tacLine *before, struct tacLine *after)
 {
     if (before == NULL)
@@ -110,6 +161,7 @@ struct tacLine *appendTAC(struct tacLine *before, struct tacLine *after)
     return before;
 }
 
+// stick the "before" block in front of the "after" block, returning the head of the full block
 struct tacLine *prependTAC(struct tacLine *after, struct tacLine *before)
 {
     struct tacLine *runner = before;

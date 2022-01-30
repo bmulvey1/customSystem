@@ -1,6 +1,5 @@
 #include "linearizer.h"
 
-
 /*
  * These functions walk the AST and convert it to three-address code
  */
@@ -61,10 +60,14 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
     struct tacLine *thisExpression = newtacLine();
     struct tacLine *returnExpression = NULL;
 
-    thisExpression->operands[0] = getTempString(tl, *tempNum);
-    thisExpression->operandTypes[0] = vt_temp;
-    // increment count of temp variables, the parse of this expression will be written to a temp
-    (*tempNum)++;
+    // since 'cmp' doesn't generate a result, it just sets flags, no need to consume a temp
+    if (it->type != t_compOp)
+    {
+        thisExpression->operands[0] = getTempString(tl, *tempNum);
+        thisExpression->operandTypes[0] = vt_temp;
+        // increment count of temp variables, the parse of this expression will be written to a temp
+        (*tempNum)++;
+    }
 
     switch (it->child->type)
     {
@@ -74,6 +77,7 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         returnExpression = prependTAC(thisExpression, linearizeFunctionCall(it->child, tempNum, tl));
         break;
 
+    case t_compOp:
     case t_unOp:
         thisExpression->operandTypes[1] = vt_temp;
         thisExpression->operands[1] = getTempString(tl, *tempNum);
@@ -100,39 +104,6 @@ struct tacLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         printf("Unexpected type seen while linearizing expression! Expected variable or literal\n");
         exit(1);
     }
-    /*// check left child
-    if (it->child->type == t_unOp || it->child->type == t_call)
-    {
-        thisExpression->operandTypes[1] = vt_temp;
-        thisExpression->operands[1] = getTempString(tl, *tempNum);
-        returnExpression = prependTAC(thisExpression, linearizeExpression(it->child, tempNum, tl));
-    }
-    else
-    {
-        // otherwise we just have an existing variable, write it to the corresponding address in the TAC line
-        thisExpression->operands[1] = it->child->value;
-        switch (it->child->type)
-        {
-        case t_name:
-            thisExpression->operandTypes[1] = vt_var;
-            break;
-
-        case t_literal:
-            thisExpression->operandTypes[1] = vt_literal;
-            break;
-
-            case t_call:
-            thisExpression->operands[1] = getTempString(tl, *tempNum);
-            thisExpression->operandTypes[1] = vt_temp;
-            returnExpression = prependTAC(returnExpression, linearizeFunctionCall(it->child, tempNum, tl));
-            break;
-
-default:
-    printf("Unexpected type seen while linearizing expression! Expected variable or literal\n");
-    exit(1);
-}
-}
-*/
 
     switch (it->value[0])
     {
@@ -143,6 +114,13 @@ default:
 
     case '-':
         thisExpression->operation = tt_subtract;
+        break;
+
+    case '>':
+    case '<':
+    case '!':
+    case '=':
+        thisExpression->operation = tt_cmp;
         break;
     }
     // thisExpression->operation = it->value;
@@ -155,6 +133,7 @@ default:
         returnExpression = prependTAC(returnExpression, linearizeFunctionCall(it->child->sibling, tempNum, tl));
         break;
 
+    case t_compOp:
     case t_unOp:
         thisExpression->operands[2] = getTempString(tl, *tempNum);
         thisExpression->operandTypes[2] = vt_temp;
@@ -230,7 +209,6 @@ default:
     // otherwise there is only one line of TAC to return, so return that
     if (returnExpression == NULL)
         returnExpression = thisExpression;
-
     return returnExpression;
 }
 
@@ -291,18 +269,12 @@ struct tacLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
     return assignment;
 }
 
-
 // given the AST for a function, generate TAC and return a pointer to the head of the generated block
-struct tacLine *linearizeFunction(struct astNode *it, struct tempList *tl)
+struct tacLine *linearizeStatementList(struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl)
 {
     // scrape along the function
-    struct astNode *runner = it->child->sibling;
-    struct tacLine *asttac = newtacLine();
-
-    asttac->operation = tt_label;
-    asttac->operands[0] = it->child->value;
-
-    int tempNum = 0; // track the number of temporary variables used
+    struct astNode *runner = it;
+    struct tacLine *sltac = NULL;
     while (runner != NULL)
     {
         switch (runner->type)
@@ -312,30 +284,126 @@ struct tacLine *linearizeFunction(struct astNode *it, struct tempList *tl)
         // generate the code and stick it on to the end of the block
         case t_var:
             if (runner->child->type == t_assign)
-                asttac = appendTAC(asttac, linearizeAssignment(runner->child, &tempNum, tl));
+                sltac = appendTAC(sltac, linearizeAssignment(runner->child, tempNum, tl));
 
             break;
 
         // if we see an assignment, generate the code and stick it on to the end of the block
         case t_assign:
-            asttac = appendTAC(asttac, linearizeAssignment(runner, &tempNum, tl));
+            sltac = appendTAC(sltac, linearizeAssignment(runner, tempNum, tl));
             break;
 
         case t_call:
-            asttac = appendTAC(asttac, linearizeFunctionCall(runner, &tempNum, tl));
+            sltac = appendTAC(sltac, linearizeFunctionCall(runner, tempNum, tl));
             break;
 
         case t_return:
-            struct tacLine* returnAssignment = linearizeAssignment(runner->child, &tempNum, tl);
+            struct tacLine *returnAssignment = linearizeAssignment(runner->child, tempNum, tl);
             // force the ".RETVAL" variable to a temp type since we don't care about its lifespan
             findLastTAC(returnAssignment)->operandTypes[0] = vt_temp;
-            asttac = appendTAC(asttac, returnAssignment);
+            sltac = appendTAC(sltac, returnAssignment);
 
-            struct tacLine* returnTac = newtacLine();
-            returnTac->operands[0] = findLastTAC(asttac)->operands[0];
+            struct tacLine *returnTac = newtacLine();
+            returnTac->operands[0] = findLastTAC(sltac)->operands[0];
             returnTac->operation = tt_return;
-            asttac = appendTAC(asttac, returnTac);
-            //printf("return %s\n", findLastTAC(asttac)->operands[0]);
+            sltac = appendTAC(sltac, returnTac);
+            // printf("return %s\n", findLastTAC(asttac)->operands[0]);
+            break;
+
+        case t_if:
+            struct tacLine *regSnapshot = newtacLine();
+            regSnapshot->operation = tt_snapshot;
+            sltac = appendTAC(sltac, regSnapshot);
+            appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
+            struct tacLine *noifJump = newtacLine();
+
+            // generate a label and figure out condition to jump when the if statement isn't executed
+            char *cmpOp = runner->child->value;
+            switch (cmpOp[0])
+            {
+            case '<':
+                switch (cmpOp[1])
+                {
+                case '=':
+                    noifJump->operation = tt_jg;
+                    break;
+
+                default:
+                    noifJump->operation = tt_jge;
+                    break;
+                }
+                break;
+
+            case '>':
+                switch (cmpOp[1])
+                {
+                case '=':
+                    noifJump->operation = tt_jl;
+                    break;
+
+                default:
+                    noifJump->operation = tt_jle;
+                    break;
+                }
+                break;
+
+            case '!':
+                noifJump->operation = tt_je;
+                break;
+
+            case '=':
+                noifJump->operation = tt_jne;
+                break;
+            }
+            struct tacLine *noifLabel = newtacLine();
+            noifLabel->operation = tt_label;
+            appendTAC(sltac, noifJump);
+
+            // bit hax (⌐▨_▨)
+            // (store the label index using the char* for this TAC line)
+            // (avoids having to use more fields in the struct)
+            noifLabel->operands[0] = (char *)((long int)++(*labelCount));
+            noifJump->operands[0] = (char *)(long int)(*labelCount);
+            // printf("\n\n~~~\n");
+
+            struct tacLine *ifBody = linearizeStatementList(runner->child->sibling->child, tempNum, labelCount, tl);
+
+            appendTAC(sltac, ifBody);
+
+            struct tacLine *endIfRestore = newtacLine();
+            endIfRestore->operation = tt_restore;
+            appendTAC(sltac, endIfRestore);
+            // if there's an else to fall through to
+            if (runner->child->sibling->sibling != NULL)
+            {
+                // generate a label for the absolute end of the if/else block
+                struct tacLine *endIfLabel = newtacLine();
+                endIfLabel->operation = tt_label;
+                endIfLabel->operands[0] = (char *)((long int)++(*labelCount));
+
+                // jump to the end after the if part is done
+                struct tacLine *ifDoneJump = newtacLine();
+                ifDoneJump->operation = tt_jmp;
+                ifDoneJump->operands[0] = endIfLabel->operands[0];
+                appendTAC(sltac, ifDoneJump);
+
+                struct tacLine *elseBody = linearizeStatementList(runner->child->sibling->sibling->child->child, tempNum, labelCount, tl);
+                // printf("ELSE BODY\n");
+                // printTacLine(elseBody);
+                //  the if won't be executed, so we must hit the else
+                appendTAC(noifLabel, elseBody);
+                appendTAC(sltac, noifLabel);
+
+                struct tacLine *endElseRestore = newtacLine();
+                endElseRestore->operation = tt_restore;
+                appendTAC(sltac, endElseRestore);
+                appendTAC(sltac, endIfLabel);
+            }
+            else
+            {
+                appendTAC(sltac, noifLabel);
+            }
+
             break;
 
         default:
@@ -344,7 +412,7 @@ struct tacLine *linearizeFunction(struct astNode *it, struct tempList *tl)
         }
         runner = runner->sibling;
     }
-    return asttac;
+    return sltac;
 }
 
 // given an AST and a populated symbol table, generate three address code for the function entries
@@ -361,14 +429,20 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
         // then generate the TAC for it and add a reference to the start of the generated code to the function entry
         case t_fun:
         {
+            int tempNum = 0; // track the number of temporary variables used
+            int labelCount = 0;
             struct functionEntry *theFunction = symbolTableLookup(table, runner->child->value)->entry;
-            struct tacLine *generatedTAC = linearizeFunction(runner, table->tl);
+            struct tacLine *generatedTAC = newtacLine();
+
+            generatedTAC->operation = tt_label;
+            generatedTAC->operands[0] = 0;
+            appendTAC(generatedTAC, linearizeStatementList(runner->child->sibling, &tempNum, &labelCount, table->tl));
             theFunction->codeBlock = generatedTAC;
             break;
         }
         break;
 
-        // ignore everything else
+        // ignore everything else (for now) - no global vars, etc...
         default:
             break;
         }
