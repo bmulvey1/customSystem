@@ -544,13 +544,17 @@ void printRegisterStates(struct registerState **registerStates)
         {
             for (int j = 0; j < 6; j++)
             {
-                if(registerStates[i]->contains[j] == '\0'){
-                    while(j < 6){
+                if (registerStates[i]->contains[j] == '\0')
+                {
+                    while (j < 6)
+                    {
                         printf(" ");
                         j++;
                     }
                     break;
-                }else{
+                }
+                else
+                {
                     printf("%c", registerStates[i]->contains[j]);
                 }
             }
@@ -802,6 +806,26 @@ void relocateRegister(struct registerState **registerStates, struct ASMblock *ou
 
 void restoreRegisterStates(struct registerState **current, struct registerState **desired, struct functionEntry *function)
 {
+    printf("Restore from:\n");
+    printRegisterStates(current);
+    printf("To:\n");
+    printRegisterStates(desired);
+    int paths[12];
+    char flags[12] = {0};
+    for (int i = 0; i < 12; i++)
+    {
+        if (desired[i]->live)
+        {
+            flags[i] = 1;
+            paths[i] = findTemp(current, desired[i]->contains);
+        }
+    }
+
+    for (int i = 0; i < 12; i++)
+    {
+        if (flags[i])
+            printf("%x->%x\n", paths[i], i);
+    }
 }
 
 // assign a value into a register, return the destination index
@@ -1088,7 +1112,6 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             }
         }
 
-        printRegisterStates(registerStates);
         switch (line->operation)
         {
         case tt_assign:
@@ -1129,11 +1152,15 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
 
         case tt_call:
         {
-            // if: %r0 is live OR %r0 contains a dirty variable (not a temp)
-            if (registerStates[0]->live || (registerStates[0]->contains != NULL && registerStates[0]->contains[0] != '.' && registerStates[0]->dirty))
+            // if the thing in %r0 isn't just being reassigned, we might need to relocate it
+            if (strcmp(line->operands[0], registerStates[0]->contains))
             {
-                // right now just move it to an unallocated register
-                relocateRegister(registerStates, outputBlock, 0, findUnallocatedRegister(registerStates));
+                // if: %r0 is live OR %r0 contains a dirty variable (not a temp)
+                if (registerStates[0]->live || (registerStates[0]->contains != NULL && registerStates[0]->contains[0] != '.' && registerStates[0]->dirty))
+                {
+                    // right now just move it to an unallocated register
+                    relocateRegister(registerStates, outputBlock, 0, findUnallocatedRegister(registerStates));
+                }
             }
             // need a larger buffer because of labels
             outputStr = malloc(32 * sizeof(char));
@@ -1143,6 +1170,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             if (existingVarIndex != -1)
             {
                 registerStates[existingVarIndex]->live = 0;
+                registerStates[existingVarIndex]->dirty = 0;
                 registerStates[existingVarIndex]->contains = NULL;
             }
             modifyRegisterContents(registerStates, 0, line->operands[0]);

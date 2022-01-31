@@ -2,11 +2,13 @@
 # this function will (one day) compute all fibonacci numbers <= n 
 fun fibb(var n)
 {
+    var answer;
     if(n <= 1){
-        return n;
+        answer = n;
     }else{
-        return fibb(n - 1) + fibb(n - 2);
+        answer = fibb(n - 1) + fibb(n - 2);
     }
+    return answer;
 }
 
 #fun main(var a)
