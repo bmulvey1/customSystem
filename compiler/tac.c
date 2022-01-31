@@ -49,11 +49,14 @@ char *getAsmOp(enum tacType t)
     case tt_jmp:
         return "jmp";
 
-    case tt_snapshot:
-        return "SNAPSHOT";
+    case tt_pushstate:
+        return "PUSHSTATE";
 
-    case tt_restore:
-        return "RESTORE";
+    case tt_restorestate:
+        return "RESTORESTATE";
+
+    case tt_popstate:
+        return "POPSTATE";
     }
     return "";
 }
@@ -93,7 +96,7 @@ void printTacLine(struct tacLine *it)
             if (!fallingThrough)
                 operationStr = "-";
 
-            printf("\t%2d:%8s = %8s %2s %8s", lineIndex, it->operands[0], it->operands[1], operationStr, it->operands[2]);
+            printf("\t%2x:%8s = %8s %2s %8s", lineIndex, it->operands[0], it->operands[1], operationStr, it->operands[2]);
             break;
 
         case tt_jg:
@@ -103,39 +106,43 @@ void printTacLine(struct tacLine *it)
         case tt_je:
         case tt_jne:
         case tt_jmp:
-            printf("\t%2d:%s label %ld", lineIndex, getAsmOp(it->operation), (long int)it->operands[0]);
+            printf("\t%2x:%s label %ld", lineIndex, getAsmOp(it->operation), (long int)it->operands[0]);
             break;
 
         case tt_cmp:
-            printf("\t%2d:cmp %s %s", lineIndex, it->operands[1], it->operands[2]);
+            printf("\t%2x:cmp %s %s", lineIndex, it->operands[1], it->operands[2]);
             break;
 
         case tt_assign:
-            printf("\t%2d:%8s = %8s", lineIndex, it->operands[0], it->operands[1]);
+            printf("\t%2x:%8s = %8s", lineIndex, it->operands[0], it->operands[1]);
             break;
 
         case tt_push:
-            printf("\t%2d:push %s", lineIndex, it->operands[0]);
+            printf("\t%2x:push %s", lineIndex, it->operands[0]);
             break;
 
         case tt_call:
-            printf("\t%2d:%8s = call %s", lineIndex, it->operands[0], it->operands[1]);
+            printf("\t%2x:%8s = call %s", lineIndex, it->operands[0], it->operands[1]);
             break;
 
         case tt_label:
-            printf("\t%2d:label %ld", lineIndex, (long int)it->operands[0]);
+            printf("~label %ld:", (long int)it->operands[0]);
             break;
 
         case tt_return:
-            printf("\t%2d:ret %s", lineIndex, it->operands[0]);
+            printf("\t%2x:ret %s", lineIndex, it->operands[0]);
             break;
 
-        case tt_snapshot:
-            printf("\t%2d:SNAPSHOT", lineIndex);
+        case tt_pushstate:
+            printf("\t%2x:PUSHSTATE", lineIndex);
             break;
 
-        case tt_restore:
-            printf("\t%2d:RESTORE", lineIndex);
+        case tt_restorestate:
+            printf("\t%2x:RESTORESTATE", lineIndex);
+            break;
+
+        case tt_popstate:
+            printf("\t%2x:POPSTATE", lineIndex);
             break;
         }
         printf("%s\n", it->reorderable ? " - Reorderable" : "");

@@ -510,13 +510,79 @@ struct registerState *newRegisterState()
     return wip;
 }
 
+void printRegisterStates(struct registerState **registerStates)
+{
+    printf("----------\n");
+    for (int i = 0; i < 12; i++)
+    {
+        printf("r%2d   |", i);
+    }
+    printf("\n");
+    for (int i = 0; i < 12; i++)
+    {
+        // D for dead, L for live, d for Dying
+        char registerLife = 'D';
+        if (registerStates[i]->live)
+        {
+            registerLife = 'L';
+        }
+        if (registerStates[i]->dying)
+        {
+            registerLife = 'd';
+        }
+        printf("%c%c    |", registerLife, (registerStates[i]->dirty ? 'D' : ' '));
+    }
+    printf("\n");
+
+    for (int i = 0; i < 12; i++)
+    {
+        if (registerStates[i]->contains == NULL)
+        {
+            printf("NULL |");
+        }
+        else
+        {
+            for (int j = 0; j < 6; j++)
+            {
+                if(registerStates[i]->contains[j] == '\0'){
+                    while(j < 6){
+                        printf(" ");
+                        j++;
+                    }
+                    break;
+                }else{
+                    printf("%c", registerStates[i]->contains[j]);
+                }
+            }
+            printf("|");
+        }
+    }
+    printf("\n----------\n");
+}
+
+void freeRegisterStates(struct registerState **s)
+{
+    for (int i = 0; i < 12; i++)
+        free(s[i]);
+
+    free(s);
+}
+
 struct registerState **duplicateRegisterStates(struct registerState **theStates)
 {
     struct registerState **duplicateStates = malloc(12 * sizeof(struct registerState *));
-    memcpy(duplicateRegisterStates, theStates, 12 * sizeof(struct registerState));
+    for (int i = 0; i < 12; i++)
+    {
+        duplicateStates[i] = malloc(sizeof(struct registerState));
+        memcpy(duplicateStates[i], theStates[i], sizeof(struct registerState));
+    }
     return duplicateStates;
 }
 
+/*
+ * Stack to contain register state lists
+ *
+ */
 struct RegisterStateStack
 {
     struct registerState ***stack;
@@ -533,28 +599,57 @@ struct RegisterStateStack *newRegisterStateStack()
 
 void RegisterStateStack_push(struct RegisterStateStack *s, struct registerState **stateList)
 {
+    printf("pushing\n");
     struct registerState ***newStack = malloc((s->size + 1) * sizeof(struct registerState **));
-    for (int i = 0; i < s->size; i++)
-    {
-        newStack[i] = s->stack[i];
-    }
-    newStack[s->size++] = stateList;
-    free(s->stack);
-    s->stack = newStack;
-}
-
-struct registerState **RegisterStateStack_pop(struct RegisterStateStack *s)
-{
-    struct registerState** popped = s->stack[s->size - 1];
-    struct registerState ***newStack = malloc((s->size - 1) * sizeof(struct registerState **));
     for (int i = 0; i < s->size - 1; i++)
     {
         newStack[i] = s->stack[i];
     }
-    s->size--;
+    newStack[s->size] = duplicateRegisterStates(stateList);
+    s->size++;
     free(s->stack);
     s->stack = newStack;
-    return popped;
+    for (int i = 0; i < s->size; i++)
+    {
+        printRegisterStates(s->stack[i]);
+    }
+}
+
+void RegisterStateStack_pop(struct RegisterStateStack *s)
+{
+    printf("popping\n");
+    struct registerState **poppedStates = s->stack[s->size - 1];
+    struct registerState ***newStack;
+    freeRegisterStates(poppedStates);
+    // only reallocate and copy if there is data to copy
+    if (s->size > 1)
+    {
+        newStack = malloc((s->size - 1) * sizeof(struct registerState **));
+        for (int i = 0; i < s->size - 1; i++)
+        {
+            newStack[i] = s->stack[i];
+        }
+    }
+    s->size--;
+    free(s->stack);
+    // similarly, just null the pointer if stack is empty
+    if (s->size > 1)
+    {
+        s->stack = newStack;
+    }
+    else
+    {
+        s->stack = NULL;
+    }
+    for (int i = 0; i < s->size; i++)
+    {
+        printRegisterStates(s->stack[i]);
+    }
+}
+
+struct registerState **RegisterStateStack_peek(struct RegisterStateStack *s)
+{
+    return s->stack[0];
 }
 
 int findUnallocatedRegister(struct registerState **registerStates)
@@ -707,33 +802,6 @@ void relocateRegister(struct registerState **registerStates, struct ASMblock *ou
 
 void restoreRegisterStates(struct registerState **current, struct registerState **desired, struct functionEntry *function)
 {
-}
-
-void printRegisterStates(struct registerState **registerStates)
-{
-    printf("----------\n");
-    for (int i = 0; i < 12; i++)
-    {
-        if (registerStates[i]->contains != NULL)
-            printf("r%2d      |", i);
-    }
-    printf("\n");
-    for (int i = 0; i < 12; i++)
-    {
-        // D for dead, L for live, d for Dying
-        char registerLife = 'D';
-        if (registerStates[i]->live)
-        {
-            registerLife = 'L';
-        }
-        if (registerStates[i]->dying)
-        {
-            registerLife = 'd';
-        }
-        if (registerStates[i]->contains != NULL)
-            printf("[%4s] %c%c|", registerStates[i]->contains, registerLife, (registerStates[i]->dirty ? 'D' : ' '));
-    }
-    printf("\n----------\n");
 }
 
 // assign a value into a register, return the destination index
@@ -984,6 +1052,8 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
     for (int i = 0; i < 12; i++)
         registerStates[i] = newRegisterState();
 
+    struct RegisterStateStack *stateStack = newRegisterStateStack();
+
     int tacIndex = 0;
     char *outputStr;
 
@@ -1018,15 +1088,18 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             }
         }
 
-        // printRegisterStates(registerStates);
+        printRegisterStates(registerStates);
         switch (line->operation)
         {
         case tt_assign:
+        {
             //printf("%s = %s %s\n", line->operands[0], line->operands[1], line->operands[2]);
             generateAssignmentCode(line, registerStates, outputBlock, function);
-            break;
+        }
+        break;
 
         case tt_push:
+        {
             outputStr = malloc(10 * sizeof(char));
             switch (line->operandTypes[0])
             {
@@ -1051,9 +1124,11 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                 exit(1);
             }
             ASMblock_append(outputBlock, outputStr);
-            break;
+        }
+        break;
 
         case tt_call:
+        {
             // if: %r0 is live OR %r0 contains a dirty variable (not a temp)
             if (registerStates[0]->live || (registerStates[0]->contains != NULL && registerStates[0]->contains[0] != '.' && registerStates[0]->dirty))
             {
@@ -1071,10 +1146,11 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                 registerStates[existingVarIndex]->contains = NULL;
             }
             modifyRegisterContents(registerStates, 0, line->operands[0]);
-
-            break;
+        }
+        break;
 
         case tt_label:
+        {
             outputStr = malloc(32 * sizeof(char));
             if (line->operands[0] > 0)
             {
@@ -1086,6 +1162,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             }
             ASMblock_append(outputBlock, outputStr);
             break;
+        }
 
         case tt_return:
         {
@@ -1094,13 +1171,14 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             {
                 relocateRegister(registerStates, outputBlock, retValIndex, 0);
             }
-            outputStr = malloc(10 * sizeof(char));
+            outputStr = malloc(32 * sizeof(char));
             sprintf(outputStr, "jmp %s_done", functionName);
             ASMblock_append(outputBlock, outputStr);
         }
         break;
 
         case tt_cmp:
+        {
             outputStr = malloc(16 * sizeof(char));
             if (line->operandTypes[1] == vt_literal)
             {
@@ -1124,7 +1202,8 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                 }
             }
             ASMblock_append(outputBlock, outputStr);
-            break;
+        }
+        break;
 
         case tt_jg:
         case tt_jge:
@@ -1138,15 +1217,39 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             ASMblock_append(outputBlock, outputStr);
             break;
 
+        case tt_pushstate:
+            printf("MANIPULATE STATE STACK\n");
+            RegisterStateStack_push(stateStack, registerStates);
+            break;
+
+        case tt_restorestate:
+            printf("MANIPULATE STATE STACK\n");
+            restoreRegisterStates(registerStates, RegisterStateStack_peek(stateStack), function);
+            break;
+
+        case tt_popstate:
+            printf("MANIPULATE STATE STACK\n");
+            RegisterStateStack_pop(stateStack);
+            break;
+
         default:
             //printf("%s = %s %s\n", line->operands[0], line->operands[1], line->operands[2]);
             generateArithmeticCode(line, registerStates, outputBlock, function);
             break;
         }
+
         //printRegisterStates(registerStates);
         //printf("\n\n");
         tacIndex++;
+        /*struct ASMline *runner = outputBlock->head;
+        while (runner != NULL)
+        {
+            printf("%s\n", runner->data);
+            runner = runner->next;
+        }*/
+        printf("\n");
     }
+
     //printRegisterStates(registerStates);
     //printf("\n");
     // clean up the registers states
@@ -1187,8 +1290,8 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
     ASMblock_append(outputBlock, outputStr);
 
     // need to get arg count for return statement
-    for (int i = 0; i < 12; i++)
-        free(registerStates[i]);
+    freeRegisterStates(registerStates);
+    free(stateStack);
 
     return outputBlock;
 }

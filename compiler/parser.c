@@ -149,8 +149,8 @@ enum token scan()
             // if we match a reserved keyword
             if (!strcmp(buffer, reserved[i]))
             {
-                // allow catching both '<', '>', and '<=', '>='
-                if (buffer[0] == '<' || buffer[0] == '>')
+                // allow catching both '<', '>', '=', and '<=', '>=', '=='
+                if (buffer[0] == '<' || buffer[0] == '>' || buffer [0] == '=')
                 {
                     if (lookahead() != '=')
                     {

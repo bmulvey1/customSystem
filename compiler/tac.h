@@ -31,8 +31,9 @@ enum tacType
     tt_call,
     tt_label,
     tt_return,
-    tt_snapshot,
-    tt_restore
+    tt_pushstate,
+    tt_restorestate,
+    tt_popstate
 };
 
 struct tacLine

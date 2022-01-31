@@ -312,7 +312,7 @@ struct tacLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
 
         case t_if:
             struct tacLine *regSnapshot = newtacLine();
-            regSnapshot->operation = tt_snapshot;
+            regSnapshot->operation = tt_pushstate;
             sltac = appendTAC(sltac, regSnapshot);
             appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
             struct tacLine *noifJump = newtacLine();
@@ -371,7 +371,7 @@ struct tacLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             appendTAC(sltac, ifBody);
 
             struct tacLine *endIfRestore = newtacLine();
-            endIfRestore->operation = tt_restore;
+            endIfRestore->operation = tt_restorestate;
             appendTAC(sltac, endIfRestore);
             // if there's an else to fall through to
             if (runner->child->sibling->sibling != NULL)
@@ -395,7 +395,7 @@ struct tacLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
                 appendTAC(sltac, noifLabel);
 
                 struct tacLine *endElseRestore = newtacLine();
-                endElseRestore->operation = tt_restore;
+                endElseRestore->operation = tt_restorestate;
                 appendTAC(sltac, endElseRestore);
                 appendTAC(sltac, endIfLabel);
             }
@@ -403,6 +403,10 @@ struct tacLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             {
                 appendTAC(sltac, noifLabel);
             }
+
+            struct tacLine* popStateLine = newtacLine();
+            popStateLine->operation = tt_popstate;
+            appendTAC(sltac, popStateLine);
 
             break;
 
