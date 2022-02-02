@@ -3,12 +3,13 @@
 fun fibb(var n)
 {
     if(n <= 1){
-        return n;
+        n = n + 1;
+        #return n;
     }else{
         n = n - 1;
-        return 2;
         #return fibb(n - 1) + fibb(n - 2);
     }
+    return 1 - n;
 }
 
 #fun rtest(var a){

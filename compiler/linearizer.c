@@ -370,41 +370,60 @@ struct tacLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
 
             appendTAC(sltac, ifBody);
 
-            struct tacLine *endIfRestore = newtacLine();
-            endIfRestore->operation = tt_restorestate;
-            appendTAC(sltac, endIfRestore);
+            // if the if block ends in a return, no need to restore the state
+            // since execution will jump directly to the end of the funciton from here
+            if (findLastTAC(ifBody)->operation != tt_return)
+            {
+                struct tacLine *endIfRestore = newtacLine();
+                endIfRestore->operation = tt_restorestate;
+                appendTAC(sltac, endIfRestore);
+            }
+
             // if there's an else to fall through to
             if (runner->child->sibling->sibling != NULL)
             {
-                // generate a label for the absolute end of the if/else block
-                struct tacLine *endIfLabel = newtacLine();
-                endIfLabel->operation = tt_label;
-                endIfLabel->operands[0] = (char *)((long int)++(*labelCount));
+                struct tacLine *ifBlockFinalTAC = findLastTAC(ifBody);
+                // don't need this jump and label when the if statement ends in a return
+                struct tacLine *endIfLabel;
+                if (ifBlockFinalTAC->operation != tt_return)
+                {
+                    // generate a label for the absolute end of the if/else block
+                    endIfLabel = newtacLine();
+                    endIfLabel->operation = tt_label;
+                    endIfLabel->operands[0] = (char *)((long int)++(*labelCount));
 
-                // jump to the end after the if part is done
-                struct tacLine *ifDoneJump = newtacLine();
-                ifDoneJump->operation = tt_jmp;
-                ifDoneJump->operands[0] = endIfLabel->operands[0];
-                appendTAC(sltac, ifDoneJump);
+                    // jump to the end after the if part is done
+                    struct tacLine *ifDoneJump = newtacLine();
+                    ifDoneJump->operation = tt_jmp;
+                    ifDoneJump->operands[0] = endIfLabel->operands[0];
+                    appendTAC(sltac, ifDoneJump);
+                }
+                // make sure we are in a known state before the else statement
+                struct tacLine *beforeElseRestore = newtacLine();
+                beforeElseRestore->operation = tt_restorestate;
+                appendTAC(noifLabel, beforeElseRestore);
 
                 struct tacLine *elseBody = linearizeStatementList(runner->child->sibling->sibling->child->child, tempNum, labelCount, tl);
-                // printf("ELSE BODY\n");
-                // printTacLine(elseBody);
-                //  the if won't be executed, so we must hit the else
+
+                // if the if won't be executed, so execution from the noif label goes to the else block
                 appendTAC(noifLabel, elseBody);
                 appendTAC(sltac, noifLabel);
 
                 struct tacLine *endElseRestore = newtacLine();
                 endElseRestore->operation = tt_restorestate;
                 appendTAC(sltac, endElseRestore);
-                appendTAC(sltac, endIfLabel);
+                
+                if (ifBlockFinalTAC->operation != tt_return)
+                {
+                    appendTAC(sltac, endIfLabel);
+                }
             }
             else
             {
                 appendTAC(sltac, noifLabel);
             }
 
-            struct tacLine* popStateLine = newtacLine();
+            struct tacLine *popStateLine = newtacLine();
             popStateLine->operation = tt_popstate;
             appendTAC(sltac, popStateLine);
 
