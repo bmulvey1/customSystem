@@ -400,7 +400,7 @@ struct tacLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
                 }
                 // make sure we are in a known state before the else statement
                 struct tacLine *beforeElseRestore = newtacLine();
-                beforeElseRestore->operation = tt_restorestate;
+                beforeElseRestore->operation = tt_resetstate;
                 appendTAC(noifLabel, beforeElseRestore);
 
                 struct tacLine *elseBody = linearizeStatementList(runner->child->sibling->sibling->child->child, tempNum, labelCount, tl);
@@ -412,7 +412,7 @@ struct tacLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
                 struct tacLine *endElseRestore = newtacLine();
                 endElseRestore->operation = tt_restorestate;
                 appendTAC(sltac, endElseRestore);
-                
+
                 if (ifBlockFinalTAC->operation != tt_return)
                 {
                     appendTAC(sltac, endIfLabel);

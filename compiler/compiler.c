@@ -713,69 +713,10 @@ int findStackOffset(char *var, struct functionEntry *function)
     return spOffset;
 }
 
-// TODO: search parent scopes for global vars
-// will require more stack stuff and backwards pointers in function entries pointint to their parent table
-int findOrPlaceVar(struct registerState **registerStates, struct ASMblock *outputBlock, char *var, struct functionEntry *function)
-{
-    for (int i = 0; i < 12; i++)
-        if (registerStates[i]->contains != NULL)
-            if (!strcmp(registerStates[i]->contains, var))
-                return i;
-
-    int freshRegisterIndex = findUnallocatedRegister(registerStates);
-
-    char *outputStr = malloc(18 * sizeof(char));
-    sprintf(outputStr, "movw %%r%d, %d(%%bp)", freshRegisterIndex, findStackOffset(var, function));
-    ASMblock_append(outputBlock, outputStr);
-    modifyRegisterContents(registerStates, freshRegisterIndex, var);
-    return freshRegisterIndex;
-}
-
 /*
  * Find what register a variable lives in
  * if it isn't currently in a register, retrieve it from the stack
  */
-int findOrPlaceModifiableVar(struct registerState **registerStates, struct ASMblock *outputBlock, char *var, struct functionEntry *function)
-{
-    int registerIndex = -1;
-    for (int i = 0; i < 12; i++)
-        if (registerStates[i]->contains != NULL)
-            if (!strcmp(registerStates[i]->contains, var))
-            {
-                registerIndex = i;
-                break;
-            }
-
-    if (registerIndex != -1)
-    {
-        // if the register is live we need to copy the value elsewhere to get a modifiable register containing the value
-        // note - if the register is dying it shouldn't need to be copied (d = d + d -> `add r0, r0` is allowable if the var is dying)
-        if (registerStates[registerIndex]->live && !registerStates[registerIndex]->dying)
-        {
-            int sourceIndex = registerIndex;
-            registerIndex = findUnallocatedRegister(registerStates);
-            registerStates[registerIndex]->touched = 1;
-
-            char *outputStr = malloc(15 * sizeof(char));
-            sprintf(outputStr, "movw %%r%d, %%r%d", registerIndex, sourceIndex);
-            ASMblock_append(outputBlock, outputStr);
-            /*
-            modifyRegisterContents(registerStates, registerIndex, var);
-            // if a register is being duplicated elsewhere, its value will be dirty if the register still contains that variable at the end
-            registerStates[registerIndex]->dirty = 1;
-            */
-        }
-    }
-    else // if the register couldn't be located, the variable needs to be retrieved from the stack
-    {
-        registerIndex = findUnallocatedRegister(registerStates);
-        char *outputStr = malloc(18 * sizeof(char));
-        sprintf(outputStr, "movw %%r%d, %d(%%bp)", registerIndex, findStackOffset(var, function));
-        ASMblock_append(outputBlock, outputStr);
-        modifyRegisterContents(registerStates, registerIndex, var);
-    }
-    return registerIndex;
-}
 
 // find and return the register containing a given temp. variable (since temporaries can be guaranteed to be in a register)
 int findTemp(struct registerState **registerStates, char *var)
@@ -833,23 +774,32 @@ void restoreRegisterStates(struct registerState **current, struct registerState 
 // assign a value into a register, return the destination index
 int generateAssignmentCode(struct tacLine *line, struct registerState **registerStates, struct ASMblock *outputBlock, struct functionEntry *function)
 {
-    int destinationIndex;
+    int destinationIndex = findTemp(registerStates, line->operands[0]);
+    if (destinationIndex == -1)
+    {
+        destinationIndex = findUnallocatedRegister(registerStates);
+    }
+
+    char *outputStr;
     if (line->operandTypes[1] == vt_literal)
     {
-        destinationIndex = findTemp(registerStates, line->operands[0]);
-        if (destinationIndex == -1)
-        {
-            destinationIndex = findUnallocatedRegister(registerStates);
-        }
-        char *outputStr = malloc(17 * sizeof(char));
+
+        outputStr = malloc(17 * sizeof(char));
         sprintf(outputStr, "movw %%r%d, %s", destinationIndex, line->operands[1]);
         ASMblock_append(outputBlock, outputStr);
     }
     else
     {
-        int sourceIndex = findOrPlaceVar(registerStates, outputBlock, line->operands[1], function);
+        int sourceIndex = findTemp(registerStates, line->operands[1]);
+        if (sourceIndex == -1)
+        {
+            sourceIndex = findUnallocatedRegister(registerStates);
+            // this should get us a dead register but might warrant some checking
+            outputStr = malloc(16 * sizeof(char));
+            sprintf(outputStr, "movw %%r%d, %d(%%bp)", sourceIndex, findStackOffset(line->operands[1], function));
+            ASMblock_append(outputBlock, outputStr);
+        }
         // source var dies this step, it can be overwritten
-
         if (!registerStates[sourceIndex]->live || registerStates[sourceIndex]->dying)
         {
             // don't need to do anything
@@ -867,14 +817,7 @@ int generateAssignmentCode(struct tacLine *line, struct registerState **register
         // if the source variable can't be overwritten (is used after this step)
         else
         {
-            // use findTemp here find the register ONLY if the variable exists in a register already
-            destinationIndex = findTemp(registerStates, line->operands[0]);
-            // if the variable isn't in a register already we need to find one to put it in
-            if (destinationIndex == -1)
-            {
-                destinationIndex = findUnallocatedRegister(registerStates);
-            }
-            char *outputStr = malloc(15 * sizeof(char));
+            outputStr = malloc(15 * sizeof(char));
             sprintf(outputStr, "movw %%r%d, %%r%d", destinationIndex, sourceIndex);
             ASMblock_append(outputBlock, outputStr);
         }
@@ -958,7 +901,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                 // if not, get the second operand from the stack
                 if (existingVarIndex == -1)
                 {
-                    sprintf(outputStr, "%s %%r%d, %d(%%sp)", getAsmOp(line->operation), destinationRegister, findStackOffset(line->operands[2], function));
+                    sprintf(outputStr, "%s %%r%d, %d(%%bp)", getAsmOp(line->operation), destinationRegister, findStackOffset(line->operands[2], function));
                 }
                 // if yes, get the second operand from its register
                 else
@@ -1107,7 +1050,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
 
                 // perform the operation by grabbing the non present var's value from the stack
                 outputStr = malloc(18 * sizeof(char));
-                sprintf(outputStr, "%s %%r%d, %d(%%sp)", getAsmOp(line->operation), destinationRegister, findStackOffset(line->operands[2], function));
+                sprintf(outputStr, "%s %%r%d, %d(%%bp)", getAsmOp(line->operation), destinationRegister, findStackOffset(line->operands[2], function));
                 ASMblock_append(outputBlock, outputStr);
             }
             // first operand isn't in register, second is
@@ -1133,7 +1076,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
 
                     // perform the operation by grabbing the non present var's value from the stack
                     outputStr = malloc(18 * sizeof(char));
-                    sprintf(outputStr, "%s %%r%d, %d(%%sp)", getAsmOp(line->operation), destinationRegister, findStackOffset(line->operands[1], function));
+                    sprintf(outputStr, "%s %%r%d, %d(%%bp)", getAsmOp(line->operation), destinationRegister, findStackOffset(line->operands[1], function));
                     ASMblock_append(outputBlock, outputStr);
                 }
                 // can't reorder
@@ -1141,7 +1084,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                 {
                     // place the first operand into the destination register
                     outputStr = malloc(18 * sizeof(char));
-                    sprintf(outputStr, "movw %%r%d, %d(%%sp)", destinationRegister, findStackOffset(line->operands[1], function));
+                    sprintf(outputStr, "movw %%r%d, %d(%%bp)", destinationRegister, findStackOffset(line->operands[1], function));
                     ASMblock_append(outputBlock, outputStr);
 
                     // perform arithmetic using the second operand which is in a register
@@ -1226,7 +1169,15 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             {
 
             case vt_var:
-                sprintf(outputStr, "push %%r%d", findOrPlaceVar(registerStates, outputBlock, line->operands[0], function));
+                int varIndex = findTemp(registerStates, line->operands[0]);
+                if (varIndex != -1)
+                {
+                    sprintf(outputStr, "push %%r%d", varIndex);
+                }
+                else
+                {
+                    sprintf(outputStr, "push %d(%%bp)", findStackOffset(line->operands[0], function));
+                }
                 break;
 
             case vt_temp:
@@ -1313,18 +1264,52 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                     printf("Error - comparison between 2 literals! This should be impossible with previous error checking!\n");
                     exit(1);
                 }
-                // problem - this instruction doesn't exist so need to flip operands and use opposite comparison!
-                sprintf(outputStr, "cmp $%s, %%r%d", line->operands[1], findOrPlaceVar(registerStates, outputBlock, line->operands[2], function));
+                // problem - this operand ordering doesn't exist in the ISA
+                printf("Error - compare with bad instruction order - need to implement a system to flip this!\n");
+                exit(1);
             }
             else
             {
+                // op1 var, op2 literal
                 if (line->operandTypes[2] == vt_literal)
                 {
-                    sprintf(outputStr, "cmp %%r%d, $%s", findOrPlaceVar(registerStates, outputBlock, line->operands[1], function), line->operands[2]);
+                    // see if the var exists in a register
+                    int varIndex = findTemp(registerStates, line->operands[1]);
+                    if (varIndex == -1)
+                    {
+                        // if not, grab it from the stack
+                        varIndex = findUnallocatedRegister(registerStates);
+                        sprintf(outputStr, "movw %%r%d, %d(%%bp)", varIndex, findStackOffset(line->operands[1], function));
+                        ASMblock_append(outputBlock, outputStr);
+                        outputStr = malloc(16 * sizeof(char));
+                    }
+                    sprintf(outputStr, "cmp %%r%d, $%s", varIndex, line->operands[2]);
                 }
+                // op1 var, op2 var
                 else
                 {
-                    sprintf(outputStr, "cmp %%r%d, %%r%d", findOrPlaceVar(registerStates, outputBlock, line->operands[1], function), findOrPlaceVar(registerStates, outputBlock, line->operands[2], function));
+                    // try to find both variables
+                    int firstVarIndex = findTemp(registerStates, line->operands[1]);
+                    int secondVarIndex = findTemp(registerStates, line->operands[2]);
+
+                    // if the first variable doesn't exist, find and place it
+                    if (firstVarIndex == -1)
+                    {
+                        firstVarIndex = findUnallocatedRegister(registerStates);
+                        sprintf(outputStr, "movw %%r%d, %d(%%bp)", firstVarIndex, findStackOffset(line->operands[1], function));
+                        ASMblock_append(outputBlock, outputStr);
+                        outputStr = malloc(16 * sizeof(char));
+                    }
+                    // if the second var doesn't exist, just do the operation from the stack
+                    if (secondVarIndex == -1)
+                    {
+                        sprintf(outputStr, "cmp %%r%d, %d(%%bp)", firstVarIndex, findStackOffset(line->operands[2], function));
+                    }
+                    // otherwise, use the register containing the value
+                    else
+                    {
+                        sprintf(outputStr, "cmp %%r%d, %%r%d", firstVarIndex, secondVarIndex);
+                    }
                 }
             }
             ASMblock_append(outputBlock, outputStr);
@@ -1344,17 +1329,26 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             break;
 
         case tt_pushstate:
-            printf("MANIPULATE STATE STACK\n");
+            printf("PUSH STATE\n");
             RegisterStateStack_push(stateStack, registerStates);
             break;
 
         case tt_restorestate:
-            printf("MANIPULATE STATE STACK\n");
+            printf("RESTORE STATE\n");
             restoreRegisterStates(registerStates, RegisterStateStack_peek(stateStack), function);
             break;
 
+        case tt_resetstate:
+            printf("RESET STATE\n");
+            struct registerState **resetTo = RegisterStateStack_peek(stateStack);
+            for (int i = 0; i < 12; i++)
+            {
+                memcpy(registerStates[i], resetTo[i], sizeof(struct registerState));
+            }
+            break;
+
         case tt_popstate:
-            printf("MANIPULATE STATE STACK\n");
+            printf("POP STATE STACK\n");
             RegisterStateStack_pop(stateStack);
             break;
 

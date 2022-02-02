@@ -33,6 +33,7 @@ enum tacType
     tt_return,
     tt_pushstate,
     tt_restorestate,
+    tt_resetstate,
     tt_popstate
 };
 

@@ -55,6 +55,9 @@ char *getAsmOp(enum tacType t)
     case tt_restorestate:
         return "RESTORESTATE";
 
+    case tt_resetstate:
+        return "RESETSTATE";
+
     case tt_popstate:
         return "POPSTATE";
     }
@@ -140,6 +143,9 @@ void printTacLine(struct tacLine *it)
         case tt_restorestate:
             printf("\t%2x:RESTORESTATE", lineIndex);
             break;
+
+        case tt_resetstate:
+            printf("\t%2x:RESETSTATE", lineIndex);
 
         case tt_popstate:
             printf("\t%2x:POPSTATE", lineIndex);
