@@ -713,10 +713,6 @@ int findStackOffset(char *var, struct functionEntry *function)
     return spOffset;
 }
 
-/*
- * Find what register a variable lives in
- * if it isn't currently in a register, retrieve it from the stack
- */
 
 // find and return the register containing a given temp. variable (since temporaries can be guaranteed to be in a register)
 int findTemp(struct registerState **registerStates, char *var)
@@ -1386,6 +1382,17 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
     outputStr = malloc(32 * sizeof(char));
     sprintf(outputStr, "%s_done:", functionName);
     ASMblock_append(outputBlock, outputStr);
+
+    // deal with making and freeing room on the stack for local variables
+    outputStr = malloc(16 * sizeof(char));
+    sprintf(outputStr, "sub %%sp, $%d", function->table->varc * 2);
+    ASMblock_prepend(outputBlock, outputStr);
+
+    // reset the room made on the stack for local variables
+    outputStr = malloc(16 * sizeof(char));
+    sprintf(outputStr, "add %%sp, $%d", function->table->varc * 2);
+    ASMblock_append(outputBlock, outputStr);
+
 
     for (int i = 11; i > 0; i--)
     {
