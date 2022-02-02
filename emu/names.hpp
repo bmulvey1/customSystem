@@ -26,8 +26,8 @@ std::string opcodeNames[256] =
         "JNE/JNZ",
         "JG",
         "JL",
-        "UND",
-        "UND",
+        "JGE",
+        "JLE",
         "UND",
         //
         "UND",

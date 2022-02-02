@@ -135,12 +135,12 @@ void arithmeticOp(uint8_t RD, uint16_t value, uint8_t opCode)
         registers[RD] ^= value;
         break;
     case 0xc: // 0xXc: CMP
-        uint16_t result = registers[RD] - value;
-        flags[ZF] = (result == 0);
+        //uint16_t result = registers[RD] - value;
+        flags[ZF] = (registers[RD] == value);
         // sign flag needs to be set properly
         //flags[SF] = (value < registers[RD]);
-        flags[GF] = registers[RD] > value;
-        flags[LF] = registers[RD] < value;
+        flags[GF] = (registers[RD] > value);
+        flags[LF] = (registers[RD] < value);
         break;
     }
     // set the flags based on the result if the instruction isn't CMP
@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
     while (running)
     {
         opCode = consumeByte(registers[IP]);
-        //printf("%02x\n", opCode);
+        //printf("%02x - ", opCode);
         //std::cout << opcodeNames[opCode] << std::endl;
         switch (opCode)
         {
@@ -220,6 +220,28 @@ int main(int argc, char *argv[])
         {
             uint16_t destination = consumeWord(registers[IP]);
             if (flags[LF])
+            {
+                registers[IP] = destination;
+            }
+        }
+        break;
+
+        // JGE
+        case 0x15:
+        {
+            uint16_t destination = consumeWord(registers[IP]);
+            if (flags[GF] || flags[ZF])
+            {
+                registers[IP] = destination;
+            }
+        }
+        break;
+
+        // JLE
+        case 0x16:
+        {
+            uint16_t destination = consumeWord(registers[IP]);
+            if (flags[LF] || flags[ZF])
             {
                 registers[IP] = destination;
             }
@@ -604,7 +626,7 @@ int main(int argc, char *argv[])
         case 0xd3:
         {
             uint8_t rs = consumeByte(registers[IP]);
-            printf("%c%c\n%d\n", registers[rs] >> 8, registers[rs] & 0b11111111, registers[rs]);
+            printf("%d\n", registers[rs]);
         }
         break;
 
@@ -613,9 +635,9 @@ int main(int argc, char *argv[])
             break;
         }
         //printState();
-        //for (int i = 0; i < 0xffffff; i++)
-        //{
-        //}
+        //for (int i = 0; i < 0xffffff; i++){}
+        
+        
         //printf("\n");
         instructionCount++;
     }

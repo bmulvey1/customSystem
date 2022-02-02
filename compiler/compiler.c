@@ -802,6 +802,8 @@ void relocateRegister(struct registerState **registerStates, struct ASMblock *ou
 
     registerStates[source]->contains = NULL;
     registerStates[source]->live = 0;
+    registerStates[source]->dying = 0;
+    registerStates[source]->dirty = 0;
 }
 
 void restoreRegisterStates(struct registerState **current, struct registerState **desired, struct functionEntry *function)
@@ -882,9 +884,24 @@ int generateAssignmentCode(struct tacLine *line, struct registerState **register
     return destinationIndex;
 }
 
+char canOverwrite(struct registerState **registerStates, int registerIndex)
+{
+    return !registerStates[registerIndex]->live || registerStates[registerIndex]->dying;
+}
+
 void generateArithmeticCode(struct tacLine *line, struct registerState **registerStates, struct ASMblock *outputBlock, struct functionEntry *function)
 {
     int destinationRegister;
+    char *outputStr;
+
+    // attempt to find the variable being assigned if it's already in registers
+    destinationRegister = findTemp(registerStates, line->operands[0]);
+    if (destinationRegister == -1)
+    {
+        // if not, we need a place for it to go
+        destinationRegister = findUnallocatedRegister(registerStates);
+    }
+
     if (line->operandTypes[1] == vt_literal)
     {
         // both operands are literals
@@ -897,118 +914,127 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
         else
         {
             char didReorder = 0;
+
+            // try to reorder the operands if possible
             if (line->reorderable)
             {
-                destinationRegister = findTemp(registerStates, line->operands[2]);
-                // only proceed with checks if the second operand exists in a register
-                if (destinationRegister != -1)
+                // if the second operand already exists in a register
+                int existingVarIndex = findTemp(registerStates, line->operands[2]);
+                if (existingVarIndex != -1)
                 {
-                    // if the register can be overwritten at this step (or the var is the same as the destination)
-                    char canOverwriteDest = !registerStates[destinationRegister]->live || registerStates[destinationRegister]->dying;
-                    if (canOverwriteDest || !strcmp(line->operands[0], line->operands[2]))
+                    // see if the existing variable can be overwritten
+                    if (!canOverwrite(registerStates, existingVarIndex))
                     {
-                        // if a register already contains the variable, purge it to avoid duplication
-                        int oldIndex = findTemp(registerStates, line->operands[0]);
-                        if (oldIndex != -1)
-                        {
-                            registerStates[oldIndex]->contains = NULL;
-                            registerStates[oldIndex]->live = 0;
-                            registerStates[oldIndex]->dirty = 0;
-                        }
-                        // just perform the operation on the existing value
-                        char *outputStr = malloc(15 * sizeof(char));
-                        sprintf(outputStr, "%s %%r%d, $%s", getAsmOp(line->operation), destinationRegister, line->operands[1]);
+                        // if not, copy the existing variable from its register to the destination
+                        outputStr = malloc(18 * sizeof(char));
+                        sprintf(outputStr, "movw %%r%d, %%r%d", destinationRegister, existingVarIndex);
                         ASMblock_append(outputBlock, outputStr);
-                        didReorder = 1;
                     }
+                    // otherwise, just make that variable's register our destination!
+                    else
+                    {
+                        destinationRegister = existingVarIndex;
+                    }
+
+                    // perform the operation on the destination with the literal
+                    outputStr = malloc(18 * sizeof(char));
+                    sprintf(outputStr, "%s %%r%d, $%s", getAsmOp(line->operation), destinationRegister, line->operands[1]);
+                    ASMblock_append(outputBlock, outputStr);
                 }
             }
 
+            // if it wasn't possible to reorder the operands
             if (!didReorder)
             {
-                // move the first operand into a register
-                destinationRegister = findUnallocatedRegister(registerStates);
-                int sourceIndex = findOrPlaceVar(registerStates, outputBlock, line->operands[2], function);
-                char *outputStr = malloc(17 * sizeof(char));
+
+                // put the literal directly into a register
+                outputStr = malloc(18 * sizeof(char));
                 sprintf(outputStr, "movw %%r%d, $%s", destinationRegister, line->operands[1]);
                 ASMblock_append(outputBlock, outputStr);
-                outputStr = malloc(12 * sizeof(char));
-                sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, sourceIndex);
-                ASMblock_append(outputBlock, outputStr);
 
-                // if the variable has been copied, invalidate the old one
-                if (!strcmp(line->operands[0], line->operands[2]))
+                outputStr = malloc(20 * sizeof(char));
+                // see if the variable is already in a register
+                int existingVarIndex = findTemp(registerStates, line->operands[2]);
+                // if not, get the second operand from the stack
+                if (existingVarIndex == -1)
                 {
-                    registerStates[sourceIndex]->contains = NULL;
-                    registerStates[sourceIndex]->live = 0;
-                    registerStates[sourceIndex]->dying = 0;
-                    registerStates[sourceIndex]->dirty = 0;
+                    sprintf(outputStr, "%s %%r%d, %d(%%sp)", getAsmOp(line->operation), destinationRegister, findStackOffset(line->operands[2], function));
                 }
+                // if yes, get the second operand from its register
+                else
+                {
+                    sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, existingVarIndex);
+                }
+                ASMblock_append(outputBlock, outputStr);
             }
         }
     }
+    // op1 var
     else
     {
         // op1 var, op2 literal
         if (line->operandTypes[2] == vt_literal)
         {
+
             char didReorder = 0;
+
+            // try to reorder the operands if possible
             if (line->reorderable)
             {
-                destinationRegister = findTemp(registerStates, line->operands[1]);
-                // only proceed with checks if the first operand exists in a register
-                if (destinationRegister != -1)
+                // if the first operand already exists in a register
+                int existingVarIndex = findTemp(registerStates, line->operands[1]);
+                if (existingVarIndex != -1)
                 {
-                    // if the register can be overwritten at this step (or the var is the same as the destination)
-                    char canOverwriteDest = !registerStates[destinationRegister]->live || registerStates[destinationRegister]->dying;
-                    if (canOverwriteDest || !strcmp(line->operands[0], line->operands[1]))
+                    // see if the existing variable can be overwritten
+                    if (!canOverwrite(registerStates, existingVarIndex))
                     {
-                        // if a register already contains the variable, purge it to avoid duplication
-                        int oldIndex = findTemp(registerStates, line->operands[0]);
-                        if (oldIndex != -1)
-                        {
-                            registerStates[oldIndex]->contains = NULL;
-                            registerStates[oldIndex]->live = 0;
-                            registerStates[oldIndex]->dirty = 0;
-                        }
-                        // just perform the operation on the existing value
-                        char *outputStr = malloc(17 * sizeof(char));
-                        sprintf(outputStr, "%s %%r%d, $%s", getAsmOp(line->operation), destinationRegister, line->operands[2]);
+                        // if not, copy the existing variable from its register to the destination
+                        outputStr = malloc(18 * sizeof(char));
+                        sprintf(outputStr, "movw %%r%d, %%r%d", destinationRegister, existingVarIndex);
                         ASMblock_append(outputBlock, outputStr);
-                        didReorder = 1;
                     }
+                    // otherwise, just make that variable's register our destination!
+                    else
+                    {
+                        destinationRegister = existingVarIndex;
+                    }
+
+                    // perform the operation on the destination with the literal
+                    outputStr = malloc(18 * sizeof(char));
+                    sprintf(outputStr, "%s %%r%d, $%s", getAsmOp(line->operation), destinationRegister, line->operands[2]);
+                    ASMblock_append(outputBlock, outputStr);
                 }
             }
 
+            // if it wasn't possible to reorder the operands
             if (!didReorder)
             {
-                if (line->operandTypes[0] == vt_temp)
+                // see if the variable is already in a register
+                int existingVarIndex = findTemp(registerStates, line->operands[1]);
+                // if not, get the first operand from the stack
+                if (existingVarIndex == -1)
                 {
-                    destinationRegister = findTemp(registerStates, line->operands[0]);
-                    if (destinationRegister == -1)
-                    {
-                        destinationRegister = findUnallocatedRegister(registerStates);
-                        modifyRegisterContents(registerStates, destinationRegister, line->operands[0]);
-                    }
-                    char *outputStr = malloc(15 * sizeof(char));
-                    sprintf(outputStr, "movw %%r%d, %%r%d", destinationRegister, findOrPlaceVar(registerStates, outputBlock, line->operands[1], function));
+                    outputStr = malloc(18 * sizeof(char));
+                    sprintf(outputStr, "movw %%r%d, %d(%%bp)", destinationRegister, findStackOffset(line->operands[1], function));
                     ASMblock_append(outputBlock, outputStr);
                 }
+                // if yes, get the first operand from its register
                 else
                 {
-                    // move the first operand into a register
-                    if (line->operands[0] == NULL || !strcmp(line->operands[0], line->operands[1]))
+                    // see if the first var can be overwritten
+                    if (!canOverwrite(registerStates, existingVarIndex))
                     {
-                        // if the variable is modifying itself, we can indiscriminately get a register for it
-                        destinationRegister = findOrPlaceVar(registerStates, outputBlock, line->operands[0], function);
+                        outputStr = malloc(18 * sizeof(char));
+                        sprintf(outputStr, "movw %%r%d, %%r%d", destinationRegister, existingVarIndex);
+                        ASMblock_append(outputBlock, outputStr);
                     }
                     else
                     {
-                        // otherwise we need to guarantee the register is modifiable
-                        destinationRegister = findOrPlaceModifiableVar(registerStates, outputBlock, line->operands[1], function);
+                        // otherwise, just make that variable's register our destination!
+                        destinationRegister = existingVarIndex;
                     }
                 }
-                char *outputStr = malloc(17 * sizeof(char));
+                outputStr = malloc(18 * sizeof(char));
                 sprintf(outputStr, "%s %%r%d, $%s", getAsmOp(line->operation), destinationRegister, line->operands[2]);
                 ASMblock_append(outputBlock, outputStr);
             }
@@ -1016,52 +1042,124 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
         // op1 var, op2 var
         else
         {
-            // check if we have something that looks like "c = d + d" or "d = d + d"
-            if (!strcmp(line->operands[1], line->operands[2]))
-            {
-                // "d = d + d" case
-                if (!strcmp(line->operands[0], line->operands[2]))
-                {
-                    destinationRegister = findOrPlaceVar(registerStates, outputBlock, line->operands[0], function);
-                }
-                // "c = d + d" case"
-                else
-                {
-                    // no reason we can't just use this function to cheese the operand into the correct place
-                    destinationRegister = generateAssignmentCode(line, registerStates, outputBlock, function);
-                    // after that, it can self-modify just like the "d = d + d" case
-                }
-                char *outputStr = malloc(18 * sizeof(char));
-                sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, destinationRegister);
-                ASMblock_append(outputBlock, outputStr);
-            }
-            else
-            {
-                // will always find the temp we need, or find/place a var/arg if necessary
-                int firstOperandIndex = findOrPlaceVar(registerStates, outputBlock, line->operands[1], function);
+            int firstVarIndex = findTemp(registerStates, line->operands[1]);
+            int secondVarIndex = findTemp(registerStates, line->operands[2]);
 
+            // both operands live in registers
+            if (firstVarIndex != -1 && secondVarIndex != -1)
+            {
                 char didReorder = 0;
-                // only bother trying to reorder if possible and the first operand exists and can't be overwritten at this step
-                char canOverwrite = registerStates[firstOperandIndex]->live && !registerStates[firstOperandIndex]->dying;
-                if (line->reorderable && ((firstOperandIndex != -1 && canOverwrite) || !strcmp(line->operands[0], line->operands[2])))
+                // see if we can reorder
+                if (line->reorderable)
                 {
-
-                    destinationRegister = findOrPlaceModifiableVar(registerStates, outputBlock, line->operands[2], function);
-                    char *outputStr = malloc(17 * sizeof(char));
-                    sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, firstOperandIndex);
-                    ASMblock_append(outputBlock, outputStr);
-                    didReorder = 1;
+                    // if we can overwrite the register containing the second var, do it
+                    if (canOverwrite(registerStates, secondVarIndex))
+                    {
+                        destinationRegister = secondVarIndex;
+                        outputStr = malloc(18 * sizeof(char));
+                        sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, firstVarIndex);
+                        ASMblock_append(outputBlock, outputStr);
+                        didReorder = 1;
+                    }
                 }
 
+                // wasn't possible (or wouldn't have saved us any instructions) to reorder
+                // just conduct the operation in order
                 if (!didReorder)
                 {
-                    int secondOperandIndex = findOrPlaceVar(registerStates, outputBlock, line->operands[2], function);
+                    // see if the first var can be overwritten
+                    // also verify that the variable isn't modifying itself
+                    if (!canOverwrite(registerStates, firstVarIndex) && strcmp(line->operands[0], line->operands[1]))
+                    {
+                        // if not, copy the existing variable from its register to the destination
+                        outputStr = malloc(18 * sizeof(char));
+                        sprintf(outputStr, "movw %%r%d, %%r%d", destinationRegister, firstVarIndex);
+                        ASMblock_append(outputBlock, outputStr);
+                    }
+                    else
+                    {
+                        // if yes, use this register as the destination!
+                        destinationRegister = firstVarIndex;
+                    }
 
-                    destinationRegister = findOrPlaceModifiableVar(registerStates, outputBlock, line->operands[1], function);
-                    char *outputStr = malloc(18 * sizeof(char));
-                    sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, secondOperandIndex);
+                    // perform the operation by using the register containing the second operand
+                    outputStr = malloc(18 * sizeof(char));
+                    sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, secondVarIndex);
                     ASMblock_append(outputBlock, outputStr);
                 }
+            }
+            // first operand is in register, second isn't
+            else if (firstVarIndex != -1 && secondVarIndex == -1)
+            {
+                // see if the register can be overwritten
+                if (!canOverwrite(registerStates, firstVarIndex))
+                {
+                    // if not, copy the existing variable from its register to the destination
+                    outputStr = malloc(18 * sizeof(char));
+                    sprintf(outputStr, "movw %%r%d, %%r%d", destinationRegister, firstVarIndex);
+                    ASMblock_append(outputBlock, outputStr);
+                }
+                else
+                {
+                    // if yes, use this register as the destination!
+                    destinationRegister = firstVarIndex;
+                }
+
+                // perform the operation by grabbing the non present var's value from the stack
+                outputStr = malloc(18 * sizeof(char));
+                sprintf(outputStr, "%s %%r%d, %d(%%sp)", getAsmOp(line->operation), destinationRegister, findStackOffset(line->operands[2], function));
+                ASMblock_append(outputBlock, outputStr);
+            }
+            // first operand isn't in register, second is
+            else if (firstVarIndex == -1 && secondVarIndex != -1)
+            {
+                // reorder if possible
+                // this might save a 'mov' if the operand which is in a register can be overwritten!
+                if (line->reorderable)
+                {
+                    // see if the register can be overwritten
+                    if (!canOverwrite(registerStates, secondVarIndex))
+                    {
+                        // if not, copy the existing variable from its register to the destination
+                        outputStr = malloc(18 * sizeof(char));
+                        sprintf(outputStr, "movw %%r%d, %%r%d", destinationRegister, secondVarIndex);
+                        ASMblock_append(outputBlock, outputStr);
+                    }
+                    else
+                    {
+                        // if yes, use this register as the destination!
+                        destinationRegister = secondVarIndex;
+                    }
+
+                    // perform the operation by grabbing the non present var's value from the stack
+                    outputStr = malloc(18 * sizeof(char));
+                    sprintf(outputStr, "%s %%r%d, %d(%%sp)", getAsmOp(line->operation), destinationRegister, findStackOffset(line->operands[1], function));
+                    ASMblock_append(outputBlock, outputStr);
+                }
+                // can't reorder
+                else
+                {
+                    // place the first operand into the destination register
+                    outputStr = malloc(18 * sizeof(char));
+                    sprintf(outputStr, "movw %%r%d, %d(%%sp)", destinationRegister, findStackOffset(line->operands[1], function));
+                    ASMblock_append(outputBlock, outputStr);
+
+                    // perform arithmetic using the second operand which is in a register
+                    outputStr = malloc(18 * sizeof(char));
+                    sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, secondVarIndex);
+                    ASMblock_append(outputBlock, outputStr);
+                }
+            }
+            //neither operand is in registers
+            else
+            {
+                outputStr = malloc(18 * sizeof(char));
+                sprintf(outputStr, "movw %%r%d, %d(%%bp)", destinationRegister, findStackOffset(line->operands[1], function));
+                ASMblock_append(outputBlock, outputStr);
+
+                outputStr = malloc(18 * sizeof(char));
+                sprintf(outputStr, "%s %%r%d, %d(%%bp)", getAsmOp(line->operation), destinationRegister, findStackOffset(line->operands[2], function));
+                ASMblock_append(outputBlock, outputStr);
             }
         }
     }
@@ -1265,7 +1363,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             generateArithmeticCode(line, registerStates, outputBlock, function);
             break;
         }
-
+        //printf("%s\n", outputBlock->tail->data);
         //printRegisterStates(registerStates);
         //printf("\n\n");
         tacIndex++;
@@ -1274,11 +1372,11 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
         {
             printf("%s\n", runner->data);
             runner = runner->next;
-        }*/
-        printf("\n");
+        }
+        printf("\n");*/
     }
 
-    //printRegisterStates(registerStates);
+    printRegisterStates(registerStates);
     //printf("\n");
     // clean up the registers states
     struct ASMline *entryLabel = outputBlock->head;

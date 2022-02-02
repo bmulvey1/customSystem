@@ -31,6 +31,8 @@
     jnz {addr:i16}  => 0x12 @ addr
     jg  {addr:i16}  => 0x13 @ addr
     jl  {addr:i16}  => 0x14 @ addr
+    jge {addr:i16}  => 0x15 @ addr
+    jle {addr:i16}  => 0x16 @ addr
 
 
     ; simple arithmetic
