@@ -2,21 +2,17 @@
 # this function will (one day) compute the nth fibonacci number 
 fun fibb(var n)
 {
-    var persist = 4660;
-    var persist_again = 5771;
     var result = 1;
     if(n <= 1){
-        result = n;
         var a = 1;
         var b = a + 1;
         var c = b + a;
+        result = n;
         #return n;
     }else{
         result = fibb(n - 1) + fibb(n - 2);
         #return fibb(n - 1) + fibb(n - 2);
     }
-    persist = persist + 1;
-    persist_again = persist_again + 1;
     return result;
 }
 
