@@ -5,14 +5,14 @@ fun fibb(var n)
     var a;
     var result = 1;
     if(n <= 1){
-        a = 1;
+        #a = 1;
         result = n;
         #return n;
     }else{
         result = fibb(n - 1) + fibb(n - 2);
         #return fibb(n - 1) + fibb(n - 2);
     }
-    a = a;
+    #a = a;
     return result;
 }
 

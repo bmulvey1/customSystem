@@ -311,10 +311,12 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             break;
 
         case t_if:
-            struct TACLine *regSnapshot = newTACLine();
-            regSnapshot->operation = tt_pushstate;
-            sltac = appendTAC(sltac, regSnapshot);
             appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
+            
+            struct TACLine *pushState = newTACLine();
+            pushState->operation = tt_pushstate;
+            sltac = appendTAC(sltac, pushState);
+            
             struct TACLine *noifJump = newTACLine();
 
             // generate a label and figure out condition to jump when the if statement isn't executed

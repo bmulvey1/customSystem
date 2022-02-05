@@ -859,7 +859,7 @@ int generateAssignmentCode(struct TACLine *line, struct registerState **register
     }
     else
     {
-        int sourceIndex = findTemp(registerStates, line->operands[1]);
+        /*int sourceIndex = findTemp(registerStates, line->operands[1]);
         if (sourceIndex == -1)
         {
             sourceIndex = findUnallocatedRegister(registerStates);
@@ -888,6 +888,48 @@ int generateAssignmentCode(struct TACLine *line, struct registerState **register
         {
             outputStr = malloc(15 * sizeof(char));
             sprintf(outputStr, "mov %%r%d, %%r%d", destinationIndex, sourceIndex);
+            ASMblock_append(outputBlock, outputStr, TACindex);
+        }*/
+
+        int sourceIndex = findTemp(registerStates, line->operands[1]);
+        // if the variable whose value we are assigning to exists
+        if (sourceIndex != -1)
+        {
+            // if the variable can be overwritten
+            if (!registerStates[sourceIndex]->live || registerStates[sourceIndex]->dying)
+            {
+                // dump it out to stack if it's dirty
+                // (may be unnecessary given that the variable won't be used any more if we reach this point)
+                /*if (registerStates[sourceIndex]->dirty)
+                {
+                    outputStr = malloc(16 * sizeof(char));
+                    sprintf(outputStr, "mov %d(%%bp), %%r%d", findStackOffset(line->operands[1], function), sourceIndex);
+                    ASMblock_append(outputBlock, outputStr, TACindex);
+                }*/
+
+                // if the variable being assigned to exists in a register
+                // (was originally found up top by the original destinationregister assignment)
+                if (findTemp(registerStates, line->operands[0]) != -1)
+                {
+                    registerStates[destinationIndex]->contains = NULL;
+                    registerStates[destinationIndex]->live = 0;
+                    registerStates[destinationIndex]->dirty = 0;
+                }
+                destinationIndex = sourceIndex;
+            }
+            // variable still alive - can't be overwritten!
+            else
+            {
+                outputStr = malloc(16 * sizeof(char));
+                sprintf(outputStr, "mov %%r%d, %%r%d", destinationIndex, sourceIndex);
+                ASMblock_append(outputBlock, outputStr, TACindex);
+            }
+        }
+        // the other var we are assigning the variable to doesn't exist in a register 
+        else
+        {
+            outputStr = malloc(16 * sizeof(char));
+            sprintf(outputStr, "mov %%r%d, %d(%%bp)", destinationIndex, findStackOffset(line->operands[1], function));
             ASMblock_append(outputBlock, outputStr, TACindex);
         }
     }

@@ -109,14 +109,14 @@
     movb %{rd: reg}, ${imm: i8}                      => 0xa7 @ 0b0000 @ rd @ imm
 
     ; data movement (word)
-    movw %{rd: reg}, %{rs:reg}                       => 0xa8 @ rs @ rd
-    movw %{rd:reg}, (%{rs:reg})                      => 0xa9 @ rs @ rd
-    movw %{rd:reg}, (%{rs:reg})                      => 0xaa @ rs @ rd
-    movw %{rd:reg}, {off:i8}(%{rs:reg})              => 0xab @ rs @ rd @ off
-    movw {off:i8}(%{rd:reg}), %{rs:reg}              => 0xac @ rs @ rd @ off
-    movw %{rd: reg}, %{ro: reg}(%{rs: reg},{scl:i8}) => 0xad @ rs @ rd @ 0b0000 @ ro @ scl
-    movw %{ro: reg}(%{rd: reg},{scl:i8}), %{rs: reg} => 0xae @ rs @ rd @ 0b0000 @ ro @ scl
-    movw %{rd: reg}, ${imm: i16}                      => 0xaf @ 0b0000 @ rd @ imm
+    mov %{rd: reg}, %{rs:reg}                       => 0xa8 @ rs @ rd
+    mov %{rd:reg}, (%{rs:reg})                      => 0xa9 @ rs @ rd
+    mov %{rd:reg}, (%{rs:reg})                      => 0xaa @ rs @ rd
+    mov %{rd:reg}, {off:i8}(%{rs:reg})              => 0xab @ rs @ rd @ off
+    mov {off:i8}(%{rd:reg}), %{rs:reg}              => 0xac @ rs @ rd @ off
+    mov %{rd: reg}, %{ro: reg}(%{rs: reg},{scl:i8}) => 0xad @ rs @ rd @ 0b0000 @ ro @ scl
+    mov %{ro: reg}(%{rd: reg},{scl:i8}), %{rs: reg} => 0xae @ rs @ rd @ 0b0000 @ ro @ scl
+    mov %{rd: reg}, ${imm: i16}                      => 0xaf @ 0b0000 @ rd @ imm
 
     push %{rs:reg}                          => 0xc0 @ 0b0000 @ rs
     push (%{rs:reg})                        => 0xc1 @ 0b0000 @ rs
