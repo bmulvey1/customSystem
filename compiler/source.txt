@@ -4,13 +4,13 @@ fun fibb(var n)
 {
     var result = 1;
     if(n <= 1){
-        var a = 1;
-        var b = a + 1;
-        var c = b + a;
+        #var a = 1;
+        #var b = a + 1;
+        #var c = b + a;
         result = n;
         #return n;
     }else{
-        result = fibb(n - 1) + fibb(n - 2);
+        result = fibb(n) + fibb(n);
         #return fibb(n - 1) + fibb(n - 2);
     }
     return result;

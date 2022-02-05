@@ -230,6 +230,7 @@ void ASMblock_prepend(struct ASMblock *block, char *data)
 
 void ASMblock_append(struct ASMblock *block, char *data)
 {
+    printf("%s\n", data);
     struct ASMline *newLine = malloc(sizeof(struct ASMline));
     newLine->data = data;
     newLine->next = NULL;
@@ -255,7 +256,7 @@ void checkVariableLifetimes(struct functionEntry *function)
 {
     int lineIndex = 0;
     // iterate all lines of TAC in the function's codeblock
-    for (struct tacLine *t = function->codeBlock; t != NULL; t = t->nextLine)
+    for (struct TACLine *t = function->codeBlock; t != NULL; t = t->nextLine)
     {
         switch (t->operation)
         {
@@ -407,7 +408,7 @@ struct Lifetime *findLifetimes(struct functionEntry *function)
 
     // look at all lines in the TAC block for this function, keeping track of our index
     int lineIndex = 0;
-    for (struct tacLine *line = function->codeBlock; line != NULL; line = line->nextLine)
+    for (struct TACLine *line = function->codeBlock; line != NULL; line = line->nextLine)
     {
         switch (line->operation)
         {
@@ -698,6 +699,11 @@ void modifyRegisterContents(struct registerState **registerStates, int index, ch
 int findStackOffset(char *var, struct functionEntry *function)
 {
     struct symTabEntry *theEntry = symbolTableLookup(function->table, var);
+    if (theEntry == NULL)
+    {
+        printf("UNABLE TO FIND VARIABLE %s IN SYMBOL TABLE\n", var);
+        exit(0);
+    }
     int spOffset;
     switch (theEntry->type)
     {
@@ -741,6 +747,7 @@ void restoreRegisterStates(struct registerState **current, struct registerState 
     // int scratchIndex = findUnallocatedRegister(current);
     for (int i = 0; i < 12; i++)
     {
+        printf("Restoring %d (should contain %s)\n", i, desired[i]->contains);
         // desired state at this index contains something - need to setup the current state to match this
         if (desired[i]->contains != NULL && desired[i]->live)
         {
@@ -748,7 +755,7 @@ void restoreRegisterStates(struct registerState **current, struct registerState 
             if (current[i]->contains != NULL)
             {
                 // only need to do something if the register doesn't contain what we're looking for
-                if (strcmp(current[i]->contains, desired[i]->contains))
+                if (strcmp(current[i]->contains, desired[i]->contains) != 0)
                 {
                     if (current[i]->live || current[i]->dirty)
                     {
@@ -766,17 +773,29 @@ void restoreRegisterStates(struct registerState **current, struct registerState 
                     else
                     {
                         sprintf(outputStr, "movw %%r%d, %%r%d", i, existingVarIndex);
+                        current[existingVarIndex]->contains = NULL;
+                        current[existingVarIndex]->live = 0;
+                        current[existingVarIndex]->dirty = 0;
                     }
-                    printf("%s\n", outputStr);
                     ASMblock_append(outputBlock, outputStr);
                 }
             }
             // the register contains nothing, we can just find the variable that needs to be there and place it
             else
             {
+                int existingVarIndex = findTemp(current, desired[i]->contains);
                 outputStr = malloc(16 * sizeof(char));
-                sprintf(outputStr, "movw %%r%d, %d(%%bp)", i, findStackOffset(desired[i]->contains, function));
-                printf("%s\n", outputStr);
+                if (existingVarIndex == -1)
+                {
+                    sprintf(outputStr, "movw %%r%d, %d(%%bp)", i, findStackOffset(desired[i]->contains, function));
+                }
+                else
+                {
+                    sprintf(outputStr, "movw %%r%d, %%r%d", i, existingVarIndex);
+                    current[existingVarIndex]->contains = NULL;
+                    current[existingVarIndex]->live = 0;
+                    current[existingVarIndex]->dirty = 0;
+                }
                 ASMblock_append(outputBlock, outputStr);
             }
         }
@@ -788,7 +807,6 @@ void restoreRegisterStates(struct registerState **current, struct registerState 
             {
                 outputStr = malloc(16 * sizeof(char));
                 sprintf(outputStr, "movw %d(%%bp), %%r%d", findStackOffset(current[i]->contains, function), i);
-                printf("%s\n", outputStr);
                 ASMblock_append(outputBlock, outputStr);
             }
         }
@@ -819,8 +837,9 @@ void relocateRegister(struct registerState **registerStates, struct ASMblock *ou
 }
 
 // assign a value into a register, return the destination index
-int generateAssignmentCode(struct tacLine *line, struct registerState **registerStates, struct ASMblock *outputBlock, struct functionEntry *function)
+int generateAssignmentCode(struct TACLine *line, struct registerState **registerStates, struct ASMblock *outputBlock, struct functionEntry *function)
 {
+    printf("GENERATING ASSIGNMENT CODE FOR %s\n", line->operands[0]);
     int destinationIndex = findTemp(registerStates, line->operands[0]);
     if (destinationIndex == -1)
     {
@@ -878,7 +897,6 @@ int generateAssignmentCode(struct tacLine *line, struct registerState **register
     {
         registerStates[destinationIndex]->dirty = 1;
     }
-
     return destinationIndex;
 }
 
@@ -887,16 +905,20 @@ char canOverwrite(struct registerState **registerStates, int registerIndex)
     return !registerStates[registerIndex]->live || registerStates[registerIndex]->dying;
 }
 
-void generateArithmeticCode(struct tacLine *line, struct registerState **registerStates, struct ASMblock *outputBlock, struct functionEntry *function)
+void generateArithmeticCode(struct TACLine *line, struct registerState **registerStates, struct ASMblock *outputBlock, struct functionEntry *function)
 {
     int destinationRegister;
     char *outputStr;
 
     // attempt to find the variable being assigned if it's already in registers
+    // track whether the result value already exists in a register
+    // this will inform where and how we attempt to place variables later
+    char destinationExists = 1;
     destinationRegister = findTemp(registerStates, line->operands[0]);
     if (destinationRegister == -1)
     {
         // if not, we need a place for it to go
+        destinationExists = 0;
         destinationRegister = findUnallocatedRegister(registerStates);
     }
 
@@ -920,24 +942,30 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                 int existingVarIndex = findTemp(registerStates, line->operands[2]);
                 if (existingVarIndex != -1)
                 {
-                    // see if the existing variable can be overwritten
-                    if (!canOverwrite(registerStates, existingVarIndex))
+                    // if NOT overwriting one of the operands would consume an additional register
+                    if (!destinationExists)
                     {
-                        // if not, copy the existing variable from its register to the destination
-                        outputStr = malloc(18 * sizeof(char));
-                        sprintf(outputStr, "movw %%r%d, %%r%d", destinationRegister, existingVarIndex);
-                        ASMblock_append(outputBlock, outputStr);
-                    }
-                    // otherwise, just make that variable's register our destination!
-                    else
-                    {
-                        destinationRegister = existingVarIndex;
+                        // if the existing variable can't be overwritten
+                        // OR destination var already exists in a register
+                        if (!canOverwrite(registerStates, existingVarIndex) || destinationExists)
+                        {
+                            // if not, copy the existing variable from its register to the destination
+                            outputStr = malloc(18 * sizeof(char));
+                            sprintf(outputStr, "movw %%r%d, %%r%d", destinationRegister, existingVarIndex);
+                            ASMblock_append(outputBlock, outputStr);
+                        }
+                        // otherwise, just make that variable's register our destination!
+                        else
+                        {
+                            destinationRegister = existingVarIndex;
+                        }
                     }
 
                     // perform the operation on the destination with the literal
                     outputStr = malloc(18 * sizeof(char));
                     sprintf(outputStr, "%s %%r%d, $%s", getAsmOp(line->operation), destinationRegister, line->operands[1]);
                     ASMblock_append(outputBlock, outputStr);
+                    didReorder = 1;
                 }
             }
 
@@ -983,8 +1011,9 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                 int existingVarIndex = findTemp(registerStates, line->operands[1]);
                 if (existingVarIndex != -1)
                 {
-                    // see if the existing variable can be overwritten
-                    if (!canOverwrite(registerStates, existingVarIndex))
+                    // if the existing variable can't be overwritten
+                    // OR destination var already exists in a register
+                    if (!canOverwrite(registerStates, existingVarIndex) || destinationExists)
                     {
                         // if not, copy the existing variable from its register to the destination
                         outputStr = malloc(18 * sizeof(char));
@@ -1001,6 +1030,7 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                     outputStr = malloc(18 * sizeof(char));
                     sprintf(outputStr, "%s %%r%d, $%s", getAsmOp(line->operation), destinationRegister, line->operands[2]);
                     ASMblock_append(outputBlock, outputStr);
+                    didReorder = 1;
                 }
             }
 
@@ -1050,8 +1080,9 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                 // see if we can reorder
                 if (line->reorderable)
                 {
-                    // if we can overwrite the register containing the second var, do it
-                    if (canOverwrite(registerStates, secondVarIndex))
+                    // if we can't overwrite the register containing the second var,
+                    // AND the destination variable doesn't exist in a register already
+                    if (canOverwrite(registerStates, secondVarIndex) && !destinationExists)
                     {
                         destinationRegister = secondVarIndex;
                         outputStr = malloc(18 * sizeof(char));
@@ -1065,9 +1096,9 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
                 // just conduct the operation in order
                 if (!didReorder)
                 {
-                    // see if the first var can be overwritten
-                    // also verify that the variable isn't modifying itself
-                    if (!canOverwrite(registerStates, firstVarIndex) && strcmp(line->operands[0], line->operands[1]))
+                    // if we can't overwrite the register containing the first var,
+                    // OR the destination variable exists in a register already
+                    if (!canOverwrite(registerStates, firstVarIndex) || destinationExists)
                     {
                         // if not, copy the existing variable from its register to the destination
                         outputStr = malloc(18 * sizeof(char));
@@ -1089,8 +1120,9 @@ void generateArithmeticCode(struct tacLine *line, struct registerState **registe
             // first operand is in register, second isn't
             else if (firstVarIndex != -1 && secondVarIndex == -1)
             {
-                // see if the register can be overwritten
-                if (!canOverwrite(registerStates, firstVarIndex))
+                // if we can't overwrite the register containing the first var,
+                // OR the destination variable exists in a register already
+                if (!canOverwrite(registerStates, firstVarIndex) || destinationExists)
                 {
                     // if not, copy the existing variable from its register to the destination
                     outputStr = malloc(18 * sizeof(char));
@@ -1187,7 +1219,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
     int tacIndex = 0;
     char *outputStr;
 
-    for (struct tacLine *line = function->codeBlock; line != NULL; line = line->nextLine)
+    for (struct TACLine *line = function->codeBlock; line != NULL; line = line->nextLine)
     {
         for (int i = 0; i < 12; i++)
         {
@@ -1409,7 +1441,8 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
         case tt_pushstate:
             printf("PUSH STATE\n");
             RegisterStateStack_push(stateStack, registerStates);
-            for(struct ASMline* runner = outputBlock->head; runner != NULL; runner = runner->next){
+            for (struct ASMline *runner = outputBlock->head; runner != NULL; runner = runner->next)
+            {
                 printf("%s\n", runner->data);
             }
             printf("\n\n");
@@ -1418,7 +1451,8 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
         case tt_restorestate:
             printf("RESTORE STATE\n");
             restoreRegisterStates(registerStates, RegisterStateStack_peek(stateStack), outputBlock, function);
-            for(struct ASMline* runner = outputBlock->head; runner != NULL; runner = runner->next){
+            for (struct ASMline *runner = outputBlock->head; runner != NULL; runner = runner->next)
+            {
                 printf("%s\n", runner->data);
             }
             printf("\n\n");
@@ -1426,22 +1460,12 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             break;
 
         case tt_resetstate:
-            printf("RESET STATE from\n");
-            printRegisterStates(registerStates);
-            printf(" TO\n");
+            printf("RESET STATE\n");
             struct registerState **resetTo = RegisterStateStack_peek(stateStack);
-            printRegisterStates(resetTo);
-            printf("\n");
             for (int i = 0; i < 12; i++)
             {
                 memcpy(registerStates[i], resetTo[i], sizeof(struct registerState));
             }
-            printRegisterStates(registerStates);
-            for(struct ASMline* runner = outputBlock->head; runner != NULL; runner = runner->next){
-                printf("%s\n", runner->data);
-            }
-            printf("\n\n");
-
             break;
 
         case tt_popstate:
@@ -1575,7 +1599,7 @@ int main(int argc, char **argv)
     freeAST(program);
     freeSymTab(theTable);
 
-    // printTacLine(head);
+    // printTACLine(head);
 
     printf("done printing\n");
 }

@@ -1,6 +1,6 @@
 #include "tac.h"
 
-char *getAsmOp(enum tacType t)
+char *getAsmOp(enum TACType t)
 {
     switch (t)
     {
@@ -64,9 +64,9 @@ char *getAsmOp(enum tacType t)
     return "";
 }
 
-struct tacLine *newtacLine()
+struct TACLine *newTACLine()
 {
-    struct tacLine *wip = malloc(sizeof(struct tacLine));
+    struct TACLine *wip = malloc(sizeof(struct TACLine));
     wip->nextLine = NULL;
     wip->prevLine = NULL;
     wip->operands[0] = NULL;
@@ -82,89 +82,96 @@ struct tacLine *newtacLine()
     return wip;
 }
 
-void printTacLine(struct tacLine *it)
+void printTACLine(struct TACLine *it)
+{
+    char *operationStr;
+    char fallingThrough = 0;
+    switch (it->operation)
+    {
+    case tt_add:
+        if (!fallingThrough)
+            operationStr = "+";
+        fallingThrough = 1;
+    case tt_subtract:
+        if (!fallingThrough)
+            operationStr = "-";
+
+        printf("\t:%8s = %8s %2s %8s", it->operands[0], it->operands[1], operationStr, it->operands[2]);
+        break;
+
+    case tt_jg:
+    case tt_jge:
+    case tt_jl:
+    case tt_jle:
+    case tt_je:
+    case tt_jne:
+    case tt_jmp:
+        printf("\t:%s label %ld", getAsmOp(it->operation), (long int)it->operands[0]);
+        break;
+
+    case tt_cmp:
+        printf("\t:cmp %s %s", it->operands[1], it->operands[2]);
+        break;
+
+    case tt_assign:
+        printf("\t:%8s = %8s", it->operands[0], it->operands[1]);
+        break;
+
+    case tt_push:
+        printf("\t:push %s", it->operands[0]);
+        break;
+
+    case tt_call:
+        printf("\t:%8s = call %s", it->operands[0], it->operands[1]);
+        break;
+
+    case tt_label:
+        printf("~label %ld:", (long int)it->operands[0]);
+        break;
+
+    case tt_return:
+        printf("\t:ret %s", it->operands[0]);
+        break;
+
+    case tt_pushstate:
+        printf("\t:PUSHSTATE");
+        break;
+
+    case tt_restorestate:
+        printf("\t:RESTORESTATE");
+        break;
+
+    case tt_resetstate:
+        printf("\t:RESETSTATE");
+        break;
+
+    case tt_popstate:
+        printf("\t:POPSTATE");
+        break;
+    }
+    printf("%s\n", it->reorderable ? " - Reorderable" : "");
+    // printf("\t%d %d %d\n", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
+}
+
+void printTACBlock(struct TACLine *it)
 {
     int lineIndex = 0;
     while (it != NULL)
     {
-        char *operationStr;
-        char fallingThrough = 0;
-        switch (it->operation)
-        {
-        case tt_add:
-            if (!fallingThrough)
-                operationStr = "+";
-            fallingThrough = 1;
-        case tt_subtract:
-            if (!fallingThrough)
-                operationStr = "-";
-
-            printf("\t%2x:%8s = %8s %2s %8s", lineIndex, it->operands[0], it->operands[1], operationStr, it->operands[2]);
-            break;
-
-        case tt_jg:
-        case tt_jge:
-        case tt_jl:
-        case tt_jle:
-        case tt_je:
-        case tt_jne:
-        case tt_jmp:
-            printf("\t%2x:%s label %ld", lineIndex, getAsmOp(it->operation), (long int)it->operands[0]);
-            break;
-
-        case tt_cmp:
-            printf("\t%2x:cmp %s %s", lineIndex, it->operands[1], it->operands[2]);
-            break;
-
-        case tt_assign:
-            printf("\t%2x:%8s = %8s", lineIndex, it->operands[0], it->operands[1]);
-            break;
-
-        case tt_push:
-            printf("\t%2x:push %s", lineIndex, it->operands[0]);
-            break;
-
-        case tt_call:
-            printf("\t%2x:%8s = call %s", lineIndex, it->operands[0], it->operands[1]);
-            break;
-
-        case tt_label:
-            printf("~label %ld:", (long int)it->operands[0]);
-            break;
-
-        case tt_return:
-            printf("\t%2x:ret %s", lineIndex, it->operands[0]);
-            break;
-
-        case tt_pushstate:
-            printf("\t%2x:PUSHSTATE", lineIndex);
-            break;
-
-        case tt_restorestate:
-            printf("\t%2x:RESTORESTATE", lineIndex);
-            break;
-
-        case tt_resetstate:
-            printf("\t%2x:RESETSTATE", lineIndex);
-
-        case tt_popstate:
-            printf("\t%2x:POPSTATE", lineIndex);
-            break;
-        }
-        printf("%s\n", it->reorderable ? " - Reorderable" : "");
-        // printf("\t%d %d %d\n", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
+        printf("%2x:", lineIndex);
+        printTACLine(it);
         lineIndex++;
         it = it->nextLine;
     }
 }
 
 // stick the "after" block at the end of the "before" block, returning the head of the full block
-struct tacLine *appendTAC(struct tacLine *before, struct tacLine *after)
+struct TACLine *appendTAC(struct TACLine *before, struct TACLine *after)
 {
     if (before == NULL)
         return after;
 
-    struct tacLine *runner = before;
+    struct TACLine *runner = before;
     while (runner->nextLine != NULL)
         runner = runner->nextLine;
 
@@ -175,9 +182,9 @@ struct tacLine *appendTAC(struct tacLine *before, struct tacLine *after)
 }
 
 // stick the "before" block in front of the "after" block, returning the head of the full block
-struct tacLine *prependTAC(struct tacLine *after, struct tacLine *before)
+struct TACLine *prependTAC(struct TACLine *after, struct TACLine *before)
 {
-    struct tacLine *runner = before;
+    struct TACLine *runner = before;
     while (runner->nextLine != NULL)
         runner = runner->nextLine;
 
@@ -185,7 +192,7 @@ struct tacLine *prependTAC(struct tacLine *after, struct tacLine *before)
     return before;
 }
 
-struct tacLine *findLastTAC(struct tacLine *head)
+struct TACLine *findLastTAC(struct TACLine *head)
 {
     while (head->nextLine != NULL)
         head = head->nextLine;
@@ -193,11 +200,11 @@ struct tacLine *findLastTAC(struct tacLine *head)
     return head;
 }
 
-void freeTAC(struct tacLine *it)
+void freeTAC(struct TACLine *it)
 {
     while (it != NULL)
     {
-        struct tacLine *old = it;
+        struct TACLine *old = it;
 
         it = it->nextLine;
         free(old);

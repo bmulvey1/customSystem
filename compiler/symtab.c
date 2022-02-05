@@ -192,7 +192,7 @@ void printSymTabRec(struct symbolTable *it, int depth)
             struct functionEntry *theFunction = it->entries[i]->entry;
             printf("> function [%s]: %d symbols\n", it->entries[i]->name, theFunction->table->size);
             printSymTabRec(theFunction->table, depth + 1);
-            printTacLine(theFunction->codeBlock);
+            printTACBlock(theFunction->codeBlock);
             printf("\n");
         }
         break;

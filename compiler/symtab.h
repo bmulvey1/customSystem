@@ -43,7 +43,7 @@ struct argumentEntry
 struct functionEntry
 {
     struct symbolTable *table;
-    struct tacLine *codeBlock;
+    struct TACLine *codeBlock;
 };
 
 struct symbolTable

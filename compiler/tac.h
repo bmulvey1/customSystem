@@ -14,7 +14,7 @@ enum variableTypes
     vt_literal
 };
 
-enum tacType
+enum TACType
 {
     tt_assign,
     tt_add,
@@ -37,25 +37,27 @@ enum tacType
     tt_popstate
 };
 
-struct tacLine
+struct TACLine
 {
     char *operands[3];                  // track all 3 operands
     enum variableTypes operandTypes[3]; // track whether the left hand side operands are literals
-    enum tacType operation;
+    enum TACType operation;
     char reorderable;
-    struct tacLine *nextLine;
-    struct tacLine *prevLine;
+    struct TACLine *nextLine;
+    struct TACLine *prevLine;
 };
-char* getAsmOp(enum tacType t);
+char* getAsmOp(enum TACType t);
 
-void printTacLine(struct tacLine *it);
+void printTACLine(struct TACLine *it);
 
-struct tacLine *newtacLine();
+void printTACBlock(struct TACLine *it);
 
-struct tacLine *appendTAC(struct tacLine *before, struct tacLine *after);
+struct TACLine *newTACLine();
 
-struct tacLine *prependTAC(struct tacLine *after, struct tacLine *before);
+struct TACLine *appendTAC(struct TACLine *before, struct TACLine *after);
 
-struct tacLine *findLastTAC(struct tacLine *head);
+struct TACLine *prependTAC(struct TACLine *after, struct TACLine *before);
 
-void freeTAC(struct tacLine* it);
+struct TACLine *findLastTAC(struct TACLine *head);
+
+void freeTAC(struct TACLine* it);
