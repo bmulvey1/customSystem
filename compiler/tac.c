@@ -96,7 +96,7 @@ void printTACLine(struct TACLine *it)
         if (!fallingThrough)
             operationStr = "-";
 
-        printf("\t:%8s = %8s %2s %8s", it->operands[0], it->operands[1], operationStr, it->operands[2]);
+        printf("%s = %s %s %s", it->operands[0], it->operands[1], operationStr, it->operands[2]);
         break;
 
     case tt_jg:
@@ -106,23 +106,23 @@ void printTACLine(struct TACLine *it)
     case tt_je:
     case tt_jne:
     case tt_jmp:
-        printf("\t:%s label %ld", getAsmOp(it->operation), (long int)it->operands[0]);
+        printf("%s label %ld", getAsmOp(it->operation), (long int)it->operands[0]);
         break;
 
     case tt_cmp:
-        printf("\t:cmp %s %s", it->operands[1], it->operands[2]);
+        printf("cmp %s %s", it->operands[1], it->operands[2]);
         break;
 
     case tt_assign:
-        printf("\t:%8s = %8s", it->operands[0], it->operands[1]);
+        printf("%s = %s", it->operands[0], it->operands[1]);
         break;
 
     case tt_push:
-        printf("\t:push %s", it->operands[0]);
+        printf("push %s", it->operands[0]);
         break;
 
     case tt_call:
-        printf("\t:%8s = call %s", it->operands[0], it->operands[1]);
+        printf("%s = call %s", it->operands[0], it->operands[1]);
         break;
 
     case tt_label:
@@ -130,23 +130,23 @@ void printTACLine(struct TACLine *it)
         break;
 
     case tt_return:
-        printf("\t:ret %s", it->operands[0]);
+        printf("ret %s", it->operands[0]);
         break;
 
     case tt_pushstate:
-        printf("\t:PUSHSTATE");
+        printf("PUSHSTATE");
         break;
 
     case tt_restorestate:
-        printf("\t:RESTORESTATE");
+        printf("RESTORESTATE");
         break;
 
     case tt_resetstate:
-        printf("\t:RESETSTATE");
+        printf("RESETSTATE");
         break;
 
     case tt_popstate:
-        printf("\t:POPSTATE");
+        printf("POPSTATE");
         break;
     }
     printf("%s\n", it->reorderable ? " - Reorderable" : "");
@@ -158,7 +158,11 @@ void printTACBlock(struct TACLine *it)
     int lineIndex = 0;
     while (it != NULL)
     {
-        printf("%2x:", lineIndex);
+        if (it->operation != tt_label)
+        {
+            printf("\t%2x:", lineIndex);
+        }
+
         printTACLine(it);
         lineIndex++;
         it = it->nextLine;

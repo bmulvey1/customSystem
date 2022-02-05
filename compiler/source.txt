@@ -2,17 +2,17 @@
 # this function will (one day) compute the nth fibonacci number 
 fun fibb(var n)
 {
+    var a;
     var result = 1;
     if(n <= 1){
-        #var a = 1;
-        #var b = a + 1;
-        #var c = b + a;
+        a = 1;
         result = n;
         #return n;
     }else{
-        result = fibb(n) + fibb(n);
+        result = fibb(n - 1) + fibb(n - 2);
         #return fibb(n - 1) + fibb(n - 2);
     }
+    a = a;
     return result;
 }
 
