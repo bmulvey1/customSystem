@@ -15,39 +15,41 @@ code_done:
 fibb:
 	push %r1
 	push %r2
-	sub %sp, $4
-	mov %r0, $1
+	sub %sp, $14
+	mov %r0, $1		;result = 1
 	mov %r1, 4(%bp)
-	cmp %r1, $1
-	jg fibb_1
-	mov %r0, 4(%bp)
-	jmp fibb_2
+	cmp %r1, $1		;cmp n 1
+
+	jg fibb_1		;jg label 1
+	mov %r1, $1		;a = 1
+	mov %r2, %r1
+	add %r2, $1		;b = a + 1 - Reorderable
+	add %r2, %r1		;c = a + b - Reorderable
+	mov %r0, 4(%bp)		;result = n
+	mov -2(%bp), %r1
+	mov -6(%bp), %r2
+	jmp fibb_2		;jmp label 2
 fibb_1:
+
 	mov %r1, 4(%bp)
-	sub %r1, $2
-	push %r1
+	sub %r1, $2		;.t5 = n - 2
+	push %r1		;push .t5
 	mov %r1, %r0
-	call fibb
+	call fibb		;.t4 = call fibb
 	mov %r2, 4(%bp)
-	sub %r2, $1
-	push %r2
+	sub %r2, $1		;.t3 = n - 1
+	push %r2		;push .t3
 	mov %r2, %r0
-	call fibb
+	call fibb		;.t2 = call fibb
 	mov %r1, %r0
-	add %r1, %r2
+	add %r1, %r2		;result = .t2 + .t4 - Reorderable
 	mov %r0, %r1
 fibb_2:
-	jmp fibb_done
+
+		;.RETVAL = result
+	jmp fibb_done		;ret .RETVAL
 fibb_done:
-	add %sp, $4
+	add %sp, $14
 	pop %r2
 	pop %r1
 	ret 1
-
-
-
-
-
-
-
-

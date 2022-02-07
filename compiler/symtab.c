@@ -16,14 +16,14 @@ char *getTempString(struct tempList *tempList, int tempNum)
         }
         for (int i = tempList->size; i < newSize; i++)
         {
-            newTemps[i] = malloc(5 * sizeof(char));
+            newTemps[i] = malloc(6 * sizeof(char));
             sprintf(newTemps[i], ".t%d", i);
         }
         free(tempList->temps);
         tempList->temps = newTemps;
         tempList->size = newSize;
     }
-    return tempList->temps[tempNum];
+    return tempList->temps[tempNum - 1];
 }
 
 struct tempList *newTempList()
@@ -33,9 +33,10 @@ struct tempList *newTempList()
     wip->temps = malloc(10 * sizeof(char *));
     for (int i = 0; i < 10; i++)
     {
-        wip->temps[i] = malloc(5 * sizeof(char));
+        wip->temps[i] = malloc(6 * sizeof(char));
         sprintf(wip->temps[i], ".t%d", i);
     }
+
     return wip;
 }
 

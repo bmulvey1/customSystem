@@ -578,6 +578,44 @@ void printRegisterStates(struct registerState **registerStates)
     printf("----------\n\n");
 }
 
+void printRegisterStatesHorizontal(struct registerState **registerStates)
+{
+    for (int i = 0; i < 12; i++)
+    {
+        if (registerStates[i]->contains != NULL)
+        {
+            printf("   r%2d|", i);
+        }
+    }
+    printf("\n");
+    for (int i = 0; i < 12; i++)
+    {
+        if (registerStates[i]->contains != NULL)
+        {
+            int j;
+            for (j = 0; j < 6; j++)
+            {
+                if (registerStates[i]->contains[j] != '\0')
+                {
+                    printf("%c", registerStates[i]->contains[j]);
+                }
+                else
+                {
+                    break;
+                }
+            }
+            while (j < 6)
+            {
+                printf(" ");
+                j++;
+            }
+
+            printf("|");
+        }
+    }
+    printf("\n");
+}
+
 void freeRegisterStates(struct registerState **s)
 {
     for (int i = 0; i < 12; i++)
@@ -714,7 +752,7 @@ int findStackOffset(char *var, struct functionEntry *function)
     {
     case e_variable:
         // may need a hardcoded offset to avoid overlapping return vector
-        spOffset = (((struct variableEntry *)theEntry->entry)->index * -2);
+        spOffset = ((((struct variableEntry *)theEntry->entry)->index * -2) - 2);
         break;
 
     case e_argument:
@@ -925,7 +963,7 @@ int generateAssignmentCode(struct TACLine *line, struct registerState **register
                 ASMblock_append(outputBlock, outputStr, TACindex);
             }
         }
-        // the other var we are assigning the variable to doesn't exist in a register 
+        // the other var we are assigning the variable to doesn't exist in a register
         else
         {
             outputStr = malloc(16 * sizeof(char));
@@ -1515,8 +1553,8 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             break;
         }
         // printf("%s\n", outputBlock->tail->data);
-        // printRegisterStates(registerStates);
-        // printf("\n\n");
+        printRegisterStatesHorizontal(registerStates);
+        printf("\n\n");
         TACindex++;
         /*struct ASMline *runner = outputBlock->head;
         while (runner != NULL)
