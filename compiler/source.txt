@@ -19,12 +19,33 @@
 #}
 
 fun lessfive(var n){
-    var a;
-    if(n <= 5){
-        return 5;
+    var answer = 7;
+    if(n < 10){
+        if(n < 9){
+            if(n < 8){
+                if(n < 7){
+                    if(n < 6){
+                        if(n < 5){
+                            answer = 4;
+                        }else{
+                            answer = 5;
+                        }
+                    }else{
+                        answer = 6;
+                    }
+                }else{
+                    answer = 7;
+                }
+            }else{
+                answer = 8;
+            }
+        }else{
+            answer = 9;
+        }
     }else{
-        return 6;
+        answer = 10;
     }
+    return answer;
 }
 
 

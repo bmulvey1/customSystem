@@ -233,7 +233,6 @@ void ASMblock_prepend(struct ASMblock *block, char *data, int correspondingTACin
 
 void ASMblock_append(struct ASMblock *block, char *data, int correspondingTACindex)
 {
-    printf("%s\n", data);
     struct ASMline *newLine = malloc(sizeof(struct ASMline));
     newLine->data = data;
     newLine->next = NULL;
@@ -632,6 +631,10 @@ struct registerState **duplicateRegisterStates(struct registerState **theStates)
         duplicateStates[i] = malloc(sizeof(struct registerState));
         memcpy(duplicateStates[i], theStates[i], sizeof(struct registerState));
     }
+    printf("DUPLICATED STATES:\n");
+    printRegisterStatesHorizontal(theStates);
+    printRegisterStatesHorizontal(duplicateStates);
+    printf("\n");
     return duplicateStates;
 }
 
@@ -656,7 +659,7 @@ struct RegisterStateStack *newRegisterStateStack()
 void RegisterStateStack_push(struct RegisterStateStack *s, struct registerState **stateList)
 {
     struct registerState ***newStack = malloc((s->size + 1) * sizeof(struct registerState **));
-    for (int i = 0; i < s->size - 1; i++)
+    for (int i = 0; i < s->size; i++)
     {
         newStack[i] = s->stack[i];
     }
@@ -666,16 +669,18 @@ void RegisterStateStack_push(struct RegisterStateStack *s, struct registerState 
     s->stack = newStack;
     printf("push, stack size is %d\n", s->size);
 
-    /*for (int i = 0; i < s->size; i++)
+    printf("here's the stack:\n");
+    for (int i = 0; i < s->size; i++)
     {
-        printRegisterStates(s->stack[i]);
-    }*/
+        printRegisterStatesHorizontal(s->stack[i]);
+    }
+    printf("\n");
 }
 
 void RegisterStateStack_pop(struct RegisterStateStack *s)
 {
     struct registerState **poppedStates = s->stack[s->size - 1];
-    struct registerState ***newStack;
+    struct registerState ***newStack = NULL;
     freeRegisterStates(poppedStates);
     // only reallocate and copy if there is data to copy
     if (s->size > 1)
@@ -688,25 +693,25 @@ void RegisterStateStack_pop(struct RegisterStateStack *s)
     }
     s->size--;
     free(s->stack);
-    // similarly, just null the pointer if stack is empty
-    if (s->size > 1)
-    {
-        s->stack = newStack;
-    }
-    else
-    {
-        s->stack = NULL;
-    }
+    s->stack = newStack;
+
     printf("pop, stack size is %d\n", s->size);
-    /*for (int i = 0; i < s->size; i++)
+    printf("here's the stack:\n");
+    for (int i = 0; i < s->size; i++)
     {
-        printRegisterStates(s->stack[i]);
-    }*/
+        printRegisterStatesHorizontal(s->stack[i]);
+    }
+    printf("\n");
 }
 
 struct registerState **RegisterStateStack_peek(struct RegisterStateStack *s)
 {
     printf("peek, size is %d\n", s->size);
+    for(int i = 0; i < s->size; i++){
+        printf("STACK ENTRY %d\n", i);
+        printRegisterStatesHorizontal(s->stack[i]);
+    }
+    printf("\n");
     return s->stack[s->size - 1];
 }
 
@@ -1336,13 +1341,11 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                 }
             }
         }
-        printf("\t\t\t");
-        printTACLine(line);
+
         switch (line->operation)
         {
         case tt_assign:
         {
-            // printf("%s = %s %s\n", line->operands[0], line->operands[1], line->operands[2]);
             generateAssignmentCode(line, registerStates, outputBlock, function, TACindex);
         }
         break;
@@ -1527,17 +1530,14 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             break;
 
         case tt_pushstate:
-            // printf("PUSH STATE\n");
             RegisterStateStack_push(stateStack, registerStates);
             break;
 
         case tt_restorestate:
-            // printf("RESTORE STATE\n");
             restoreRegisterStates(registerStates, RegisterStateStack_peek(stateStack), outputBlock, function, TACindex);
             break;
 
         case tt_resetstate:
-            // printf("RESET STATE\n");
             struct registerState **resetTo = RegisterStateStack_peek(stateStack);
             for (int i = 0; i < 12; i++)
             {
@@ -1546,7 +1546,6 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             break;
 
         case tt_popstate:
-            // printf("POP STATE STACK\n");
             RegisterStateStack_pop(stateStack);
 
             break;
@@ -1556,17 +1555,11 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             generateArithmeticCode(line, registerStates, outputBlock, function, TACindex);
             break;
         }
-        // printf("%s\n", outputBlock->tail->data);
-        printRegisterStatesHorizontal(registerStates);
-        printf("\n\n");
+        
+
+        //printRegisterStatesHorizontal(registerStates);
+        
         TACindex++;
-        /*struct ASMline *runner = outputBlock->head;
-        while (runner != NULL)
-        {
-            printf("%s\n", runner->data);
-            runner = runner->next;
-        }
-        printf("\n");*/
     }
 
     printf("\n\n\n\n\n");
