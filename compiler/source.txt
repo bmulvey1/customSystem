@@ -10,20 +10,24 @@ fun fibb(var n)
     var f;
     var result = 1;
     if(n <= 1){
-        a = 1;
+        a = 10 - n;
+        result = n;
         b = a + 1;
         c = a + b;
-        result = n;
+        
         
         #return n;
     }else{
-        #a = 1;
-        #b = a + 1;
-        #c = a + b;
+        a = 1;
         result = fibb(n - 1) + fibb(n - 2);
+        b = a + 1 + n;
+        c = a + b;
+        
         #return fibb(n - 1) + fibb(n - 2);
     }
-    #a = a;
+    a = 1 - a;
+    b = 1 - b;
+    c = 1 - c;
     return result;
 }
 

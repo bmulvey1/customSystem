@@ -13,43 +13,61 @@ code_done:
 	hlt
 
 fibb:
+	sub %sp, $14
 	push %r1
 	push %r2
-	sub %sp, $14
+	push %r3
 	mov %r0, $1		;result = 1
 	mov %r1, 4(%bp)
 	cmp %r1, $1		;cmp n 1
 
 	jg fibb_1		;jg label 1
-	mov %r1, $1		;a = 1
+	mov %r1, $10
+	sub %r1, 4(%bp)		;a = 10 - n
+	mov %r0, 4(%bp)		;result = n
 	mov %r2, %r1
 	add %r2, $1		;b = a + 1 - Reorderable
-	add %r2, %r1		;c = a + b - Reorderable
-	mov %r0, 4(%bp)		;result = n
+	mov %r3, %r1
+	add %r3, %r2		;c = a + b - Reorderable
 	mov -2(%bp), %r1
-	mov -6(%bp), %r2
+	mov -4(%bp), %r2
+	mov -6(%bp), %r3
 	jmp fibb_2		;jmp label 2
 fibb_1:
 
-	mov %r1, 4(%bp)
-	sub %r1, $2		;.t5 = n - 2
-	push %r1		;push .t5
-	mov %r1, %r0
-	call fibb		;.t4 = call fibb
+	mov %r1, $1		;a = 1
 	mov %r2, 4(%bp)
-	sub %r2, $1		;.t3 = n - 1
-	push %r2		;push .t3
+	sub %r2, $2		;.t6 = n - 2
+	push %r2		;push .t6
 	mov %r2, %r0
-	call fibb		;.t2 = call fibb
-	mov %r1, %r0
-	add %r1, %r2		;result = .t2 + .t4 - Reorderable
-	mov %r0, %r1
+	call fibb		;.t5 = call fibb
+	mov %r3, 4(%bp)
+	sub %r3, $1		;.t4 = n - 1
+	push %r3		;push .t4
+	mov %r3, %r0
+	call fibb		;.t3 = call fibb
+	mov %r2, %r0
+	add %r2, %r3		;result = .t3 + .t5 - Reorderable
+	mov %r0, $1
+	add %r0, 4(%bp)		;.t8 = 1 + n - Reorderable
+	add %r0, %r1		;b = a + .t8 - Reorderable
+	add %r0, %r1		;c = a + b - Reorderable
+	mov %r0, -14(%bp)
+	mov %r0, %r2
+	mov -2(%bp), %r1
 fibb_2:
 
+	mov %r1, $1
+	sub %r1, -2(%bp)		;a = 1 - a
+	mov %r1, $1
+	sub %r1, -4(%bp)		;b = 1 - b
+	mov %r1, $1
+	sub %r1, -6(%bp)		;c = 1 - c
 		;.RETVAL = result
 	jmp fibb_done		;ret .RETVAL
 fibb_done:
-	add %sp, $14
+	pop %r3
 	pop %r2
 	pop %r1
+	add %sp, $14
 	ret 1

@@ -790,8 +790,8 @@ void restoreRegisterStates(struct registerState **current, struct registerState 
     // int scratchIndex = findUnallocatedRegister(current);
     for (int i = 0; i < 12; i++)
     {
-        //printf("Restoring %d (should contain %s)\n", i, desired[i]->contains);
-        // desired state at this index contains something - need to setup the current state to match this
+        // printf("Restoring %d (should contain %s)\n", i, desired[i]->contains);
+        //  desired state at this index contains something - need to setup the current state to match this
         if (desired[i]->contains != NULL && desired[i]->live)
         {
             // this register currently contains something
@@ -1416,7 +1416,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                 registerStates[0]->dirty = 1;
             }
 
-            //modifyRegisterContents(registerStates, 0, line->operands[0]);
+            // modifyRegisterContents(registerStates, 0, line->operands[0]);
         }
         break;
 
@@ -1523,17 +1523,17 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             break;
 
         case tt_pushstate:
-            //printf("PUSH STATE\n");
+            // printf("PUSH STATE\n");
             RegisterStateStack_push(stateStack, registerStates);
             break;
 
         case tt_restorestate:
-            //printf("RESTORE STATE\n");
+            // printf("RESTORE STATE\n");
             restoreRegisterStates(registerStates, RegisterStateStack_peek(stateStack), outputBlock, function, TACindex);
             break;
 
         case tt_resetstate:
-            //printf("RESET STATE\n");
+            // printf("RESET STATE\n");
             struct registerState **resetTo = RegisterStateStack_peek(stateStack);
             for (int i = 0; i < 12; i++)
             {
@@ -1542,7 +1542,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             break;
 
         case tt_popstate:
-            //printf("POP STATE STACK\n");
+            // printf("POP STATE STACK\n");
             RegisterStateStack_pop(stateStack);
 
             break;
@@ -1582,16 +1582,6 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
     sprintf(outputStr, "%s_done:", functionName);
     ASMblock_append(outputBlock, outputStr, 999);
 
-    // deal with making and freeing room on the stack for local variables
-    outputStr = malloc(16 * sizeof(char));
-    sprintf(outputStr, "sub %%sp, $%d", function->table->varc * 2);
-    ASMblock_prepend(outputBlock, outputStr, 0);
-
-    // reset the room made on the stack for local variables
-    outputStr = malloc(16 * sizeof(char));
-    sprintf(outputStr, "add %%sp, $%d", function->table->varc * 2);
-    ASMblock_append(outputBlock, outputStr, 999);
-
     for (int i = 11; i > 0; i--)
     {
         if (registerStates[i]->touched)
@@ -1605,8 +1595,21 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             ASMblock_append(outputBlock, outputStr, 999);
         }
     }
+
+    outputStr = malloc(16 * sizeof(char));
+    sprintf(outputStr, "sub %%sp, $%d", function->table->varc * 2);
+    ASMblock_prepend(outputBlock, outputStr, 0);
+    
     entryLabel->next = outputBlock->head;
     outputBlock->head = entryLabel;
+
+    // deal with making and freeing room on the stack for local variables
+
+    // reset the room made on the stack for local variables
+    outputStr = malloc(16 * sizeof(char));
+    sprintf(outputStr, "add %%sp, $%d", function->table->varc * 2);
+    ASMblock_append(outputBlock, outputStr, 999);
+
     // outputBlock->tail->next = returnLine;
     // outputBlock->tail = returnLine;
 
