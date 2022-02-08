@@ -1,52 +1,28 @@
 
 # this function will (one day) compute the nth fibonacci number 
-#fun fibb(var n)
-#{
-#    var result;
-#    if(n <= 1){
-#        if(n == 1){
-#            result = 1;
-#        }else{
-#            result = 0;
-#        }
-#        #result = n;
-#        #return n;
-#    }else{
-#        result = fibb(n - 1) + fibb(n - 2);
-#        #return fibb(n - 1) + fibb(n - 2);
-#    }
-#    return result;
-#}
+fun fibb(var n)
+{
+    if(n < 2)
+        return n;
+    else
+        return fibb(n - 1) + fibb(n - 2);
+    
+}
 
-fun lessfive(var n){
-    var answer = 7;
-    if(n < 10){
-        if(n < 9){
-            if(n < 8){
-                if(n < 7){
-                    if(n < 6){
-                        if(n < 5){
-                            answer = 4;
-                        }else{
-                            answer = 5;
-                        }
-                    }else{
-                        answer = 6;
-                    }
-                }else{
-                    answer = 7;
-                }
-            }else{
-                answer = 8;
-            }
-        }else{
-            answer = 9;
-        }
+fun isfirstthree(var n){
+    var answer;
+    if(n == 1){
+        answer = 1;
+    } else if(n == 2){
+        answer = 2;
+    }else if(n == 3){
+        answer = 3;
     }else{
-        answer = 10;
+        answer = 0;
     }
     return answer;
 }
+
 
 
 #fun main(var a)

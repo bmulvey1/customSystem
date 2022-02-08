@@ -1,50 +1,58 @@
-lessfive:
+fibb:
+	sub %sp, $0
+	push %r1
+	mov %r0, 4(%bp)
+	cmp %r0, $2
+	jge fibb_1
+	mov %r0, 4(%bp)
+	jmp fibb_done
+fibb_1:
+	mov %r0, 4(%bp)
+	sub %r0, $2
+	push %r0
+	call fibb
+	mov %r1, 4(%bp)
+	sub %r1, $1
+	push %r1
+	mov %r1, %r0
+	call fibb
+	add %r1, %r0
+	mov %r0, %r1
+	jmp fibb_done
+fibb_done:
+	pop %r1
+	add %sp, $0
+	ret 1
+isfirstthree:
 	sub %sp, $2
-	mov %r0, $7
-	mov %r1, 4(%bp)
-	cmp %r1, $10
-	jge lessfive_1
-	mov %r1, 4(%bp)
-	cmp %r1, $9
-	jge lessfive_2
-	mov %r1, 4(%bp)
-	cmp %r1, $8
-	jge lessfive_3
-	mov %r1, 4(%bp)
-	cmp %r1, $7
-	jge lessfive_4
-	mov %r1, 4(%bp)
-	cmp %r1, $6
-	jge lessfive_5
-	mov %r1, 4(%bp)
-	cmp %r1, $5
-	jge lessfive_6
-	mov %r0, $4
-	jmp lessfive_7
-lessfive_6:
-	mov %r0, $5
-lessfive_7:
-	jmp lessfive_8
-lessfive_5:
-	mov %r0, $6
-lessfive_8:
-	jmp lessfive_9
-lessfive_4:
-	mov %r0, $7
-lessfive_9:
-	jmp lessfive_10
-lessfive_3:
-	mov %r0, $8
-lessfive_10:
-	jmp lessfive_11
-lessfive_2:
-	mov %r0, $9
-lessfive_11:
-	jmp lessfive_12
-lessfive_1:
-	mov %r0, $10
-lessfive_12:
-	jmp lessfive_done
-lessfive_done:
+	mov %r0, 4(%bp)
+	cmp %r0, $1
+	jne isfirstthree_1
+	mov %r0, $1
+	mov -2(%bp), %r0
+	jmp isfirstthree_2
+isfirstthree_1:
+	mov %r0, 4(%bp)
+	cmp %r0, $2
+	jne isfirstthree_3
+	mov %r0, $2
+	mov -2(%bp), %r0
+	jmp isfirstthree_4
+isfirstthree_3:
+	mov %r0, 4(%bp)
+	cmp %r0, $3
+	jne isfirstthree_5
+	mov %r0, $3
+	mov -2(%bp), %r0
+	jmp isfirstthree_6
+isfirstthree_5:
+	mov %r0, $0
+	mov -2(%bp), %r0
+isfirstthree_6:
+isfirstthree_4:
+isfirstthree_2:
+	mov %r0, -2(%bp)
+	jmp isfirstthree_done
+isfirstthree_done:
 	add %sp, $2
 	ret 1

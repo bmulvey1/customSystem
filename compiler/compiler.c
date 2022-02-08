@@ -707,7 +707,8 @@ void RegisterStateStack_pop(struct RegisterStateStack *s)
 struct registerState **RegisterStateStack_peek(struct RegisterStateStack *s)
 {
     printf("peek, size is %d\n", s->size);
-    for(int i = 0; i < s->size; i++){
+    for (int i = 0; i < s->size; i++)
+    {
         printf("STACK ENTRY %d\n", i);
         printRegisterStatesHorizontal(s->stack[i]);
     }
@@ -1308,7 +1309,10 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
 
     struct RegisterStateStack *stateStack = newRegisterStateStack();
 
-    int TACindex = 0;
+    // fix off-by-one error caused by inserting mandatory function entry instructions
+    // callee-save registers, modify stack pointer to make room for local vars
+    // these will all correspond to TAC index 0
+    int TACindex = 1;
     char *outputStr;
 
     for (struct TACLine *line = function->codeBlock; line != NULL; line = line->nextLine)
@@ -1555,10 +1559,9 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             generateArithmeticCode(line, registerStates, outputBlock, function, TACindex);
             break;
         }
-        
 
-        //printRegisterStatesHorizontal(registerStates);
-        
+        // printRegisterStatesHorizontal(registerStates);
+
         TACindex++;
     }
 
@@ -1657,15 +1660,20 @@ int main(int argc, char **argv)
             int TACindex = 0;
             while (runner != NULL)
             {
+                int lineWidth = 0;
                 while (runner->correspondingTACindex <= TACindex)
                 {
                     if (runner->data[strlen(runner->data) - 1] != ':')
                     {
-                        printf("\t");
+                        lineWidth = printf("\t") * 8;
                         fprintf(outFile, "\t");
                     }
+                    else
+                    {
+                        lineWidth = 0;
+                    }
 
-                    printf("%s", runner->data);
+                    lineWidth += printf("%s", runner->data);
                     fprintf(outFile, "%s\n", runner->data);
 
                     struct ASMline *old = runner;
@@ -1695,7 +1703,11 @@ int main(int argc, char **argv)
                         break;
 
                     default:
-                        printf("\t\t;");
+                        while (lineWidth < 32)
+                        {
+                            lineWidth += printf(" ");
+                        }
+                        printf(";");
                         printTACLine(tacrunner);
                     }
 
