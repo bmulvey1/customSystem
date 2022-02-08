@@ -94,12 +94,6 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         thisExpression->operandTypes[1] = vt_literal;
         break;
 
-        /*case t_call:
-            thisExpression->operands[1] = getTempString(tl, *tempNum);
-            thisExpression->operandTypes[1] = vt_temp;
-            returnExpression = prependTAC(returnExpression, linearizeFunctionCall(it->child, tempNum, tl));
-            break;*/
-
     default:
         printf("Unexpected type seen while linearizing expression! Expected variable or literal\n");
         exit(1);
@@ -123,7 +117,6 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         thisExpression->operation = tt_cmp;
         break;
     }
-    // thisExpression->operation = it->value;
 
     switch (it->child->sibling->type)
     {
@@ -155,55 +148,10 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         thisExpression->operandTypes[2] = vt_literal;
         break;
 
-        /*case t_call:
-            thisExpression->operands[2] = getTempString(tl, *tempNum);
-            thisExpression->operandTypes[2] = vt_temp;
-            returnExpression = prependTAC(returnExpression, linearizeFunctionCall(it->child->sibling, tempNum, tl));
-            break;*/
-
     default:
         printf("Unexpected type seen while linearizing expression!\n Expected variable or literal\n");
         exit(1);
     }
-
-    /*
-    // check right child, same as left but with correct address index
-    if (it->child->sibling->type == t_unOp || it->child->sibling->type == t_call)
-    {
-        thisExpression->operands[2] = getTempString(tl, *tempNum);
-        thisExpression->operandTypes[2] = vt_temp;
-        // when recursing, we need to prepend this line so things happen in the correct order
-        // figure out what to prepend to, then set the return expression TACLine to the head of the block
-        if (returnExpression != NULL)
-            returnExpression = prependTAC(returnExpression, linearizeExpression(it->child->sibling, tempNum, tl));
-        else
-            returnExpression = prependTAC(thisExpression, linearizeExpression(it->child->sibling, tempNum, tl));
-    }
-    else
-    {
-        thisExpression->operands[2] = it->child->sibling->value;
-        switch (it->child->sibling->type)
-        {
-        case t_name:
-            thisExpression->operandTypes[2] = vt_var;
-            break;
-
-        case t_literal:
-            thisExpression->operandTypes[2] = vt_literal;
-            break;
-
-            case t_call:
-            thisExpression->operands[2] = getTempString(tl, *tempNum);
-            thisExpression->operandTypes[2] = vt_temp;
-            returnExpression = prependTAC(returnExpression, linearizeFunctionCall(it->child->sibling, tempNum, tl));
-            break;
-
-        default:
-            printf("Unexpected type seen while linearizing expression!\n Expected variable or literal\n");
-            exit(1);
-        }
-    }
-    */
 
     // if we have prepended, make sure to return the first line of TAC
     // otherwise there is only one line of TAC to return, so return that
@@ -311,11 +259,11 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             break;
 
         case t_if:
-            appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
+            sltac = appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
             
             struct TACLine *pushState = newTACLine();
             pushState->operation = tt_pushstate;
-            sltac = appendTAC(sltac, pushState);
+            appendTAC(sltac, pushState);
             
             struct TACLine *noifJump = newTACLine();
 

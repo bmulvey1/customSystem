@@ -703,7 +703,7 @@ void RegisterStateStack_pop(struct RegisterStateStack *s)
 
 struct registerState **RegisterStateStack_peek(struct RegisterStateStack *s)
 {
-    return s->stack[0];
+    return s->stack[s->size - 1];
 }
 
 int findUnallocatedRegister(struct registerState **registerStates)
@@ -1599,7 +1599,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
     outputStr = malloc(16 * sizeof(char));
     sprintf(outputStr, "sub %%sp, $%d", function->table->varc * 2);
     ASMblock_prepend(outputBlock, outputStr, 0);
-    
+
     entryLabel->next = outputBlock->head;
     outputBlock->head = entryLabel;
 
