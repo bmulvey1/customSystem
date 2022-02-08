@@ -664,6 +664,8 @@ void RegisterStateStack_push(struct RegisterStateStack *s, struct registerState 
     s->size++;
     free(s->stack);
     s->stack = newStack;
+    printf("push, stack size is %d\n", s->size);
+
     /*for (int i = 0; i < s->size; i++)
     {
         printRegisterStates(s->stack[i]);
@@ -695,6 +697,7 @@ void RegisterStateStack_pop(struct RegisterStateStack *s)
     {
         s->stack = NULL;
     }
+    printf("pop, stack size is %d\n", s->size);
     /*for (int i = 0; i < s->size; i++)
     {
         printRegisterStates(s->stack[i]);
@@ -703,6 +706,7 @@ void RegisterStateStack_pop(struct RegisterStateStack *s)
 
 struct registerState **RegisterStateStack_peek(struct RegisterStateStack *s)
 {
+    printf("peek, size is %d\n", s->size);
     return s->stack[s->size - 1];
 }
 

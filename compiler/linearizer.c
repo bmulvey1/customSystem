@@ -260,11 +260,11 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
 
         case t_if:
             sltac = appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
-            
+
             struct TACLine *pushState = newTACLine();
             pushState->operation = tt_pushstate;
             appendTAC(sltac, pushState);
-            
+
             struct TACLine *noifJump = newTACLine();
 
             // generate a label and figure out condition to jump when the if statement isn't executed
@@ -359,9 +359,12 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
                 appendTAC(noifLabel, elseBody);
                 appendTAC(sltac, noifLabel);
 
-                struct TACLine *endElseRestore = newTACLine();
-                endElseRestore->operation = tt_restorestate;
-                appendTAC(sltac, endElseRestore);
+                if (findLastTAC(ifBody)->operation != tt_return)
+                {
+                    struct TACLine *endElseRestore = newTACLine();
+                    endElseRestore->operation = tt_restorestate;
+                    appendTAC(sltac, endElseRestore);
+                }
 
                 if (ifBlockFinalTAC->operation != tt_return)
                 {
@@ -372,7 +375,7 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             {
                 appendTAC(sltac, noifLabel);
             }
-
+            
             struct TACLine *popStateLine = newTACLine();
             popStateLine->operation = tt_popstate;
             appendTAC(sltac, popStateLine);
