@@ -58,6 +58,16 @@ void walkStatement(struct astNode *it, struct symbolTable *wip)
 
         break;
 
+    case t_while:
+        struct astNode *whileRunner = it->child->sibling->child;
+        while (whileRunner != NULL)
+        {
+            walkStatement(whileRunner, wip);
+            whileRunner = whileRunner->sibling;
+        }
+
+        break;
+
     // function call/return can't create new symbols so ignore
     case t_call:
     case t_return:
@@ -113,7 +123,7 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
                 ifRunner = ifRunner->sibling;
             }
 
-            // no, really!
+            // no, really! (if an else block exists, walk that too)
             if (functionRunner->child->sibling->sibling != NULL)
             {
                 ifRunner = functionRunner->child->sibling->sibling->child->child;
@@ -127,6 +137,13 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
             break;
 
         case t_while:
+            struct astNode *whileRunner = functionRunner->child->sibling->child;
+            while (whileRunner != NULL)
+            {
+                walkStatement(whileRunner, subTable);
+                whileRunner = whileRunner->sibling;
+            }
+
             break;
 
         // otherwise we are looking at the body of the function, which is a statement list
@@ -1010,7 +1027,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
                     {
                         // if the existing variable can't be overwritten
                         // OR destination var already exists in a register
-                        if (!canOverwrite(registerStates, existingVarIndex) || destinationExists)
+                        if (registerStates[existingVarIndex]->live || destinationExists)
                         {
                             // if not, copy the existing variable from its register to the destination
                             outputStr = malloc(18 * sizeof(char));
@@ -1076,7 +1093,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
                 {
                     // if the existing variable can't be overwritten
                     // OR destination var already exists in a register
-                    if (!canOverwrite(registerStates, existingVarIndex) || destinationExists)
+                    if (registerStates[existingVarIndex]->live || destinationExists)
                     {
                         // if not, copy the existing variable from its register to the destination
                         outputStr = malloc(18 * sizeof(char));
@@ -1113,7 +1130,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
                 else
                 {
                     // see if the first var can be overwritten
-                    if (!canOverwrite(registerStates, existingVarIndex))
+                    if (registerStates[existingVarIndex]->live)
                     {
                         outputStr = malloc(18 * sizeof(char));
                         sprintf(outputStr, "mov %%r%d, %%r%d", destinationRegister, existingVarIndex);
@@ -1145,7 +1162,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
                 {
                     // if we can't overwrite the register containing the second var,
                     // AND the destination variable doesn't exist in a register already
-                    if (canOverwrite(registerStates, secondVarIndex) && !destinationExists)
+                    if (registerStates[secondVarIndex]->live && !destinationExists)
                     {
                         destinationRegister = secondVarIndex;
                         outputStr = malloc(18 * sizeof(char));
@@ -1161,7 +1178,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
                 {
                     // if we can't overwrite the register containing the first var,
                     // OR the destination variable exists in a register already
-                    if (!canOverwrite(registerStates, firstVarIndex) || destinationExists)
+                    if (registerStates[firstVarIndex]->live || destinationExists)
                     {
                         // if not, copy the existing variable from its register to the destination
                         outputStr = malloc(18 * sizeof(char));
@@ -1185,7 +1202,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
             {
                 // if we can't overwrite the register containing the first var,
                 // OR the destination variable exists in a register already
-                if (!canOverwrite(registerStates, firstVarIndex) || destinationExists)
+                if (registerStates[firstVarIndex]->live || destinationExists)
                 {
                     // if not, copy the existing variable from its register to the destination
                     outputStr = malloc(18 * sizeof(char));
@@ -1211,7 +1228,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
                 if (line->reorderable)
                 {
                     // see if the register can be overwritten
-                    if (!canOverwrite(registerStates, secondVarIndex))
+                    if (registerStates[secondVarIndex]->live)
                     {
                         // if not, copy the existing variable from its register to the destination
                         outputStr = malloc(18 * sizeof(char));
@@ -1256,7 +1273,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
             }
         }
     }
-
+    printf("%%r%d is live\n", destinationRegister);
     registerStates[destinationRegister]->contains = line->operands[0];
     registerStates[destinationRegister]->live = 1;
     registerStates[destinationRegister]->touched = 1;
@@ -1279,10 +1296,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
 
     struct RegisterStateStack *stateStack = newRegisterStateStack();
 
-    // fix off-by-one error caused by inserting mandatory function entry instructions
-    // callee-save registers, modify stack pointer to make room for local vars
-    // these will all correspond to TAC index 0
-    int TACindex = 1;
+    int TACindex = 0;
     char *outputStr;
 
     for (struct TACLine *line = function->codeBlock; line != NULL; line = line->nextLine)
@@ -1291,6 +1305,8 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
         {
             if (registerStates[i]->dying)
             {
+                    printf("killing %%r%d\n", i);
+
                 registerStates[i]->live = 0;
             }
             registerStates[i]->dying = 0;
@@ -1303,6 +1319,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                 int varIndex = findTemp(registerStates, lt->variable);
                 if (varIndex != -1)
                 {
+                    printf("killing %%r%d\n", varIndex);
                     registerStates[varIndex]->live = 0;
                 }
             }
@@ -1629,6 +1646,28 @@ int main(int argc, char **argv)
         if (theTable->entries[i]->type == e_function)
         {
             struct Lifetime *theseLifetimes = findLifetimes(theTable->entries[i]->entry);
+            for (struct Lifetime *ltRunner = theseLifetimes; ltRunner != NULL; ltRunner = ltRunner->next)
+            {
+                printf("%s: %d-%d\n", ltRunner->variable, ltRunner->start, ltRunner->end);
+            }
+
+            int z = 0;
+            for (struct TACLine *e = ((struct functionEntry *)theTable->entries[i]->entry)->codeBlock; e != NULL; e = e->nextLine)
+            {
+                printf("%d: ", z);
+                printTACLine(e);
+                printf("\t\t~");
+                for (struct Lifetime *ltRunner = theseLifetimes; ltRunner != NULL; ltRunner = ltRunner->next)
+                {
+                    if (ltRunner->start <= z && ltRunner->end >= z)
+                    {
+                        printf("%s ", ltRunner->variable);
+                    }
+                }
+                z += 1;
+                printf("\n");
+            }
+
             struct ASMblock *output = generateCode(theTable->entries[i]->entry, theTable->entries[i]->name, theseLifetimes);
             // run along all the lines of asm output from this funtcion, printing and freeing as we go
             struct ASMline *runner = output->head;
@@ -1679,6 +1718,7 @@ int main(int argc, char **argv)
                         printf("\t\t\t");
                         printf(";");
                         printTACLine(tacrunner);
+                        printf("\n");
                     }
 
                     tacrunner = tacrunner->nextLine;
@@ -1694,8 +1734,6 @@ int main(int argc, char **argv)
     freeDictionary(parseDict);
     freeAST(program);
     freeSymTab(theTable);
-
-    // printTACLine(head);
 
     printf("done printing\n");
 }

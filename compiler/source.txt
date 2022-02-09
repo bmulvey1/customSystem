@@ -11,10 +11,14 @@ fun fib(var n)
 
 # find all fibonacci numbers up to and including n
 fun firstnfibs(var n){
-    var i = 0;
+    var i = 1;
+    var j;
     var result;
     while(i <= n){
-        result = fib(n);
+        j = n - (i - 1);
+        result = fib(i);
+        result = fib(j);
+
         i = i + 1;
     }
 

@@ -86,6 +86,7 @@ void printTACLine(struct TACLine *it)
 {
     char *operationStr;
     char fallingThrough = 0;
+    int width;
     switch (it->operation)
     {
     case tt_add:
@@ -96,7 +97,7 @@ void printTACLine(struct TACLine *it)
         if (!fallingThrough)
             operationStr = "-";
 
-        printf("%s = %s %s %s", it->operands[0], it->operands[1], operationStr, it->operands[2]);
+        width = printf("%s = %s %s %s", it->operands[0], it->operands[1], operationStr, it->operands[2]);
         break;
 
     case tt_jg:
@@ -106,54 +107,57 @@ void printTACLine(struct TACLine *it)
     case tt_je:
     case tt_jne:
     case tt_jmp:
-        printf("%s label %ld", getAsmOp(it->operation), (long int)it->operands[0]);
+        width = printf("%s label %ld", getAsmOp(it->operation), (long int)it->operands[0]);
         break;
 
     case tt_cmp:
-        printf("cmp %s %s", it->operands[1], it->operands[2]);
+        width = printf("cmp %s %s", it->operands[1], it->operands[2]);
         break;
 
     case tt_assign:
-        printf("%s = %s", it->operands[0], it->operands[1]);
+        width = printf("%s = %s", it->operands[0], it->operands[1]);
         break;
 
     case tt_push:
-        printf("push %s", it->operands[0]);
+        width = printf("push %s", it->operands[0]);
         break;
 
     case tt_call:
         if(it->operands[0] == NULL)
-            printf("call %s", it->operands[1]);
+            width = printf("call %s", it->operands[1]);
         else
-            printf("%s = call %s", it->operands[0], it->operands[1]);
+            width = printf("%s = call %s", it->operands[0], it->operands[1]);
 
         break;
 
     case tt_label:
-        printf("~label %ld:", (long int)it->operands[0]);
+        width = printf("~label %ld:", (long int)it->operands[0]);
         break;
 
     case tt_return:
-        printf("ret %s", it->operands[0]);
+        width = printf("ret %s", it->operands[0]);
         break;
 
     case tt_pushstate:
-        printf("PUSHSTATE");
+        width = printf("PUSHSTATE");
         break;
 
     case tt_restorestate:
-        printf("RESTORESTATE");
+        width = printf("RESTORESTATE");
         break;
 
     case tt_resetstate:
-        printf("RESETSTATE");
+        width = printf("RESETSTATE");
         break;
 
     case tt_popstate:
-        printf("POPSTATE");
+        width = printf("POPSTATE");
         break;
     }
-    printf("%s\n", it->reorderable ? " - Reorderable" : "");
+    width += printf("%s", it->reorderable ? " - Reorderable" : "");
+    while(width++ < 24){
+        printf(" ");
+    }
     // printf("\t%d %d %d\n", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
 }
 
@@ -168,6 +172,7 @@ void printTACBlock(struct TACLine *it)
         }
 
         printTACLine(it);
+        printf("\n");
         lineIndex++;
         it = it->nextLine;
     }
