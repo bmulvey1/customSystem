@@ -79,7 +79,7 @@ char lookahead()
     return r;
 }
 
-#define RESERVED_COUNT 20
+#define RESERVED_COUNT 21
 
 char *reserved[RESERVED_COUNT] = {
     "var",
@@ -87,6 +87,7 @@ char *reserved[RESERVED_COUNT] = {
     "return",
     "if",
     "else",
+    "while",
     ",",
     "(",
     ")",
@@ -109,6 +110,7 @@ enum token reserved_t[RESERVED_COUNT] = {
     t_return,
     t_if,
     t_else,
+    t_while,
     t_comma,
     t_lParen,
     t_rParen,
@@ -150,7 +152,7 @@ enum token scan()
             if (!strcmp(buffer, reserved[i]))
             {
                 // allow catching both '<', '>', '=', and '<=', '>=', '=='
-                if (buffer[0] == '<' || buffer[0] == '>' || buffer [0] == '=')
+                if (buffer[0] == '<' || buffer[0] == '>' || buffer[0] == '=')
                 {
                     if (lookahead() != '=')
                     {
@@ -337,6 +339,7 @@ struct astNode *parseStatementList(struct Dictionary *dict)
         case t_name:
         case t_return:
         case t_if:
+        case t_while:
             stmt = parseStatement(dict);
             if (stmtList == NULL)
                 stmtList = stmt;
@@ -422,6 +425,10 @@ struct astNode *parseStatement(struct Dictionary *dict)
 
     case t_if:
         statement = parseIfStatement(dict);
+        break;
+
+    case t_while:
+        statement = parseWhileLoop(dict);
         break;
 
     default:
@@ -631,4 +638,32 @@ struct astNode *parseElseStatement(struct Dictionary *dict)
     }
 
     return elseStatement;
+}
+
+struct astNode *parseWhileLoop(struct Dictionary *dict)
+{
+    printf("parsing while loop\n");
+    struct astNode *whileLoop = match(t_while, dict);
+    consume(t_lParen);
+    astNode_insertChild(whileLoop, parseExpression(dict));
+    consume(t_rParen);
+    struct astNode *doBlock = newastNode(t_do, "do");
+    astNode_insertChild(whileLoop, doBlock);
+    printf("expression evaluated\n");
+    if (lookahead() == '{')
+    {
+        consume(t_lCurly);
+        astNode_insertChild(doBlock, parseStatementList(dict));
+        consume(t_rCurly);
+    }
+    else
+    {
+        printf("Expected '{' after while(condition)!\n");
+        exit(1);
+    }
+
+
+    // printf("done parsing if statement - here's what we got!\n");
+    // printAST(ifStatement, 0);
+    return whileLoop;
 }

@@ -42,3 +42,5 @@ struct astNode *parseFunctionCall(struct astNode *name, struct Dictionary *dict)
 struct astNode *parseIfStatement(struct Dictionary *dict);
 
 struct astNode *parseElseStatement(struct Dictionary *dict);
+
+struct astNode* parseWhileLoop(struct Dictionary *dict);

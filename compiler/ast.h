@@ -9,6 +9,7 @@ enum token
     t_return,
     t_if,
     t_else,
+    t_while,
     t_do,
     t_name,
     t_literal,
