@@ -1305,7 +1305,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
         {
             if (registerStates[i]->dying)
             {
-                    printf("killing %%r%d\n", i);
+                printf("killing %%r%d\n", i);
 
                 registerStates[i]->live = 0;
             }
@@ -1383,6 +1383,10 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             // nonexistent/unused return value
             if (line->operands[0] == NULL)
             {
+                if (registerStates[0]->live)
+                {
+                    relocateRegister(registerStates, outputBlock, 0, findUnallocatedRegister(registerStates), TACindex);
+                }
                 outputStr = malloc(32 * sizeof(char));
                 sprintf(outputStr, "call %s", line->operands[1]);
                 ASMblock_append(outputBlock, outputStr, TACindex);
