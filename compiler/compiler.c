@@ -126,6 +126,9 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
 
             break;
 
+        case t_while:
+            break;
+
         // otherwise we are looking at the body of the function, which is a statement list
         default:
             walkStatement(functionRunner, subTable);
@@ -631,10 +634,6 @@ struct registerState **duplicateRegisterStates(struct registerState **theStates)
         duplicateStates[i] = malloc(sizeof(struct registerState));
         memcpy(duplicateStates[i], theStates[i], sizeof(struct registerState));
     }
-    printf("DUPLICATED STATES:\n");
-    printRegisterStatesHorizontal(theStates);
-    printRegisterStatesHorizontal(duplicateStates);
-    printf("\n");
     return duplicateStates;
 }
 
@@ -667,14 +666,6 @@ void RegisterStateStack_push(struct RegisterStateStack *s, struct registerState 
     s->size++;
     free(s->stack);
     s->stack = newStack;
-    printf("push, stack size is %d\n", s->size);
-
-    printf("here's the stack:\n");
-    for (int i = 0; i < s->size; i++)
-    {
-        printRegisterStatesHorizontal(s->stack[i]);
-    }
-    printf("\n");
 }
 
 void RegisterStateStack_pop(struct RegisterStateStack *s)
@@ -694,25 +685,10 @@ void RegisterStateStack_pop(struct RegisterStateStack *s)
     s->size--;
     free(s->stack);
     s->stack = newStack;
-
-    printf("pop, stack size is %d\n", s->size);
-    printf("here's the stack:\n");
-    for (int i = 0; i < s->size; i++)
-    {
-        printRegisterStatesHorizontal(s->stack[i]);
-    }
-    printf("\n");
 }
 
 struct registerState **RegisterStateStack_peek(struct RegisterStateStack *s)
 {
-    printf("peek, size is %d\n", s->size);
-    for (int i = 0; i < s->size; i++)
-    {
-        printf("STACK ENTRY %d\n", i);
-        printRegisterStatesHorizontal(s->stack[i]);
-    }
-    printf("\n");
     return s->stack[s->size - 1];
 }
 
@@ -791,10 +767,6 @@ int findTemp(struct registerState **registerStates, char *var)
 
 void restoreRegisterStates(struct registerState **current, struct registerState **desired, struct ASMblock *outputBlock, struct functionEntry *function, int TACindex)
 {
-    /*printf("Restore from:\n");
-    printRegisterStates(current);
-    printf("To:\n");
-    printRegisterStates(desired);*/
     char *outputStr;
 
     // int scratchIndex = findUnallocatedRegister(current);
@@ -866,8 +838,6 @@ void restoreRegisterStates(struct registerState **current, struct registerState 
         current[i]->live = desired[i]->live;
         current[i]->dirty = desired[i]->dirty;
     }
-    /*printRegisterStates(current);
-    printf("\n\n\n");*/
 }
 
 // copy one register to a different one, freeing up the source
@@ -1568,9 +1538,6 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             generateArithmeticCode(line, registerStates, outputBlock, function, TACindex);
             break;
         }
-
-        // printRegisterStatesHorizontal(registerStates);
-
         TACindex++;
     }
 

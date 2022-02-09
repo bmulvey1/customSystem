@@ -262,6 +262,7 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             break;
 
         case t_if:
+        {
             sltac = appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
 
             struct TACLine *pushState = newTACLine();
@@ -318,7 +319,7 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             noifLabel->operands[0] = (char *)((long int)++(*labelCount));
             noifJump->operands[0] = (char *)(long int)(*labelCount);
             // printf("\n\n~~~\n");
-
+            
             struct TACLine *ifBody = linearizeStatementList(runner->child->sibling->child, tempNum, labelCount, tl);
 
             appendTAC(sltac, ifBody);
@@ -382,8 +383,97 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             struct TACLine *popStateLine = newTACLine();
             popStateLine->operation = tt_popstate;
             appendTAC(sltac, popStateLine);
-
+        }
             break;
+
+        case t_while:
+        {
+            struct TACLine *pushState = newTACLine();
+            pushState->operation = tt_pushstate;
+            sltac = appendTAC(sltac, pushState);
+
+            struct TACLine* beginWhile = newTACLine();
+            beginWhile->operation = tt_label;
+            beginWhile->operands[0] = (char *)((long int)++(*labelCount));
+            appendTAC(sltac, beginWhile);   
+
+            appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
+
+            struct TACLine *noWhileJump = newTACLine();
+
+            // generate a label and figure out condition to jump when the if statement isn't executed
+            char *cmpOp = runner->child->value;
+            switch (cmpOp[0])
+            {
+            case '<':
+                switch (cmpOp[1])
+                {
+                case '=':
+                    noWhileJump->operation = tt_jg;
+                    break;
+
+                default:
+                    noWhileJump->operation = tt_jge;
+                    break;
+                }
+                break;
+
+            case '>':
+                switch (cmpOp[1])
+                {
+                case '=':
+                    noWhileJump->operation = tt_jl;
+                    break;
+
+                default:
+                    noWhileJump->operation = tt_jle;
+                    break;
+                }
+                break;
+
+            case '!':
+                noWhileJump->operation = tt_je;
+                break;
+
+            case '=':
+                noWhileJump->operation = tt_jne;
+                break;
+            }
+            struct TACLine *noifLabel = newTACLine();
+            noifLabel->operation = tt_label;
+            appendTAC(sltac, noWhileJump);
+
+
+            struct TACLine* noWhileLabel = newTACLine();
+            noWhileLabel->operation = tt_label;
+            // bit hax (⌐▨_▨)
+            // (store the label index using the char* for this TAC line)
+            // (avoids having to use more fields in the struct)
+            noWhileLabel->operands[0] = (char *)((long int)++(*labelCount));
+            noWhileJump->operands[0] = (char *)(long int)(*labelCount);
+            // printf("\n\n~~~\n");
+            
+            struct TACLine *whileBody = linearizeStatementList(runner->child->sibling->child, tempNum, labelCount, tl);
+
+            appendTAC(sltac, whileBody);
+
+            struct TACLine *restoreState = newTACLine();
+            restoreState->operation = tt_restorestate;
+            appendTAC(sltac, restoreState);
+
+            struct TACLine *loopJump = newTACLine();
+            loopJump->operation = tt_jmp;
+            loopJump->operands[0] = beginWhile->operands[0];
+            appendTAC(sltac, loopJump);
+
+            appendTAC(sltac, noWhileLabel);
+
+            struct TACLine* endWhilePop = newTACLine();
+            endWhilePop->operation = tt_popstate;
+            appendTAC(sltac, endWhilePop);
+
+        }
+        break;
 
         default:
             printf("Something broke :(\n");

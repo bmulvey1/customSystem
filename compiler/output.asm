@@ -24,10 +24,22 @@ fib_done:
 	add %sp, $0
 	ret 1
 firstnfibs:
-	sub %sp, $2
+	sub %sp, $4
+	push %r1
 	mov %r0, $0
-	push %r0
+firstnfibs_1:
+	cmp %r0, 4(%bp)
+	jg firstnfibs_2
+	push 4(%bp)
+	mov %r1, %r0
 	call fib
+	mov %r1, %r1
+	add %r1, $1
+	mov %r0, -2(%bp)
+	mov %r0, %r1
+	jmp firstnfibs_1
+firstnfibs_2:
 firstnfibs_done:
-	add %sp, $2
+	pop %r1
+	add %sp, $4
 	ret 1

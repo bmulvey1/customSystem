@@ -122,7 +122,6 @@ void printTACLine(struct TACLine *it)
         break;
 
     case tt_call:
-        printf("yur %p %p\n", it->operands[0], it->operands[1]);
         if(it->operands[0] == NULL)
             printf("call %s", it->operands[1]);
         else
