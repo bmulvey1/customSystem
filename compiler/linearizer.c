@@ -242,7 +242,7 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             break;
 
         case t_call:
-            // since for a raw call, return value is not used, null out that operand
+            // for a raw call, return value is not used, null out that operand
             struct TACLine* callTAC = linearizeFunctionCall(runner, tempNum, tl);
             findLastTAC(callTAC)->operands[0] = NULL;
             sltac = appendTAC(sltac, callTAC);
@@ -263,6 +263,7 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
 
         case t_if:
         {
+            // linearize the expression we will test
             sltac = appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
 
             struct TACLine *pushState = newTACLine();
@@ -337,6 +338,7 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             if (runner->child->sibling->sibling != NULL)
             {
                 struct TACLine *ifBlockFinalTAC = findLastTAC(ifBody);
+
                 // don't need this jump and label when the if statement ends in a return
                 struct TACLine *endIfLabel;
                 if (ifBlockFinalTAC->operation != tt_return)
@@ -363,15 +365,12 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
                 appendTAC(noifLabel, elseBody);
                 appendTAC(sltac, noifLabel);
 
-                if (findLastTAC(ifBody)->operation != tt_return)
+                // only need to restore the state if execution will continue after the if/else
+                if (ifBlockFinalTAC->operation != tt_return)
                 {
                     struct TACLine *endElseRestore = newTACLine();
                     endElseRestore->operation = tt_restorestate;
                     appendTAC(sltac, endElseRestore);
-                }
-
-                if (ifBlockFinalTAC->operation != tt_return)
-                {
                     appendTAC(sltac, endIfLabel);
                 }
             }
@@ -380,6 +379,7 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
                 appendTAC(sltac, noifLabel);
             }
             
+            // throw away the saved register states
             struct TACLine *popStateLine = newTACLine();
             popStateLine->operation = tt_popstate;
             appendTAC(sltac, popStateLine);
@@ -388,20 +388,22 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
 
         case t_while:
         {
+            // push state before entering the loop
             struct TACLine *pushState = newTACLine();
             pushState->operation = tt_pushstate;
             sltac = appendTAC(sltac, pushState);
 
+            // generate a label for the top of the while loop
             struct TACLine* beginWhile = newTACLine();
             beginWhile->operation = tt_label;
             beginWhile->operands[0] = (char *)((long int)++(*labelCount));
             appendTAC(sltac, beginWhile);   
 
+            // linearize the expression we will test
             appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
 
+            // generate a label and figure out condition to jump when the while loop isn't executed
             struct TACLine *noWhileJump = newTACLine();
-
-            // generate a label and figure out condition to jump when the if statement isn't executed
             char *cmpOp = runner->child->value;
             switch (cmpOp[0])
             {
@@ -451,23 +453,25 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             // (avoids having to use more fields in the struct)
             noWhileLabel->operands[0] = (char *)((long int)++(*labelCount));
             noWhileJump->operands[0] = (char *)(long int)(*labelCount);
-            // printf("\n\n~~~\n");
-            
-            struct TACLine *whileBody = linearizeStatementList(runner->child->sibling->child, tempNum, labelCount, tl);
 
+            // linearize the body of the loop            
+            struct TACLine *whileBody = linearizeStatementList(runner->child->sibling->child, tempNum, labelCount, tl);
             appendTAC(sltac, whileBody);
 
+            // restore the registers to a known state at the end of every loop
             struct TACLine *restoreState = newTACLine();
             restoreState->operation = tt_restorestate;
             appendTAC(sltac, restoreState);
 
+            // jump back to the condition test
             struct TACLine *loopJump = newTACLine();
             loopJump->operation = tt_jmp;
             loopJump->operands[0] = beginWhile->operands[0];
             appendTAC(sltac, loopJump);
 
+            // at the very end, add the label we jump to if the condition test fails
             appendTAC(sltac, noWhileLabel);
-
+            // throw away the saved state when done with the loop
             struct TACLine* endWhilePop = newTACLine();
             endWhilePop->operation = tt_popstate;
             appendTAC(sltac, endWhilePop);
