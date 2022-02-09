@@ -1,26 +1,18 @@
 
-# this function will (one day) compute the nth fibonacci number 
-fun fibb(var n)
+# this function computes the nth fibonacci number 
+fun fib(var n)
 {
     if(n < 2)
         return n;
     else
-        return fibb(n - 1) + fibb(n - 2);
+        return fib(n - 1) + fib(n - 2);
     
 }
 
-fun isfirstthree(var n){
-    var answer;
-    if(n == 1){
-        answer = 1;
-    } else if(n == 2){
-        answer = 2;
-    }else if(n == 3){
-        answer = 3;
-    }else{
-        answer = 0;
-    }
-    return answer;
+fun firstnfibs(var n){
+    var i = 0;
+    fib(i);
+
 }
 
 

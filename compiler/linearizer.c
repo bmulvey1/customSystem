@@ -242,7 +242,10 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             break;
 
         case t_call:
-            sltac = appendTAC(sltac, linearizeFunctionCall(runner, tempNum, tl));
+            // since for a raw call, return value is not used, null out that operand
+            struct TACLine* callTAC = linearizeFunctionCall(runner, tempNum, tl);
+            findLastTAC(callTAC)->operands[0] = NULL;
+            sltac = appendTAC(sltac, callTAC);
             break;
 
         case t_return:

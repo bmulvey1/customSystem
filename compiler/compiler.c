@@ -1393,41 +1393,50 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
 
         case tt_call:
         {
-            // if the thing in %r0 isn't just being reassigned, we might need to relocate it
-            if (strcmp(line->operands[0], registerStates[0]->contains))
+            // nonexistent/unused return value
+            if (line->operands[0] == NULL)
             {
-                // if: %r0 is live OR %r0 contains a dirty variable (not a temp)
-                if (registerStates[0]->live || (registerStates[0]->contains != NULL && registerStates[0]->contains[0] != '.' && registerStates[0]->dirty))
+                outputStr = malloc(32 * sizeof(char));
+                sprintf(outputStr, "call %s", line->operands[1]);
+                ASMblock_append(outputBlock, outputStr, TACindex);
+            }
+            // we are using the return value
+            else
+            {
+                // if the thing in %r0 isn't just being reassigned, we might need to relocate it
+                if (strcmp(line->operands[0], registerStates[0]->contains))
                 {
-                    // right now just move it to an unallocated register
-                    relocateRegister(registerStates, outputBlock, 0, findUnallocatedRegister(registerStates), TACindex);
+                    // if: %r0 is live OR %r0 contains a dirty variable (not a temp)
+                    if (registerStates[0]->live || (registerStates[0]->contains != NULL && registerStates[0]->contains[0] != '.' && registerStates[0]->dirty))
+                    {
+                        // right now just move it to an unallocated register
+                        relocateRegister(registerStates, outputBlock, 0, findUnallocatedRegister(registerStates), TACindex);
+                    }
+                }
+                // need a larger buffer because of labels
+                outputStr = malloc(32 * sizeof(char));
+                sprintf(outputStr, "call %s", line->operands[1]);
+                ASMblock_append(outputBlock, outputStr, TACindex);
+
+                // find whether the variable the return value goes into exists in a register
+                int existingVarIndex = findTemp(registerStates, line->operands[0]);
+                // if it does, just nullify that register since the value will be replaced entirely
+                if (existingVarIndex != -1)
+                {
+                    registerStates[existingVarIndex]->live = 0;
+                    registerStates[existingVarIndex]->dirty = 0;
+                    registerStates[existingVarIndex]->contains = NULL;
+                }
+                registerStates[0]->contains = line->operands[0];
+                registerStates[0]->live = 1;
+                registerStates[0]->touched = 1;
+                // check if we just assigned to a ssa temp variable or a real variable
+                // if it was a real variable, track that it's now dirty
+                if (line->operands[0][0] != '.')
+                {
+                    registerStates[0]->dirty = 1;
                 }
             }
-            // need a larger buffer because of labels
-            outputStr = malloc(32 * sizeof(char));
-            sprintf(outputStr, "call %s", line->operands[1]);
-            ASMblock_append(outputBlock, outputStr, TACindex);
-
-            // find whether the variable the return value goes into exists in a register
-            int existingVarIndex = findTemp(registerStates, line->operands[0]);
-            // if it does, just nullify that register since the value will be replaced entirely
-            if (existingVarIndex != -1)
-            {
-                registerStates[existingVarIndex]->live = 0;
-                registerStates[existingVarIndex]->dirty = 0;
-                registerStates[existingVarIndex]->contains = NULL;
-            }
-            registerStates[0]->contains = line->operands[0];
-            registerStates[0]->live = 1;
-            registerStates[0]->touched = 1;
-            // check if we just assigned to a ssa temp variable or a real variable
-            // if it was a real variable, track that it's now dirty
-            if (line->operands[0][0] != '.')
-            {
-                registerStates[0]->dirty = 1;
-            }
-
-            // modifyRegisterContents(registerStates, 0, line->operands[0]);
         }
         break;
 
@@ -1673,7 +1682,7 @@ int main(int argc, char **argv)
                         lineWidth = 0;
                     }
 
-                    lineWidth += printf("%s", runner->data);
+                    lineWidth += printf("%s\n", runner->data);
                     fprintf(outFile, "%s\n", runner->data);
 
                     struct ASMline *old = runner;
@@ -1684,16 +1693,13 @@ int main(int argc, char **argv)
                     {
                         break;
                     }
-                    if (runner->correspondingTACindex <= TACindex)
-                    {
-                        printf("\n");
-                    }
                 }
 
                 if (tacrunner != NULL)
                 {
                     switch (tacrunner->operation)
                     {
+                    case tt_call:
                     case tt_label:
                     case tt_restorestate:
                     case tt_popstate:
@@ -1703,10 +1709,7 @@ int main(int argc, char **argv)
                         break;
 
                     default:
-                        while (lineWidth < 32)
-                        {
-                            lineWidth += printf(" ");
-                        }
+                        printf("\t\t\t");
                         printf(";");
                         printTACLine(tacrunner);
                     }
