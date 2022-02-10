@@ -567,30 +567,19 @@ void printRegisterStates(struct registerState **registerStates)
         }
 
         if (registerStates[i]->live)
-        {
             printf("live ");
-        }
         else
-        {
             printf("dead ");
-        }
+
         if (registerStates[i]->dying)
-        {
             printf("dying ");
-        }
         else
-        {
             printf("      ");
-        }
 
         if (registerStates[i]->dirty)
-        {
             printf("dirty");
-        }
         else
-        {
             printf("     ");
-        }
 
         printf("\n");
     }
@@ -600,13 +589,11 @@ void printRegisterStates(struct registerState **registerStates)
 void printRegisterStatesHorizontal(struct registerState **registerStates)
 {
     for (int i = 0; i < 12; i++)
-    {
         if (registerStates[i]->contains != NULL)
-        {
             printf("   r%2d|", i);
-        }
-    }
+
     printf("\n");
+
     for (int i = 0; i < 12; i++)
     {
         if (registerStates[i]->contains != NULL)
@@ -615,19 +602,13 @@ void printRegisterStatesHorizontal(struct registerState **registerStates)
             for (j = 0; j < 6; j++)
             {
                 if (registerStates[i]->contains[j] != '\0')
-                {
                     printf("%c", registerStates[i]->contains[j]);
-                }
                 else
-                {
                     break;
-                }
             }
-            while (j < 6)
-            {
+
+            while (j++ < 6)
                 printf(" ");
-                j++;
-            }
 
             printf("|");
         }
@@ -676,9 +657,8 @@ void RegisterStateStack_push(struct RegisterStateStack *s, struct registerState 
 {
     struct registerState ***newStack = malloc((s->size + 1) * sizeof(struct registerState **));
     for (int i = 0; i < s->size; i++)
-    {
         newStack[i] = s->stack[i];
-    }
+
     newStack[s->size] = duplicateRegisterStates(stateList);
     s->size++;
     free(s->stack);
@@ -695,10 +675,9 @@ void RegisterStateStack_pop(struct RegisterStateStack *s)
     {
         newStack = malloc((s->size - 1) * sizeof(struct registerState **));
         for (int i = 0; i < s->size - 1; i++)
-        {
             newStack[i] = s->stack[i];
-        }
     }
+
     s->size--;
     free(s->stack);
     s->stack = newStack;
@@ -712,10 +691,8 @@ struct registerState **RegisterStateStack_peek(struct RegisterStateStack *s)
 int findUnallocatedRegister(struct registerState **registerStates)
 {
     for (int i = 0; i < 12; i++)
-    {
         if (registerStates[i]->live == 0)
             return i;
-    }
 
     printf("All registers are dirty when searching for unallocated register! Need to deal with register spilling!");
     exit(1);
@@ -880,52 +857,17 @@ int generateAssignmentCode(struct TACLine *line, struct registerState **register
 {
     int destinationIndex = findTemp(registerStates, line->operands[0]);
     if (destinationIndex == -1)
-    {
         destinationIndex = findUnallocatedRegister(registerStates);
-    }
 
     char *outputStr;
     if (line->operandTypes[1] == vt_literal)
     {
-
         outputStr = malloc(17 * sizeof(char));
         sprintf(outputStr, "mov %%r%d, $%s", destinationIndex, line->operands[1]);
         ASMblock_append(outputBlock, outputStr, TACindex);
     }
     else
     {
-        /*int sourceIndex = findTemp(registerStates, line->operands[1]);
-        if (sourceIndex == -1)
-        {
-            sourceIndex = findUnallocatedRegister(registerStates);
-            // this should get us a dead register but might warrant some checking
-            outputStr = malloc(16 * sizeof(char));
-            sprintf(outputStr, "mov %%r%d, %d(%%bp)", sourceIndex, findStackOffset(line->operands[1], function));
-            ASMblock_append(outputBlock, outputStr, TACindex);
-        }
-        // source var dies this step, it can be overwritten
-        if (!registerStates[sourceIndex]->live || registerStates[sourceIndex]->dying)
-        {
-            // don't need to do anything
-            int oldIndex = findTemp(registerStates, line->operands[0]);
-            if (oldIndex != -1)
-            {
-                registerStates[oldIndex]->contains = NULL;
-                registerStates[oldIndex]->live = 0;
-                registerStates[oldIndex]->dirty = 0;
-                registerStates[oldIndex]->dying = 0;
-            }
-
-            destinationIndex = sourceIndex;
-        }
-        // if the source variable can't be overwritten (is used after this step)
-        else
-        {
-            outputStr = malloc(15 * sizeof(char));
-            sprintf(outputStr, "mov %%r%d, %%r%d", destinationIndex, sourceIndex);
-            ASMblock_append(outputBlock, outputStr, TACindex);
-        }*/
-
         int sourceIndex = findTemp(registerStates, line->operands[1]);
         // if the variable whose value we are assigning to exists
         if (sourceIndex != -1)
@@ -933,15 +875,6 @@ int generateAssignmentCode(struct TACLine *line, struct registerState **register
             // if the variable can be overwritten
             if (!registerStates[sourceIndex]->live || registerStates[sourceIndex]->dying)
             {
-                // dump it out to stack if it's dirty
-                // (may be unnecessary given that the variable won't be used any more if we reach this point)
-                /*if (registerStates[sourceIndex]->dirty)
-                {
-                    outputStr = malloc(16 * sizeof(char));
-                    sprintf(outputStr, "mov %d(%%bp), %%r%d", findStackOffset(line->operands[1], function), sourceIndex);
-                    ASMblock_append(outputBlock, outputStr, TACindex);
-                }*/
-
                 // if the variable being assigned to exists in a register
                 // (was originally found up top by the original destinationregister assignment)
                 if (findTemp(registerStates, line->operands[0]) != -1)
@@ -1061,6 +994,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
                 outputStr = malloc(20 * sizeof(char));
                 // see if the variable is already in a register
                 int existingVarIndex = findTemp(registerStates, line->operands[2]);
+                
                 // if not, get the second operand from the stack
                 if (existingVarIndex == -1)
                 {
@@ -1273,7 +1207,6 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
             }
         }
     }
-    printf("%%r%d is live\n", destinationRegister);
     registerStates[destinationRegister]->contains = line->operands[0];
     registerStates[destinationRegister]->live = 1;
     registerStates[destinationRegister]->touched = 1;
@@ -1281,9 +1214,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
     // check if we just assigned to a ssa temp variable or a real variable
     // if it was a real variable, track that it's now dirty
     if (line->operands[0][0] != '.')
-    {
         registerStates[destinationRegister]->dirty = 1;
-    }
 }
 
 struct ASMblock *generateCode(struct functionEntry *function, char *functionName, struct Lifetime *lifetimes)
@@ -1304,11 +1235,8 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
         for (int i = 0; i < 12; i++)
         {
             if (registerStates[i]->dying)
-            {
-                printf("killing %%r%d\n", i);
-
                 registerStates[i]->live = 0;
-            }
+
             registerStates[i]->dying = 0;
         }
 
@@ -1318,18 +1246,13 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             {
                 int varIndex = findTemp(registerStates, lt->variable);
                 if (varIndex != -1)
-                {
-                    printf("killing %%r%d\n", varIndex);
                     registerStates[varIndex]->live = 0;
-                }
             }
             else if (TACindex == lt->end)
             {
                 int varIndex = findTemp(registerStates, lt->variable);
                 if (varIndex != -1)
-                {
                     registerStates[varIndex]->dying = 1;
-                }
             }
         }
 
@@ -1384,9 +1307,8 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             if (line->operands[0] == NULL)
             {
                 if (registerStates[0]->live)
-                {
                     relocateRegister(registerStates, outputBlock, 0, findUnallocatedRegister(registerStates), TACindex);
-                }
+
                 outputStr = malloc(32 * sizeof(char));
                 sprintf(outputStr, "call %s", line->operands[1]);
                 ASMblock_append(outputBlock, outputStr, TACindex);
@@ -1404,6 +1326,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                         relocateRegister(registerStates, outputBlock, 0, findUnallocatedRegister(registerStates), TACindex);
                     }
                 }
+
                 // need a larger buffer because of labels
                 outputStr = malloc(32 * sizeof(char));
                 sprintf(outputStr, "call %s", line->operands[1]);
@@ -1424,9 +1347,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                 // check if we just assigned to a ssa temp variable or a real variable
                 // if it was a real variable, track that it's now dirty
                 if (line->operands[0][0] != '.')
-                {
                     registerStates[0]->dirty = 1;
-                }
             }
         }
         break;
@@ -1450,9 +1371,8 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
         {
             int retValIndex = findTemp(registerStates, ".RETVAL");
             if (retValIndex != 0)
-            {
                 relocateRegister(registerStates, outputBlock, retValIndex, 0, TACindex);
-            }
+
             outputStr = malloc(32 * sizeof(char));
             sprintf(outputStr, "jmp %s_done", functionName);
             ASMblock_append(outputBlock, outputStr, TACindex);
@@ -1544,9 +1464,8 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
         case tt_resetstate:
             struct registerState **resetTo = RegisterStateStack_peek(stateStack);
             for (int i = 0; i < 12; i++)
-            {
                 memcpy(registerStates[i], resetTo[i], sizeof(struct registerState));
-            }
+
             break;
 
         case tt_popstate:
@@ -1562,18 +1481,9 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
         TACindex++;
     }
 
-    printf("\n\n\n\n\n");
-    printRegisterStates(registerStates);
     //  clean up the registers states
     struct ASMline *entryLabel = outputBlock->head;
     outputBlock->head = outputBlock->head->next;
-    /*struct ASMline *returnLine = outputBlock->tail;
-    struct ASMline *runner = outputBlock->head;
-    while (runner->next->next != NULL)
-    {
-        runner = runner->next;
-    }
-    outputBlock->tail = runner;*/
 
     outputStr = malloc(32 * sizeof(char));
     sprintf(outputStr, "%s_done:", functionName);
@@ -1607,9 +1517,6 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
     sprintf(outputStr, "add %%sp, $%d", function->table->varc * 2);
     ASMblock_append(outputBlock, outputStr, 999);
 
-    // outputBlock->tail->next = returnLine;
-    // outputBlock->tail = returnLine;
-
     outputStr = malloc(6 * sizeof(char));
     sprintf(outputStr, "ret %d", function->table->argc);
     ASMblock_append(outputBlock, outputStr, 999);
@@ -1633,15 +1540,13 @@ int main(int argc, char **argv)
     printf("Generating symbol table from AST");
     struct symbolTable *theTable = walkAST(program);
     printf("\n");
-    printSymTab(theTable);
-    printf("\n");
 
     printf("Linearizing code to TAC");
     linearizeProgram(program, theTable);
     printf("\n");
 
-    printSymTab(theTable);
-    printf("\n\n");
+    //printSymTab(theTable);
+    //printf("\n\n");
 
     FILE *outFile = fopen("./output.asm", "wb");
 
@@ -1650,27 +1555,6 @@ int main(int argc, char **argv)
         if (theTable->entries[i]->type == e_function)
         {
             struct Lifetime *theseLifetimes = findLifetimes(theTable->entries[i]->entry);
-            for (struct Lifetime *ltRunner = theseLifetimes; ltRunner != NULL; ltRunner = ltRunner->next)
-            {
-                printf("%s: %d-%d\n", ltRunner->variable, ltRunner->start, ltRunner->end);
-            }
-
-            int z = 0;
-            for (struct TACLine *e = ((struct functionEntry *)theTable->entries[i]->entry)->codeBlock; e != NULL; e = e->nextLine)
-            {
-                printf("%d: ", z);
-                printTACLine(e);
-                printf("\t\t~");
-                for (struct Lifetime *ltRunner = theseLifetimes; ltRunner != NULL; ltRunner = ltRunner->next)
-                {
-                    if (ltRunner->start <= z && ltRunner->end >= z)
-                    {
-                        printf("%s ", ltRunner->variable);
-                    }
-                }
-                z += 1;
-                printf("\n");
-            }
 
             struct ASMblock *output = generateCode(theTable->entries[i]->entry, theTable->entries[i]->name, theseLifetimes);
             // run along all the lines of asm output from this funtcion, printing and freeing as we go

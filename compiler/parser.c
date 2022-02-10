@@ -223,7 +223,6 @@ struct astNode *match(enum token t, struct Dictionary *dict)
         printf("Error matching - expected token [%s], got [%s] with image of [%s] instead!\n", token_names[t], token_names[result], buffer);
         exit(1);
     }
-    printf("consumed %s\n", buffer);
     return newastNode(result, DictionaryLookupOrInsert(dict, buffer));
 }
 
@@ -591,14 +590,13 @@ struct astNode *parseFunctionCall(struct astNode *name, struct Dictionary *dict)
 
 struct astNode *parseIfStatement(struct Dictionary *dict)
 {
-    printf("parsing if statement\n");
     struct astNode *ifStatement = match(t_if, dict);
     consume(t_lParen);
     astNode_insertChild(ifStatement, parseExpression(dict));
     consume(t_rParen);
     struct astNode *doBlock = newastNode(t_do, "do");
     astNode_insertChild(ifStatement, doBlock);
-    printf("expression evaluated\n");
+
     if (lookahead() == '{')
     {
         consume(t_lCurly);
@@ -622,7 +620,6 @@ struct astNode *parseIfStatement(struct Dictionary *dict)
 
 struct astNode *parseElseStatement(struct Dictionary *dict)
 {
-    printf("parsing else\n");
     struct astNode *elseStatement = match(t_else, dict);
     struct astNode *doBlock = newastNode(t_do, "do");
     astNode_insertChild(elseStatement, doBlock);
@@ -642,14 +639,12 @@ struct astNode *parseElseStatement(struct Dictionary *dict)
 
 struct astNode *parseWhileLoop(struct Dictionary *dict)
 {
-    printf("parsing while loop\n");
     struct astNode *whileLoop = match(t_while, dict);
     consume(t_lParen);
     astNode_insertChild(whileLoop, parseExpression(dict));
     consume(t_rParen);
     struct astNode *doBlock = newastNode(t_do, "do");
     astNode_insertChild(whileLoop, doBlock);
-    printf("expression evaluated\n");
     if (lookahead() == '{')
     {
         consume(t_lCurly);
