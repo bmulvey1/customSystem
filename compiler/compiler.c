@@ -305,8 +305,8 @@ int doBlockStack_pop(struct doBlockStack *s)
     int *newStack = NULL;
     if (s->size > 1)
     {
-        newStack = malloc(s->size - 1 * sizeof(int));
-        for (int i = 0; i < s->size - 1; i++)
+        newStack = malloc((s->size - 1) * sizeof(int));
+        for (int i = 0; i < s->size; i++)
             newStack[i] = s->stack[i];
     }
     s->size--;
