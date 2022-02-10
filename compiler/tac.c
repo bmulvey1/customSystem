@@ -60,6 +60,12 @@ char *getAsmOp(enum TACType t)
 
     case tt_popstate:
         return "POPSTATE";
+
+    case tt_do:
+        return "DO";
+
+    case tt_enddo:
+        return "ENDDO";
     }
     return "";
 }
@@ -152,6 +158,14 @@ void printTACLine(struct TACLine *it)
 
     case tt_popstate:
         width = printf("POPSTATE");
+        break;
+
+    case tt_do:
+        width = printf("DO");
+        break;
+
+    case tt_enddo:
+        width = printf("ENDDO");
         break;
     }
     width += printf("%s", it->reorderable ? " - Reorderable" : "");

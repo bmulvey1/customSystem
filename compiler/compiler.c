@@ -65,7 +65,6 @@ void walkStatement(struct astNode *it, struct symbolTable *wip)
             walkStatement(whileRunner, wip);
             whileRunner = whileRunner->sibling;
         }
-
         break;
 
     // function call/return can't create new symbols so ignore
@@ -143,7 +142,6 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
                 walkStatement(whileRunner, subTable);
                 whileRunner = whileRunner->sibling;
             }
-
             break;
 
         // otherwise we are looking at the body of the function, which is a statement list
@@ -276,6 +274,46 @@ void ASMblock_append(struct ASMblock *block, char *data, int correspondingTACind
  * SymTab entries for variables containing their own lifetimes may be redundant since
  * findLifetimes() will also re-find lifetimes for these variables
  */
+struct doBlockStack
+{
+    int size;
+    int *stack;
+};
+
+struct doBlockStack *newDoBlockStack()
+{
+    struct doBlockStack *wip = malloc(sizeof(struct doBlockStack));
+    wip->size = 0;
+    wip->stack = NULL;
+    return wip;
+}
+
+void doBlockStack_push(struct doBlockStack *s, int data)
+{
+    int *newStack = malloc(s->size + 1 * sizeof(int));
+    for (int i = 0; i < s->size; i++)
+        newStack[i] = s->stack[i];
+
+    newStack[s->size++] = data;
+    free(s->stack);
+    s->stack = newStack;
+}
+
+int doBlockStack_pop(struct doBlockStack *s)
+{
+    int poppedData = s->stack[s->size - 1];
+    int *newStack = NULL;
+    if (s->size > 1)
+    {
+        newStack = malloc(s->size - 1 * sizeof(int));
+        for (int i = 0; i < s->size - 1; i++)
+            newStack[i] = s->stack[i];
+    }
+    s->size--;
+    s->stack = newStack;
+    return poppedData;
+}
+
 void checkVariableLifetimes(struct functionEntry *function)
 {
     int lineIndex = 0;
@@ -292,6 +330,9 @@ void checkVariableLifetimes(struct functionEntry *function)
         case tt_je:
         case tt_jne:
         case tt_jmp:
+            // do and enddo are handled in lifetime generation
+        case tt_do:
+        case tt_enddo:
             break;
 
         default:
@@ -430,6 +471,8 @@ struct Lifetime *findLifetimes(struct functionEntry *function)
     struct Lifetime *ltList = NULL;
     struct Lifetime *ltTail = NULL;
 
+    struct doBlockStack *doBlockLifetimes = newDoBlockStack();
+
     // look at all lines in the TAC block for this function, keeping track of our index
     int lineIndex = 0;
     for (struct TACLine *line = function->codeBlock; line != NULL; line = line->nextLine)
@@ -444,6 +487,20 @@ struct Lifetime *findLifetimes(struct functionEntry *function)
         case tt_je:
         case tt_jne:
         case tt_jmp:
+            break;
+
+        // if we have a do block, keep track of a lifetime threshold
+        // any variable with a lt ending after this threshold
+        // will have its lifetime extended to the index of the "enddo" label
+        case tt_do:
+            doBlockStack_push(doBlockLifetimes, lineIndex);
+            break;
+
+        case tt_enddo:
+            int ltThreshold = doBlockStack_pop(doBlockLifetimes);
+            for (struct Lifetime *ltRunner = ltList; ltRunner != NULL; ltRunner = ltRunner->next)
+                if (ltRunner->end >= ltThreshold)
+                    ltRunner->end = lineIndex;
             break;
 
         default:
@@ -994,7 +1051,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
                 outputStr = malloc(20 * sizeof(char));
                 // see if the variable is already in a register
                 int existingVarIndex = findTemp(registerStates, line->operands[2]);
-                
+
                 // if not, get the second operand from the stack
                 if (existingVarIndex == -1)
                 {
@@ -1470,7 +1527,11 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
 
         case tt_popstate:
             RegisterStateStack_pop(stateStack);
+            break;
 
+        // do and end do blocks for lifetime extension in loops - no output to generate here
+        case tt_do:
+        case tt_enddo:
             break;
 
         default:
@@ -1545,8 +1606,8 @@ int main(int argc, char **argv)
     linearizeProgram(program, theTable);
     printf("\n");
 
-    //printSymTab(theTable);
-    //printf("\n\n");
+    printSymTab(theTable);
+    printf("\n\n");
 
     FILE *outFile = fopen("./output.asm", "wb");
 
@@ -1599,6 +1660,8 @@ int main(int argc, char **argv)
                     case tt_popstate:
                     case tt_pushstate:
                     case tt_resetstate:
+                    case tt_do:
+                    case tt_enddo:
                         printf("\n");
                         break;
 
