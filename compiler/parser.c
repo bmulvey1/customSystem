@@ -1,9 +1,10 @@
 #include "parser.h"
 
-FILE *infile;
+FILE *inFile;
 #define BUF_SIZE 16
 char buffer[BUF_SIZE];
 int buflen;
+int curLine, curCol;
 char inChar;
 char *token_names[] = {
     "var",
@@ -22,51 +23,63 @@ char *token_names[] = {
     "r curly",
     "EOF"};
 
+void error(char *info)
+{
+    printf("Error at line %d, col %d\n", curLine, curCol);
+    printf("%s\n", info);
+    printf("Parse buffer when error occurred: [%s]\n", buffer);
+
+    exit(1);
+}
+
 char lookahead_dumb()
 {
-    long offset = ftell(infile);
-    char returnChar = fgetc(infile);
-    fseek(infile, offset, SEEK_SET);
+    long offset = ftell(inFile);
+    char returnChar = fgetc(inFile);
+    fseek(inFile, offset, SEEK_SET);
     return returnChar;
 }
 
-void trimWhitespace()
+void trimWhitespace(char trackPos)
 {
-    int whitespace;
-    switch (lookahead_dumb())
+    int trimming = 1;
+    while (trimming)
     {
-    case ' ':
-    case '\n':
-    case '\t':
-        whitespace = 1;
-        break;
-    case '#':
-        // recursively handling comments is easy
-        // will this come at a cost later?
-        while (lookahead_dumb() != '\n')
-            fgetc(infile);
-
-        fgetc(infile);
-        trimWhitespace();
-    default:
-        whitespace = 0;
-        break;
-    }
-    while (whitespace)
-    {
-        fgetc(infile);
         switch (lookahead_dumb())
         {
+        case '\n':
+            if (trackPos)
+            {
+                curLine++;
+                curCol = 1;
+            }
+            fgetc(inFile);
+            break;
+
         case -1:
         case '\0':
         case ' ':
-        case '\n':
         case '\t':
+            if (trackPos)
+                curCol++;
+
+            fgetc(inFile);
             break;
+
         case '#':
-            trimWhitespace();
+            while (fgetc(inFile) != '\n')
+                ;
+
+            if (trackPos)
+            {
+                curLine++;
+                curCol = 1;
+            }
+
+            break;
+
         default:
-            whitespace = 0;
+            trimming = 0;
             break;
         }
     }
@@ -74,7 +87,7 @@ void trimWhitespace()
 
 char lookahead()
 {
-    trimWhitespace();
+    trimWhitespace(0);
     char r = lookahead_dumb();
     return r;
 }
@@ -127,22 +140,25 @@ enum token reserved_t[RESERVED_COUNT] = {
     t_compOp,
     t_EOF};
 
-enum token scan()
+enum token scan(char trackPos)
 {
     buflen = 0;
     // check if we're looking at whitespace - are we?
-    trimWhitespace();
-    if (feof(infile))
+    trimWhitespace(trackPos);
+    if (feof(inFile))
         return t_EOF;
 
     enum token currentToken = -1;
 
     while (1)
     {
-        inChar = fgetc(infile);
+        inChar = fgetc(inFile);
+        if (trackPos)
+            curCol++;
+
         buffer[buflen++] = inChar;
         buffer[buflen] = '\0';
-        if (feof(infile))
+        if (feof(inFile))
             return currentToken;
 
         // Iterate all reserved keywords
@@ -155,14 +171,10 @@ enum token scan()
                 if (buffer[0] == '<' || buffer[0] == '>' || buffer[0] == '=')
                 {
                     if (lookahead() != '=')
-                    {
                         return reserved_t[i];
-                    }
                 }
                 else
-                {
                     return reserved_t[i]; // return its token
-                }
             }
         }
 
@@ -179,10 +191,7 @@ enum token scan()
         {
             // simple error checking for letters in literals
             if (currentToken == t_literal && isalpha(inChar))
-            {
-                printf("Error - alphabetical character in literal [%s]!\n", buffer);
-                exit(1);
-            }
+                error("Error - alphabetical character in literal!");
         }
 
         // if the next input char is whitespace or a single-character token, we're done with this token
@@ -208,33 +217,28 @@ enum token scan()
 // return the next token that would be scanned without consuming
 enum token lookaheadToken()
 {
-    long offset = ftell(infile);
-    enum token retToken = scan();
-    fseek(infile, offset, SEEK_SET);
+    long offset = ftell(inFile);
+    enum token retToken = scan(0);
+    fseek(inFile, offset, SEEK_SET);
     return retToken;
 }
 
 // error-checked method to consume and return AST node of expected token
 struct astNode *match(enum token t, struct Dictionary *dict)
 {
-    enum token result = scan();
+    enum token result = scan(1);
     if (result != t)
-    {
-        printf("Error matching - expected token [%s], got [%s] with image of [%s] instead!\n", token_names[t], token_names[result], buffer);
-        exit(1);
-    }
+        error("Error matching a token!");
+
     return newastNode(result, DictionaryLookupOrInsert(dict, buffer));
 }
 
 // error-checked method to consume expected token with no return
 void consume(enum token t)
 {
-    enum token result = scan();
+    enum token result = scan(1);
     if (result != t)
-    {
-        printf("Error consuming - expected token [%s], got [%s] with image of [%s] instead!\n", token_names[t], token_names[result], buffer);
-        exit(1);
-    }
+        error("Error consuming a token!");
 }
 
 char *getTokenName(enum token t)
@@ -244,9 +248,11 @@ char *getTokenName(enum token t)
 
 struct astNode *parseProgram(char *inFileName, struct Dictionary *dict)
 {
-    infile = fopen(inFileName, "rb");
+    curLine = 1;
+    curCol = 1;
+    inFile = fopen(inFileName, "rb");
     return parseTLDList(dict);
-    fclose(infile);
+    fclose(inFile);
 }
 
 struct astNode *parseTLDList(struct Dictionary *dict)
@@ -302,7 +308,7 @@ struct astNode *parseTLD(struct Dictionary *dict)
     }
     break;
     default:
-        printf("Expected function or variable in Top Level Declaration");
+        error("Expected function or variable in Top Level Declaration");
         exit(1);
     }
     return TLD;
@@ -352,8 +358,7 @@ struct astNode *parseStatementList(struct Dictionary *dict)
             break;
 
         default:
-            printf("Error parsing statement list - saw token %s with value of [%s]\n", token_names[nextToken], buffer);
-            exit(1);
+            error("Error parsing statement list - expected 'var', 'if', 'while', '}', or name");
         }
     }
 
@@ -404,7 +409,7 @@ struct astNode *parseStatement(struct Dictionary *dict)
             break;
 
         default:
-            printf("Error - expected '(' or '=' after name\n");
+            error("Error - expected '(' or '=' after name");
             exit(1);
         }
         consume(t_semicolon);
@@ -431,8 +436,7 @@ struct astNode *parseStatement(struct Dictionary *dict)
         break;
 
     default:
-        printf("Error parsing statement - saw token [%s] with value of \n", token_names[upcomingToken]);
-        exit(1);
+        error("Error parsing statement - expected 'var', 'if', 'while', '}', or name");
     }
     // printf("Done parsing statement- heres what we got\n");
     // printAST(statement, 0);
@@ -468,7 +472,7 @@ struct astNode *parseExpression(struct Dictionary *dict)
     }
     else
     {
-        printf("Error - expected literal or name in expression and got [%s]\n", token_names[scan()]);
+        error("Error - expected literal or name in expression");
         exit(1);
     }
 
@@ -500,10 +504,7 @@ struct astNode *parseExpression(struct Dictionary *dict)
         break;
 
     default:
-        printf("Error - expected unary operator or terminator in expression and got [%s]\n", token_names[scan()]);
-        exit(1);
-
-        break;
+        error("Error - expected unary operator or terminator in expression");
     }
 
     // printf("done parsing expression - here's what we got:\n");
@@ -652,11 +653,7 @@ struct astNode *parseWhileLoop(struct Dictionary *dict)
         consume(t_rCurly);
     }
     else
-    {
-        printf("Expected '{' after while(condition)!\n");
-        exit(1);
-    }
-
+        error("Expected '{' after 'while([condition])'");
 
     // printf("done parsing if statement - here's what we got!\n");
     // printAST(ifStatement, 0);

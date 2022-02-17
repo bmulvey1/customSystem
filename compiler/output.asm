@@ -1,3 +1,28 @@
+fib:
+	sub %sp, $0
+	push %r1
+	mov %r0, 4(%bp)
+	cmp %r0, $2
+	jge fib_1
+	mov %r0, 4(%bp)
+	jmp fib_done
+fib_1:
+	mov %r0, 4(%bp)
+	sub %r0, $2
+	push %r0
+	call fib
+	mov %r1, 4(%bp)
+	sub %r1, $1
+	push %r1
+	mov %r1, %r0
+	call fib
+	add %r1, %r0
+	mov %r0, %r1
+	jmp fib_done
+fib_done:
+	pop %r1
+	add %sp, $0
+	ret 1
 modulo:
 	sub %sp, $0
 modulo_1:
@@ -68,6 +93,18 @@ firstNPrimes_3:
 	mov %r0, %r2
 	jmp firstNPrimes_1
 firstNPrimes_2:
+firstNPrimes_4:
+	mov %r0, 4(%bp)
+	cmp %r0, $0
+	jle firstNPrimes_5
+	push 4(%bp)
+	call fib
+	mov %r0, 4(%bp)
+	sub %r0, $1
+	mov 4(%bp), %r0
+	mov -4(%bp), %r1
+	jmp firstNPrimes_4
+firstNPrimes_5:
 firstNPrimes_done:
 	pop %r2
 	pop %r1

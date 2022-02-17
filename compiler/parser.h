@@ -5,13 +5,15 @@
 #include "ast.h"
 #include "dict.h"
 
+void error();
+
 char lookahead_dumb();
 
-void trimWhitespace();
+void trimWhitespace(char trackPos);
 
 char lookahead();
 
-enum token scan();
+enum token scan(char trackPos);
 
 struct astNode *match(enum token t, struct Dictionary *dict);
 

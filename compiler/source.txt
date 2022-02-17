@@ -1,13 +1,13 @@
 
 # this function computes the nth fibonacci number 
-#fun fib(var n)
-#{
-#    if(n < 2)
-#        return n;
-#    else
-#        return fib(n - 1) + fib(n - 2);
-#    
-#}
+fun fib(var n)
+{
+    if(n < 2){
+        return n;
+    }else{
+        return fib(n - 1) + fib(n - 2); 
+    }
+}
 
 # find all fibonacci numbers up to and including n
 #fun firstnfibs(var n){
@@ -69,6 +69,10 @@ fun firstNPrimes(var n){
             foundNum = foundNum + 1;
         }
         i = i + 1;
+    }
+    while(n > 0){
+        fib(n);
+        n = n - 1;
     }
 }
 
