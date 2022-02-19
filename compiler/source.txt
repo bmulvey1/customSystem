@@ -10,13 +10,13 @@ fun fib(var n)
 }
 
 # find all fibonacci numbers up to and including n
-#fun firstnfibs(var n){
-#    var i = n;
-#    while(i > 0){
-#        fib(i);
-#        i = i - 1;
-#    }
-#}
+fun firstnfibs(var n){
+    var i = 0;
+    while(i <= n){
+        fib(i + 1);
+        i = i + 1;
+    }
+}
 
 # multiply the two arguments, return the result
 #fun mul(var a, var b)
@@ -42,38 +42,38 @@ fun fib(var n)
 #}
 
 # software modulo! (are you having fun yet?)
-fun modulo(var a, var b){
-    while(a >= b){
-        a = a - b;
-    }
-    return a;
-}
-
-fun isPrime(var n){
-    var i = 2;
-    while(i < n){
-        var result = modulo(n, i);
-        if(result == 0)
-            return 0;
-        i = i + 1;
-    }
-    return 1;
-}
-
-fun firstNPrimes(var n){
-    var i = 2;
-    var foundNum = 0;
-    while(foundNum < n){
-        var result = isPrime(i);
-        if(result == 1){
-            foundNum = foundNum + 1;
-        }
-        i = i + 1;
-    }
-    while(n > 0){
-        fib(n);
-        n = n - 1;
-    }
-}
+#fun modulo(var a, var b){
+#    while(a >= b){
+#        a = a - b;
+#    }
+#    return a;
+#}
+#
+#fun isPrime(var n){
+#    var i = 2;
+#    while(i < n){
+#        var result = modulo(n, i);
+#        if(result == 0)
+#            return 0;
+#        i = i + 1;
+#    }
+#    return 1;
+#}
+#
+#fun firstNPrimes(var n){
+#    var i = 2;
+#    var foundNum = 0;
+#    while(foundNum < n){
+#        var result = isPrime(i);
+#        if(result == 1){
+#            foundNum = foundNum + 1;
+#        }
+#        i = i + 1;
+#    }
+#    while(n > 0){
+#        fib(n);
+#        n = n - 1;
+#    }
+#}
 
 $$

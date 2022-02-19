@@ -833,11 +833,16 @@ void restoreRegisterStates(struct registerState **current, struct registerState 
                 // only need to do something if the register doesn't contain what we're looking for
                 if (strcmp(current[i]->contains, desired[i]->contains) != 0)
                 {
-                    if (current[i]->live || current[i]->dirty)
+                    // iff the register contains a variable that's not a temp
+                    if (current[i]->contains[0] != '.')
                     {
-                        outputStr = malloc(16 * sizeof(char));
-                        sprintf(outputStr, "mov %%r%d, %d(%%bp)", i, findStackOffset(desired[i]->contains, function));
-                        ASMblock_append(outputBlock, outputStr, TACindex);
+                        // if there's something there that needs to be saved, save it
+                        if (current[i]->live || current[i]->dirty)
+                        {
+                            outputStr = malloc(16 * sizeof(char));
+                            sprintf(outputStr, "mov %%r%d, %d(%%bp)", i, findStackOffset(desired[i]->contains, function));
+                            ASMblock_append(outputBlock, outputStr, TACindex);
+                        }
                     }
                     int existingVarIndex = findTemp(current, desired[i]->contains);
                     outputStr = malloc(16 * sizeof(char));
@@ -877,12 +882,16 @@ void restoreRegisterStates(struct registerState **current, struct registerState 
         // we expect this register to contain nothing
         else
         {
-            // if there's something there that needs to be saved, save it
-            if (current[i]->live || current[i]->dirty)
+            // iff the register contains a variable that's not a temp
+            if (current[i]->contains != NULL && current[i]->contains[0] != '.')
             {
-                outputStr = malloc(16 * sizeof(char));
-                sprintf(outputStr, "mov %d(%%bp), %%r%d", findStackOffset(current[i]->contains, function), i);
-                ASMblock_append(outputBlock, outputStr, TACindex);
+                // if there's something there that needs to be saved, save it
+                if (current[i]->live || current[i]->dirty)
+                {
+                    outputStr = malloc(16 * sizeof(char));
+                    sprintf(outputStr, "mov %d(%%bp), %%r%d", findStackOffset(current[i]->contains, function), i);
+                    ASMblock_append(outputBlock, outputStr, TACindex);
+                }
             }
         }
         current[i]->contains = desired[i]->contains;
