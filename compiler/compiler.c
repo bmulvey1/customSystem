@@ -1037,6 +1037,15 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
             // if it wasn't possible to reorder the operands
             if (!didReorder)
             {
+                char forceRelocate = 0;
+
+                // if the operation looks something like 'i = 1 - i' we risk stomping i's value if we write directly to the destination
+                int oldAssigneeLocation = destinationRegister;
+                if (!strcmp(line->operands[0], line->operands[2]) && destinationExists)
+                {
+                    forceRelocate = 1;
+                    destinationRegister = findUnallocatedRegister(registerStates);
+                }
 
                 // put the literal directly into a register
                 outputStr = malloc(18 * sizeof(char));
@@ -1057,6 +1066,13 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
                 {
                     sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, existingVarIndex);
                 }
+
+                if (forceRelocate)
+                {
+                    registerStates[oldAssigneeLocation]->live = 0;
+                    registerStates[oldAssigneeLocation]->contains = NULL;
+                }
+
                 ASMblock_append(outputBlock, outputStr, TACindex);
             }
         }
@@ -1162,6 +1178,16 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
                 // just conduct the operation in order
                 if (!didReorder)
                 {
+                    char forceRelocate = 0;
+
+                    // if the operation looks something like 'i = j - i' we risk stomping i's value if we write directly to the destination
+                    int oldAssigneeLocation = destinationRegister;
+                    if (!strcmp(line->operands[0], line->operands[2]) && destinationExists)
+                    {
+                        forceRelocate = 1;
+                        destinationRegister = findUnallocatedRegister(registerStates);
+                    }
+
                     // if we can't overwrite the register containing the first var,
                     // OR the destination variable exists in a register already
                     if (registerStates[firstVarIndex]->live || destinationExists)
@@ -1181,6 +1207,12 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
                     outputStr = malloc(18 * sizeof(char));
                     sprintf(outputStr, "%s %%r%d, %%r%d", getAsmOp(line->operation), destinationRegister, secondVarIndex);
                     ASMblock_append(outputBlock, outputStr, TACindex);
+
+                    if (forceRelocate)
+                    {
+                        registerStates[oldAssigneeLocation]->live = 0;
+                        registerStates[oldAssigneeLocation]->contains = NULL;
+                    }
                 }
             }
             // first operand is in register, second isn't
