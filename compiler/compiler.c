@@ -584,7 +584,6 @@ struct registerState *newRegisterState()
 {
     struct registerState *wip = malloc(sizeof(struct registerState));
     wip->live = 0;
-    wip->dying = 0;
     wip->dirty = 0;
     wip->touched = 0;
     wip->contains = NULL;
@@ -627,11 +626,6 @@ void printRegisterStates(struct registerState **registerStates)
             printf("live ");
         else
             printf("dead ");
-
-        if (registerStates[i]->dying)
-            printf("dying ");
-        else
-            printf("      ");
 
         if (registerStates[i]->dirty)
             printf("dirty");
@@ -762,7 +756,6 @@ void modifyRegisterContents(struct registerState **registerStates, int index, ch
     struct registerState *destinationRegister = registerStates[index];
     destinationRegister->live = 1;
     destinationRegister->touched = 1;
-    destinationRegister->dying = 0;
     if (destinationRegister->contains != NULL && !strcmp(destinationRegister->contains, contents))
     {
         destinationRegister->dirty = 1;
@@ -908,13 +901,11 @@ void relocateRegister(struct registerState **registerStates, struct ASMblock *ou
     ASMblock_append(outputBlock, outputStr, TACindex);
     registerStates[dest]->contains = registerStates[source]->contains;
     registerStates[dest]->live = registerStates[source]->live;
-    registerStates[dest]->dying = registerStates[source]->dying;
     registerStates[dest]->dirty = registerStates[source]->dirty;
     registerStates[dest]->touched = 1;
 
     registerStates[source]->contains = NULL;
     registerStates[source]->live = 0;
-    registerStates[source]->dying = 0;
     registerStates[source]->dirty = 0;
 }
 
@@ -939,7 +930,7 @@ int generateAssignmentCode(struct TACLine *line, struct registerState **register
         if (sourceIndex != -1)
         {
             // if the variable can be overwritten
-            if (!registerStates[sourceIndex]->live || registerStates[sourceIndex]->dying)
+            if (!registerStates[sourceIndex]->live)
             {
                 // if the variable being assigned to exists in a register
                 // (was originally found up top by the original destinationregister assignment)
@@ -977,11 +968,6 @@ int generateAssignmentCode(struct TACLine *line, struct registerState **register
         registerStates[destinationIndex]->dirty = 1;
     }
     return destinationIndex;
-}
-
-char canOverwrite(struct registerState **registerStates, int registerIndex)
-{
-    return !registerStates[registerIndex]->live || registerStates[registerIndex]->dying;
 }
 
 void generateArithmeticCode(struct TACLine *line, struct registerState **registerStates, struct ASMblock *outputBlock, struct functionEntry *function, int TACindex)
@@ -1298,14 +1284,6 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
 
     for (struct TACLine *line = function->codeBlock; line != NULL; line = line->nextLine)
     {
-        for (int i = 0; i < 12; i++)
-        {
-            if (registerStates[i]->dying)
-                registerStates[i]->live = 0;
-
-            registerStates[i]->dying = 0;
-        }
-
         for (struct Lifetime *lt = lifetimes; lt != NULL; lt = lt->next)
         {
             if (TACindex > lt->end)
@@ -1313,12 +1291,6 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                 int varIndex = findTemp(registerStates, lt->variable);
                 if (varIndex != -1)
                     registerStates[varIndex]->live = 0;
-            }
-            else if (TACindex == lt->end)
-            {
-                int varIndex = findTemp(registerStates, lt->variable);
-                if (varIndex != -1)
-                    registerStates[varIndex]->dying = 1;
             }
         }
 
