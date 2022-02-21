@@ -5,7 +5,7 @@
 #include "parser.h"
 #include "tac.h"
 #include "symtab.h"
-#include "dict.h"
+#include "util.h"
 #include "linearizer.h"
 
 void walkStatement(struct astNode *it, struct symbolTable *wip)
@@ -274,45 +274,6 @@ void ASMblock_append(struct ASMblock *block, char *data, int correspondingTACind
  * SymTab entries for variables containing their own lifetimes may be redundant since
  * findLifetimes() will also re-find lifetimes for these variables
  */
-struct doBlockStack
-{
-    int size;
-    int *stack;
-};
-
-struct doBlockStack *newDoBlockStack()
-{
-    struct doBlockStack *wip = malloc(sizeof(struct doBlockStack));
-    wip->size = 0;
-    wip->stack = NULL;
-    return wip;
-}
-
-void doBlockStack_push(struct doBlockStack *s, int data)
-{
-    int *newStack = malloc(s->size + 1 * sizeof(int));
-    for (int i = 0; i < s->size; i++)
-        newStack[i] = s->stack[i];
-
-    newStack[s->size++] = data;
-    free(s->stack);
-    s->stack = newStack;
-}
-
-int doBlockStack_pop(struct doBlockStack *s)
-{
-    int poppedData = s->stack[s->size - 1];
-    int *newStack = NULL;
-    if (s->size > 1)
-    {
-        newStack = malloc((s->size - 1) * sizeof(int));
-        for (int i = 0; i < s->size; i++)
-            newStack[i] = s->stack[i];
-    }
-    s->size--;
-    s->stack = newStack;
-    return poppedData;
-}
 
 void checkVariableLifetimes(struct functionEntry *function)
 {
@@ -471,7 +432,7 @@ struct Lifetime *findLifetimes(struct functionEntry *function)
     struct Lifetime *ltList = NULL;
     struct Lifetime *ltTail = NULL;
 
-    struct doBlockStack *doBlockLifetimes = newDoBlockStack();
+    struct Stack *doBlockLifetimes = newStack();
 
     // look at all lines in the TAC block for this function, keeping track of our index
     int lineIndex = 0;
@@ -493,14 +454,18 @@ struct Lifetime *findLifetimes(struct functionEntry *function)
         // any variable with a lt ending after this threshold
         // will have its lifetime extended to the index of the "enddo" label
         case tt_do:
-            doBlockStack_push(doBlockLifetimes, lineIndex);
+            int* pushedIndex = malloc(sizeof(int));
+            *pushedIndex = lineIndex;
+            StackPush(doBlockLifetimes, pushedIndex);
             break;
 
         case tt_enddo:
-            int ltThreshold = doBlockStack_pop(doBlockLifetimes);
+            int* ltThreshold = StackPop(doBlockLifetimes);
             for (struct Lifetime *ltRunner = ltList; ltRunner != NULL; ltRunner = ltRunner->next)
-                if (ltRunner->end >= ltThreshold)
+                if (ltRunner->end >= *ltThreshold)
                     ltRunner->end = lineIndex;
+
+            free(ltThreshold);
             break;
 
         default:
@@ -690,54 +655,6 @@ struct registerState **duplicateRegisterStates(struct registerState **theStates)
  * Stack to contain register state lists
  *
  */
-struct RegisterStateStack
-{
-    struct registerState ***stack;
-    int size;
-};
-
-struct RegisterStateStack *newRegisterStateStack()
-{
-    struct RegisterStateStack *wip = malloc(sizeof(struct RegisterStateStack));
-    wip->stack = NULL;
-    wip->size = 0;
-    return wip;
-}
-
-void RegisterStateStack_push(struct RegisterStateStack *s, struct registerState **stateList)
-{
-    struct registerState ***newStack = malloc((s->size + 1) * sizeof(struct registerState **));
-    for (int i = 0; i < s->size; i++)
-        newStack[i] = s->stack[i];
-
-    newStack[s->size] = duplicateRegisterStates(stateList);
-    s->size++;
-    free(s->stack);
-    s->stack = newStack;
-}
-
-void RegisterStateStack_pop(struct RegisterStateStack *s)
-{
-    struct registerState **poppedStates = s->stack[s->size - 1];
-    struct registerState ***newStack = NULL;
-    freeRegisterStates(poppedStates);
-    // only reallocate and copy if there is data to copy
-    if (s->size > 1)
-    {
-        newStack = malloc((s->size - 1) * sizeof(struct registerState **));
-        for (int i = 0; i < s->size - 1; i++)
-            newStack[i] = s->stack[i];
-    }
-
-    s->size--;
-    free(s->stack);
-    s->stack = newStack;
-}
-
-struct registerState **RegisterStateStack_peek(struct RegisterStateStack *s)
-{
-    return s->stack[s->size - 1];
-}
 
 int findUnallocatedRegister(struct registerState **registerStates)
 {
@@ -1093,9 +1010,9 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
                 int existingVarIndex = findTemp(registerStates, line->operands[1]);
                 if (existingVarIndex != -1)
                 {
-                    // if the existing variable can't be overwritten
-                    // OR destination var already exists in a register
-                    if (registerStates[existingVarIndex]->live || destinationExists)
+                    // if (the existing variable can't be overwritten OR destination var already exists in a register)
+                    // AND the variable being assigned is different from the first operand
+                    if ((registerStates[existingVarIndex]->live || destinationExists) && strcmp(line->operands[0], line->operands[1]))
                     {
                         // if not, copy the existing variable from its register to the destination
                         outputStr = malloc(18 * sizeof(char));
@@ -1131,8 +1048,9 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
                 // if yes, get the first operand from its register
                 else
                 {
-                    // see if the first var can be overwritten
-                    if (registerStates[existingVarIndex]->live)
+                    // see if the register containing the first operand can't be overwritten
+                    // AND the variable being assigned is different from the first operand
+                    if (registerStates[existingVarIndex]->live && strcmp(line->operands[0], line->operands[1]))
                     {
                         outputStr = malloc(18 * sizeof(char));
                         sprintf(outputStr, "mov %%r%d, %%r%d", destinationRegister, existingVarIndex);
@@ -1309,7 +1227,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
     for (int i = 0; i < 12; i++)
         registerStates[i] = newRegisterState();
 
-    struct RegisterStateStack *stateStack = newRegisterStateStack();
+    struct Stack *stateStack = newStack();
 
     int TACindex = 0;
     char *outputStr;
@@ -1524,22 +1442,22 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             break;
 
         case tt_pushstate:
-            RegisterStateStack_push(stateStack, registerStates);
+            StackPush(stateStack, duplicateRegisterStates(registerStates));
             break;
 
         case tt_restorestate:
-            restoreRegisterStates(registerStates, RegisterStateStack_peek(stateStack), outputBlock, function, TACindex);
+            restoreRegisterStates(registerStates, StackPeek(stateStack), outputBlock, function, TACindex);
             break;
 
         case tt_resetstate:
-            struct registerState **resetTo = RegisterStateStack_peek(stateStack);
+            struct registerState **resetTo = StackPeek(stateStack);
             for (int i = 0; i < 12; i++)
                 memcpy(registerStates[i], resetTo[i], sizeof(struct registerState));
 
             break;
 
         case tt_popstate:
-            RegisterStateStack_pop(stateStack);
+            free(StackPop(stateStack));
             break;
 
         // do and end do blocks for lifetime extension in loops - no output to generate here

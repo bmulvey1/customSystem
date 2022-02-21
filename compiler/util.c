@@ -1,6 +1,7 @@
-#include "dict.h"
+#include "util.h"
 
 /*
+ * DICTIONARY FUNCTIONS
  * This string hashing algorithm is the djb2 algorithm
  * further information can be found at http://www.cse.yorku.ca/~oz/hash.html
  */
@@ -110,4 +111,56 @@ void freeDictionary(struct Dictionary *dict)
     }
     free(dict->buckets);
     free(dict);
+}
+
+/*
+ * STACK FUNCTIONS
+ *
+ */
+
+struct Stack *newStack()
+{
+    struct Stack *wip = malloc(sizeof(struct Stack));
+    wip->data = malloc(5 * sizeof(void *));
+    wip->size = 0;
+    wip->allocated = 5;
+    return wip;
+}
+
+void StackPush(struct Stack *s, void *data)
+{
+    if (s->size >= s->allocated)
+    {
+        void **newData = malloc((s->allocated + 5) * sizeof(void *));
+        memcpy(newData, s->data, s->allocated * sizeof(void *));
+        s->data = newData;
+        s->allocated += 5;
+    }
+
+    s->data[s->size++] = data;
+}
+
+void *StackPop(struct Stack *s)
+{
+    if (s->size > 0)
+    {
+        return s->data[--s->size];
+    }
+    else
+    {
+        printf("Error - attempted to pop from empty stack!\n");
+        exit(1);
+    }
+}
+
+void* StackPeek(struct Stack* s){
+    if (s->size > 0)
+    {
+        return s->data[s->size - 1];
+    }
+    else
+    {
+        printf("Error - attempted to peek empty stack!\n");
+        exit(1);
+    }
 }

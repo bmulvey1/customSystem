@@ -3,7 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 #include "ast.h"
-#include "dict.h"
+#include "util.h"
 
 void error();
 

@@ -1,4 +1,3 @@
-
 # this function computes the nth fibonacci number 
 fun fib(var n)
 {
@@ -9,10 +8,74 @@ fun fib(var n)
     }
 }
 
-fun fibrev(var n){
-    var z = 20;
-    var i = n;
-    i = z - i;
-    fib(i);
+# find all fibonacci numbers up to and including n
+fun firstnfibs(var n){
+    var i = 0;
+    while(i < n){
+        fib(i + 1);
+        i = i + 1;
+    }
 }
+
+# find the nth tetranacci number
+fun tet(var n){
+    if(n == 1){
+        return 0;
+    }else if(n == 2){
+        return 0;
+    }else if(n == 3){
+        return 0;
+    }else if(n == 4){
+        return 1;
+    }
+    return tet(n - 1) + tet(n - 2) + tet(n - 3) + tet(n - 4);
+}
+
+# find all tetranacci numbers up to and including n
+fun firstntets(var n){
+    var i = 0;
+    while(i < n){
+        tet(i + 1);
+        i = i + 1;
+    }
+}
+
+# software modulo! (are you having fun yet?)
+fun modulo(var a, var b){
+    while(a >= b){
+        a = a - b;
+    }
+    return a;
+}
+
+fun isPrime(var n){
+    var i = 2;
+    while(i < n){
+        var result = modulo(n, i);
+        if(result == 0)
+            return 0;
+        i = i + 1;
+    }
+    return 1;
+}
+
+fun firstNPrimes(var n){
+    var i = 2;
+    var foundNum = 0;
+    while(foundNum < n){
+        var result = isPrime(i);
+        if(result == 1){
+            foundNum = foundNum + 1;
+        }
+        i = i + 1;
+    }
+
+}
+
+fun firstNeverything(var n){
+    firstnfibs(n);
+    firstNPrimes(n);
+    firstntets(n);
+}
+
 $$
