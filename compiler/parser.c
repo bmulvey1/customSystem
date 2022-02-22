@@ -92,9 +92,10 @@ char lookahead()
     return r;
 }
 
-#define RESERVED_COUNT 21
+#define RESERVED_COUNT 22
 
 char *reserved[RESERVED_COUNT] = {
+    "asm",
     "var",
     "fun",
     "return",
@@ -118,6 +119,7 @@ char *reserved[RESERVED_COUNT] = {
     "$$"};
 
 enum token reserved_t[RESERVED_COUNT] = {
+    t_asm,
     t_var,
     t_fun,
     t_return,
@@ -274,6 +276,10 @@ struct astNode *parseTLD(struct Dictionary *dict)
     struct astNode *TLD;
     switch (lookaheadToken())
     {
+    case t_asm:
+        TLD = parseASM(dict);
+        break;
+
     // fun [function name]({[argument list]})
     case t_fun:
         TLD = match(t_fun, dict);
@@ -340,6 +346,7 @@ struct astNode *parseStatementList(struct Dictionary *dict)
         // v [variable name] = [expression];
         // [variable name] = [expression];
         // return [expression];
+        case t_asm:
         case t_var:
         case t_name:
         case t_return:
@@ -372,6 +379,11 @@ struct astNode *parseStatement(struct Dictionary *dict)
     enum token upcomingToken = lookaheadToken();
     switch (upcomingToken)
     {
+
+    case t_asm:
+        statement = parseASM(dict);
+        break;
+
     // v [variable name];
     // v [variable name] = [expression];
     case t_var:
@@ -658,4 +670,48 @@ struct astNode *parseWhileLoop(struct Dictionary *dict)
     // printf("done parsing if statement - here's what we got!\n");
     // printAST(ifStatement, 0);
     return whileLoop;
+}
+
+struct astNode *parseASM(struct Dictionary *dict)
+{
+    struct astNode *asmNode = match(t_asm, dict);
+    consume(t_lCurly);
+    trimWhitespace(1);
+    char inASMblock = 1;
+    int lineLen = 0;
+    char asmLine[32];
+    while (inASMblock)
+    {
+        switch (lookahead_dumb())
+        {
+        case '}':
+            if (lineLen > 0)
+            {
+                asmLine[lineLen] = '\0';
+                astNode_insertChild(asmNode, newastNode(t_asm, DictionaryLookupOrInsert(dict, asmLine)));
+            }
+            curCol++;
+            inASMblock = 0;
+            break;
+
+        case '\n':
+            asmLine[lineLen] = '\0';
+            printf("newline in asm block [%s]\n", asmLine);
+            curCol = 0;
+            curLine++;
+            astNode_insertChild(asmNode, newastNode(t_asm, DictionaryLookupOrInsert(dict, asmLine)));
+            trimWhitespace(1);
+            lineLen = 0;
+            break;
+
+        default:
+            asmLine[lineLen++] = fgetc(inFile);
+            curCol++;
+        }
+    }
+    consume(t_rCurly);
+    consume(t_semicolon);
+    printf("MATCHED ASM BLOCK\n");
+    printAST(asmNode, 0);
+    return asmNode;
 }

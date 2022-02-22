@@ -4,6 +4,22 @@
  * These functions walk the AST and convert it to three-address code
  */
 
+struct TACLine *linearizeASMBlock(struct astNode *it)
+{
+    struct TACLine *asmBlock = NULL;
+    struct astNode *asmRunner = it->child;
+    while (asmRunner != NULL)
+    {
+        struct TACLine *asmLine = newTACLine();
+        asmLine->operation = tt_asm;
+        asmLine->operands[0] = asmRunner->value;
+        asmBlock = appendTAC(asmBlock, asmLine);
+
+        asmRunner = asmRunner->sibling;
+    }
+    return asmBlock;
+}
+
 struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tempList *tl);
 
 struct TACLine *linearizeFunctionCall(struct astNode *it, int *tempNum, struct tempList *tl)
@@ -227,6 +243,9 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
     {
         switch (runner->type)
         {
+        case t_asm:
+            sltac = appendTAC(sltac, linearizeASMBlock(runner));
+            break;
 
         // if we see a variable being declared and then assigned
         // generate the code and stick it on to the end of the block
@@ -243,7 +262,7 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
 
         case t_call:
             // for a raw call, return value is not used, null out that operand
-            struct TACLine* callTAC = linearizeFunctionCall(runner, tempNum, tl);
+            struct TACLine *callTAC = linearizeFunctionCall(runner, tempNum, tl);
             findLastTAC(callTAC)->operands[0] = NULL;
             sltac = appendTAC(sltac, callTAC);
             break;
@@ -320,7 +339,7 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             noifLabel->operands[0] = (char *)((long int)++(*labelCount));
             noifJump->operands[0] = (char *)(long int)(*labelCount);
             // printf("\n\n~~~\n");
-            
+
             struct TACLine *ifBody = linearizeStatementList(runner->child->sibling->child, tempNum, labelCount, tl);
 
             appendTAC(sltac, ifBody);
@@ -378,13 +397,13 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             {
                 appendTAC(sltac, noifLabel);
             }
-            
+
             // throw away the saved register states
             struct TACLine *popStateLine = newTACLine();
             popStateLine->operation = tt_popstate;
             appendTAC(sltac, popStateLine);
         }
-            break;
+        break;
 
         case t_while:
         {
@@ -401,10 +420,10 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             appendTAC(sltac, doLine);
 
             // generate a label for the top of the while loop
-            struct TACLine* beginWhile = newTACLine();
+            struct TACLine *beginWhile = newTACLine();
             beginWhile->operation = tt_label;
             beginWhile->operands[0] = (char *)((long int)++(*labelCount));
-            appendTAC(sltac, beginWhile);   
+            appendTAC(sltac, beginWhile);
 
             // linearize the expression we will test
             appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
@@ -452,8 +471,7 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             noifLabel->operation = tt_label;
             appendTAC(sltac, noWhileJump);
 
-
-            struct TACLine* noWhileLabel = newTACLine();
+            struct TACLine *noWhileLabel = newTACLine();
             noWhileLabel->operation = tt_label;
             // bit hax (⌐▨_▨)
             // (store the label index using the char* for this TAC line)
@@ -461,7 +479,7 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             noWhileLabel->operands[0] = (char *)((long int)++(*labelCount));
             noWhileJump->operands[0] = (char *)(long int)(*labelCount);
 
-            // linearize the body of the loop            
+            // linearize the body of the loop
             struct TACLine *whileBody = linearizeStatementList(runner->child->sibling->child, tempNum, labelCount, tl);
             appendTAC(sltac, whileBody);
 
@@ -484,10 +502,9 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             // at the very end, add the label we jump to if the condition test fails
             appendTAC(sltac, noWhileLabel);
             // throw away the saved state when done with the loop
-            struct TACLine* endWhilePop = newTACLine();
+            struct TACLine *endWhilePop = newTACLine();
             endWhilePop->operation = tt_popstate;
             appendTAC(sltac, endWhilePop);
-
         }
         break;
 

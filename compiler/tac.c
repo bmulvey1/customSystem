@@ -4,6 +4,9 @@ char *getAsmOp(enum TACType t)
 {
     switch (t)
     {
+    case tt_asm:
+        return "";
+        
     case tt_assign:
         return "";
 
@@ -95,6 +98,10 @@ void printTACLine(struct TACLine *it)
     int width;
     switch (it->operation)
     {
+    case tt_asm:
+        width = printf("ASM:%s", it->operands[0]);
+        break;
+
     case tt_add:
         if (!fallingThrough)
             operationStr = "+";

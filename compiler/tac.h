@@ -16,6 +16,7 @@ enum variableTypes
 
 enum TACType
 {
+    tt_asm,
     tt_assign,
     tt_add,
     tt_subtract,

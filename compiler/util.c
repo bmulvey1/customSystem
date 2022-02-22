@@ -92,7 +92,8 @@ char *DictionaryLookupOrInsert(struct Dictionary *dict, char *value)
     }
     else
     {
-        return DictionaryInsert(dict, value);
+        char* pointer = DictionaryInsert(dict, value);
+        return pointer;
     }
 }
 

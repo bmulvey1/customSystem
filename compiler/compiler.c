@@ -67,9 +67,10 @@ void walkStatement(struct astNode *it, struct symbolTable *wip)
         }
         break;
 
-    // function call/return can't create new symbols so ignore
+    // function call/return and asm blocks can't create new symbols so ignore
     case t_call:
     case t_return:
+    case t_asm:
         break;
 
     default:
@@ -167,6 +168,10 @@ struct symbolTable *walkAST(struct astNode *it)
 
         case t_fun:
             walkFunction(runner, wip);
+            break;
+
+        // ignore asm blocks
+        case t_asm:
             break;
 
         default:
@@ -454,13 +459,13 @@ struct Lifetime *findLifetimes(struct functionEntry *function)
         // any variable with a lt ending after this threshold
         // will have its lifetime extended to the index of the "enddo" label
         case tt_do:
-            int* pushedIndex = malloc(sizeof(int));
+            int *pushedIndex = malloc(sizeof(int));
             *pushedIndex = lineIndex;
             StackPush(doBlockLifetimes, pushedIndex);
             break;
 
         case tt_enddo:
-            int* ltThreshold = StackPop(doBlockLifetimes);
+            int *ltThreshold = StackPop(doBlockLifetimes);
             for (struct Lifetime *ltRunner = ltList; ltRunner != NULL; ltRunner = ltRunner->next)
                 if (ltRunner->end >= *ltThreshold)
                     ltRunner->end = lineIndex;
@@ -1436,34 +1441,52 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
         case tt_je:
         case tt_jne:
         case tt_jmp:
+        {
             outputStr = malloc(32 * sizeof(char));
             sprintf(outputStr, "%s %s_%ld", getAsmOp(line->operation), functionName, (long int)line->operands[0]);
             ASMblock_append(outputBlock, outputStr, TACindex);
-            break;
+        }
+        break;
 
         case tt_pushstate:
+        {
             StackPush(stateStack, duplicateRegisterStates(registerStates));
-            break;
+        }
+        break;
 
         case tt_restorestate:
+        {
             restoreRegisterStates(registerStates, StackPeek(stateStack), outputBlock, function, TACindex);
-            break;
+        }
+        break;
 
         case tt_resetstate:
+        {
             struct registerState **resetTo = StackPeek(stateStack);
             for (int i = 0; i < 12; i++)
                 memcpy(registerStates[i], resetTo[i], sizeof(struct registerState));
-
-            break;
+        }
+        break;
 
         case tt_popstate:
+        {
             free(StackPop(stateStack));
-            break;
+        }
+        break;
 
         // do and end do blocks for lifetime extension in loops - no output to generate here
         case tt_do:
         case tt_enddo:
             break;
+
+        case tt_asm:
+        {
+            printf("GENERATING CODE FOR ASM %s\n", line->operands[0]);
+            char *duplicateString = malloc(strlen(line->operands[0]) * sizeof(char));
+            strcpy(duplicateString, line->operands[0]);
+            ASMblock_append(outputBlock, duplicateString, TACindex);
+        }
+        break;
 
         default:
             // printf("%s = %s %s\n", line->operands[0], line->operands[1], line->operands[2]);
@@ -1540,7 +1563,7 @@ int main(int argc, char **argv)
     printSymTab(theTable);
     printf("\n\n");
 
-    FILE *outFile = fopen("./output.asm", "wb");
+    FILE *outFile = fopen(argv[2], "wb");
 
     for (int i = 0; i < theTable->size; i++)
     {
@@ -1593,6 +1616,7 @@ int main(int argc, char **argv)
                     case tt_resetstate:
                     case tt_do:
                     case tt_enddo:
+                    case t_asm:
                         printf("\n");
                         break;
 

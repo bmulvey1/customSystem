@@ -1,3 +1,11 @@
+asm{
+    entry code
+    code:
+    push $20
+    call firstNeverything
+    hlt
+};
+
 # this function computes the nth fibonacci number 
 fun fib(var n)
 {
@@ -13,6 +21,9 @@ fun firstnfibs(var n){
     var i = 0;
     while(i < n){
         fib(i + 1);
+        asm{
+            out %r0
+        };
         i = i + 1;
     }
 }
@@ -36,6 +47,9 @@ fun firstntets(var n){
     var i = 0;
     while(i < n){
         tet(i + 1);
+        asm{
+            out %r0
+        };
         i = i + 1;
     }
 }
@@ -65,6 +79,9 @@ fun firstNPrimes(var n){
     while(foundNum < n){
         var result = isPrime(i);
         if(result == 1){
+            asm{
+                out %r2
+            };
             foundNum = foundNum + 1;
         }
         i = i + 1;

@@ -4,6 +4,7 @@
 
 enum token
 {
+    t_asm,
     t_var,
     t_fun,
     t_return,

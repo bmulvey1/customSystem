@@ -5,6 +5,8 @@
 
 #pragma once
 
+struct TACLine *linearizeASMBlock(struct astNode *it);
+
 struct TACLine *linearizeFunctionCall(struct astNode *it, int *tempNum, struct tempList *tl);
 
 struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tempList *tl);

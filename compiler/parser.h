@@ -46,3 +46,5 @@ struct astNode *parseIfStatement(struct Dictionary *dict);
 struct astNode *parseElseStatement(struct Dictionary *dict);
 
 struct astNode* parseWhileLoop(struct Dictionary *dict);
+
+struct astNode* parseASM(struct Dictionary *dict);

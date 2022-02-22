@@ -1,10 +1,8 @@
 #include "CPU.asm"
 entry code
-
 code:
 	push $20
 	call firstNeverything
-code_done:
 	hlt
 
 fib:
@@ -202,18 +200,6 @@ firstNPrimes_3:
 	mov %r0, %r2
 	jmp firstNPrimes_1
 firstNPrimes_2:
-firstNPrimes_4:
-	mov %r0, 4(%bp)
-	cmp %r0, $0
-	jle firstNPrimes_5
-	push 4(%bp)
-	call fib
-	mov %r0, 4(%bp)
-	sub %r0, $1
-	mov 4(%bp), %r0
-	mov -4(%bp), %r1
-	jmp firstNPrimes_4
-firstNPrimes_5:
 firstNPrimes_done:
 	pop %r2
 	pop %r1

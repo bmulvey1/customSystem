@@ -36,6 +36,7 @@ firstnfibs_1:
 	push %r1
 	mov %r2, %r0
 	call fib
+	out %r0
 	add %r2, $1
 	mov %r0, %r2
 	jmp firstnfibs_1
@@ -115,6 +116,7 @@ firstntets_1:
 	push %r1
 	mov %r2, %r0
 	call tet
+	out %r0
 	add %r2, $1
 	mov %r0, %r2
 	jmp firstntets_1
@@ -183,6 +185,7 @@ firstNPrimes_1:
 	call isPrime
 	cmp %r0, $1
 	jne firstNPrimes_3
+	out %r2
 	add %r1, $1
 firstNPrimes_3:
 	add %r2, $1
