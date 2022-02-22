@@ -92,7 +92,7 @@ char *DictionaryLookupOrInsert(struct Dictionary *dict, char *value)
     }
     else
     {
-        char* pointer = DictionaryInsert(dict, value);
+        char *pointer = DictionaryInsert(dict, value);
         return pointer;
     }
 }
@@ -128,6 +128,12 @@ struct Stack *newStack()
     return wip;
 }
 
+void freeStack(struct Stack *s)
+{
+    free(s->data);
+    free(s);
+}
+
 void StackPush(struct Stack *s, void *data)
 {
     if (s->size >= s->allocated)
@@ -154,7 +160,8 @@ void *StackPop(struct Stack *s)
     }
 }
 
-void* StackPeek(struct Stack* s){
+void *StackPeek(struct Stack *s)
+{
     if (s->size > 0)
     {
         return s->data[s->size - 1];

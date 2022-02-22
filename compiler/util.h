@@ -48,6 +48,8 @@ struct Stack
 
 struct Stack* newStack();
 
+void freeStack(struct Stack* s);
+
 void StackPush(struct Stack* s, void* data);
 
 void* StackPop(struct Stack* s);

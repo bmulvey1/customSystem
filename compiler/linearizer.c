@@ -467,8 +467,6 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
                 noWhileJump->operation = tt_jne;
                 break;
             }
-            struct TACLine *noifLabel = newTACLine();
-            noifLabel->operation = tt_label;
             appendTAC(sltac, noWhileJump);
 
             struct TACLine *noWhileLabel = newTACLine();

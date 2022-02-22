@@ -533,6 +533,15 @@ struct Lifetime *findLifetimes(struct functionEntry *function)
         lineIndex++;
     }
 
+    if (doBlockLifetimes->size > 0)
+    {
+        printf("Error - done finding lifetimes for function %s but still in 'do' block!\n", function->table->name);
+    }
+    else
+    {
+        freeStack(doBlockLifetimes);
+    }
+
     return ltList;
 }
 
@@ -1470,7 +1479,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
 
         case tt_popstate:
         {
-            free(StackPop(stateStack));
+            freeRegisterStates(StackPop(stateStack));
         }
         break;
 
@@ -1538,14 +1547,23 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
 
     // need to get arg count for return statement
     freeRegisterStates(registerStates);
-    free(stateStack);
+    freeStack(stateStack);
 
     return outputBlock;
 }
 
 int main(int argc, char **argv)
 {
+    if(argc < 2){
+        printf("Error - please specify an input and output file!\n");
+        exit(1);
+    }else if(argc < 3){
+        printf("Error - please specify an output file!\n");
+        exit(1);
+    }
     printf("Parsing program from %s\n", argv[1]);
+    
+    printf("Generating output to %s\n", argv[2]);
     struct Dictionary *parseDict = newDictionary(10);
     struct astNode *program = parseProgram(argv[1], parseDict);
 
