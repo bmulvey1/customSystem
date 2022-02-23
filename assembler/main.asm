@@ -1,8 +1,8 @@
 #include "CPU.asm"
 entry code
 code:
-	push $20
-	call firstNeverything
+	push $168
+	call firstNPrimes
 	hlt
 
 fib:
