@@ -7,5 +7,7 @@ a.out
 *.out
 *.o
 
+*.bin
+
 
 
