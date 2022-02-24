@@ -1,7 +1,6 @@
 #include "parser.h"
 
 FILE *inFile;
-#define BUF_SIZE 16
 char buffer[BUF_SIZE];
 int buflen;
 int curLine, curCol;

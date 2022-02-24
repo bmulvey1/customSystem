@@ -5,6 +5,8 @@
 #include "ast.h"
 #include "util.h"
 
+#define BUF_SIZE 16
+
 void error();
 
 char lookahead_dumb();

@@ -1491,9 +1491,49 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
         case tt_asm:
         {
             printf("GENERATING CODE FOR ASM %s\n", line->operands[0]);
-            char *duplicateString = malloc(strlen(line->operands[0]) * sizeof(char));
-            strcpy(duplicateString, line->operands[0]);
-            ASMblock_append(outputBlock, duplicateString, TACindex);
+            char *outputAsmString = malloc((strlen(line->operands[0]) + 8) * sizeof(char));
+            int outputAsmIndex = 0;
+            for (int i = 0; i < strlen(line->operands[0]); i++)
+            {
+                // check to see if we need to substitute any variables in
+                if (line->operands[0][i] == '(')
+                {
+                    // establish an intermediate buffer to contain the name of the variable
+                    char intermediateBuffer[BUF_SIZE];
+                    int intermediateBufLen = 0;
+                    // scan through the asm line, copy the string to the intermediate buffer
+                    while (line->operands[0][++i] != ')')
+                    {
+                        // break if we see the end of the asm line with no close paren
+                        if (line->operands[0][i] == '\0')
+                        {
+                            printf("Error - unmatched open paren in asm line\n[%s]\n", line->operands[0]);
+                            exit(1);
+                        }
+                        intermediateBuffer[intermediateBufLen++] = line->operands[0][i];
+                    }
+                    intermediateBuffer[intermediateBufLen] = '\0';
+
+                    // allocate another intermediate string to store where the variable will actually come from
+                    char *locationString = malloc(16 * sizeof(char));
+                    int registerLocation = findTemp(registerStates, intermediateBuffer);
+                    if (registerLocation != -1)
+                        sprintf(locationString, "%%r%d", registerLocation);
+                    else
+                        sprintf(locationString, "%d(%%sp)", findStackOffset(intermediateBuffer, function));
+
+                    // finally, copy the location of the variable to the final output string
+                    for (int j = 0; j < strlen(locationString); j++)
+                        outputAsmString[outputAsmIndex++] = locationString[j];
+                }
+                // no variable find/substitution, so just copy the chars directly
+                else
+                {
+                    outputAsmString[outputAsmIndex++] = line->operands[0][i];
+                }
+            }
+            outputAsmString[outputAsmIndex] = '\0';
+            ASMblock_append(outputBlock, outputAsmString, TACindex);
         }
         break;
 
@@ -1554,15 +1594,18 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
 
 int main(int argc, char **argv)
 {
-    if(argc < 2){
+    if (argc < 2)
+    {
         printf("Error - please specify an input and output file!\n");
         exit(1);
-    }else if(argc < 3){
+    }
+    else if (argc < 3)
+    {
         printf("Error - please specify an output file!\n");
         exit(1);
     }
     printf("Parsing program from %s\n", argv[1]);
-    
+
     printf("Generating output to %s\n", argv[2]);
     struct Dictionary *parseDict = newDictionary(10);
     struct astNode *program = parseProgram(argv[1], parseDict);
