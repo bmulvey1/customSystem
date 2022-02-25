@@ -743,7 +743,7 @@ int findTemp(struct registerState **registerStates, char *var)
 void restoreRegisterStates(struct registerState **current, struct registerState **desired, struct ASMblock *outputBlock, struct functionEntry *function, int TACindex)
 {
     char *outputStr;
-
+    
     // int scratchIndex = findUnallocatedRegister(current);
     for (int i = 0; i < 12; i++)
     {
@@ -763,7 +763,7 @@ void restoreRegisterStates(struct registerState **current, struct registerState 
                         // if there's something there that needs to be saved, save it
                         if (current[i]->live || current[i]->dirty)
                         {
-                            outputStr = malloc(16 * sizeof(char));
+                            outputStr = malloc(24 * sizeof(char));
                             sprintf(outputStr, "mov %%r%d, %d(%%bp)", i, findStackOffset(desired[i]->contains, function));
                             ASMblock_append(outputBlock, outputStr, TACindex);
                         }
@@ -1515,7 +1515,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                     intermediateBuffer[intermediateBufLen] = '\0';
 
                     // allocate another intermediate string to store where the variable will actually come from
-                    char *locationString = malloc(16 * sizeof(char));
+                    char locationString[16];
                     int registerLocation = findTemp(registerStates, intermediateBuffer);
                     if (registerLocation != -1)
                         sprintf(locationString, "%%r%d", registerLocation);

@@ -6,7 +6,7 @@ char *symbolNames[] = {
 
 char *getTempString(struct tempList *tempList, int tempNum)
 {
-    if (tempList->size < tempNum)
+    if (tempList->size <= tempNum)
     {
         int newSize = tempList->size + 10;
         char **newTemps = malloc(newSize * sizeof(char *));
@@ -23,7 +23,7 @@ char *getTempString(struct tempList *tempList, int tempNum)
         tempList->temps = newTemps;
         tempList->size = newSize;
     }
-    return tempList->temps[tempNum - 1];
+    return tempList->temps[tempNum];
 }
 
 struct tempList *newTempList()
