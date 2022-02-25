@@ -1490,7 +1490,6 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
 
         case tt_asm:
         {
-            printf("GENERATING CODE FOR ASM %s\n", line->operands[0]);
             char *outputAsmString = malloc((strlen(line->operands[0]) + 8) * sizeof(char));
             int outputAsmIndex = 0;
             for (int i = 0; i < strlen(line->operands[0]); i++)

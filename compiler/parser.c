@@ -31,10 +31,15 @@ void error(char *info)
     exit(1);
 }
 
-char lookahead_dumb()
+// return 'count' characters ahead
+char lookahead_dumb(int count)
 {
     long offset = ftell(inFile);
-    char returnChar = fgetc(inFile);
+    char returnChar;
+    for (int i = 0; i < count; i++)
+    {
+        returnChar = fgetc(inFile);
+    }
     fseek(inFile, offset, SEEK_SET);
     return returnChar;
 }
@@ -44,7 +49,7 @@ void trimWhitespace(char trackPos)
     int trimming = 1;
     while (trimming)
     {
-        switch (lookahead_dumb())
+        switch (lookahead_dumb(1))
         {
         case '\n':
             if (trackPos)
@@ -65,14 +70,65 @@ void trimWhitespace(char trackPos)
             fgetc(inFile);
             break;
 
-        case '#':
-            while (fgetc(inFile) != '\n')
-                ;
-
-            if (trackPos)
+        case '/':
+            switch (lookahead_dumb(2))
             {
-                curLine++;
-                curCol = 1;
+                // single line comment
+            case '/':
+                while (fgetc(inFile) != '\n')
+                    ;
+
+                if (trackPos)
+                {
+                    curLine++;
+                    curCol = 1;
+                }
+                break;
+
+            case '*':
+                // skip the comment opener, begin reading the comment
+                fgetc(inFile);
+                fgetc(inFile);
+
+                char inBlockComment = 1;
+                while (inBlockComment)
+                {
+                    switch (fgetc(inFile))
+                    {
+                        // look ahead if we see something that could be related to a block comment
+                    case '*':
+                        if (lookahead_dumb(1) == '/')
+                            inBlockComment = 0;
+
+                        break;
+
+                        // disallow nesting of block comments
+                    case '/':
+                        if (lookahead_dumb(1) == '*')
+                            error("Error - nested block comments not allowed");
+
+                        break;
+
+                        // otherwise just track position in the file if necessary
+                    case '\n':
+                        if (trackPos)
+                        {
+                            curLine++;
+                            curCol = 1;
+                            break;
+                        }
+                        break;
+
+                    default:
+                        if (trackPos)
+                            curCol += 1;
+
+                        break;
+                    }
+                }
+                // catch the trailing slash of the comment closer
+                fgetc(inFile);
+                break;
             }
 
             break;
@@ -87,7 +143,7 @@ void trimWhitespace(char trackPos)
 char lookahead()
 {
     trimWhitespace(0);
-    char r = lookahead_dumb();
+    char r = lookahead_dumb(1);
     return r;
 }
 
@@ -196,7 +252,7 @@ enum token scan(char trackPos)
         }
 
         // if the next input char is whitespace or a single-character token, we're done with this token
-        switch (lookahead_dumb())
+        switch (lookahead_dumb(1))
         {
         case ' ':
         case ',':
@@ -209,6 +265,8 @@ enum token scan(char trackPos)
         case '\t':
         case '+':
         case '-':
+        case '*':
+        case '/':
             return currentToken;
             break;
         }
@@ -681,7 +739,7 @@ struct astNode *parseASM(struct Dictionary *dict)
     char asmLine[32];
     while (inASMblock)
     {
-        switch (lookahead_dumb())
+        switch (lookahead_dumb(1))
         {
         case '}':
             if (lineLen > 0)
