@@ -87,3 +87,12 @@ void printSymTabRec(struct symbolTable *it, int depth);
 void printSymTab(struct symbolTable *it);
 
 void freeSymTab(struct symbolTable *it);
+
+int findInStack(char *var, struct functionEntry *function);
+
+// AST walk functions
+void walkStatement(struct astNode *it, struct symbolTable *wip);
+
+void walkFunction(struct astNode *it, struct symbolTable *wip);
+
+struct symbolTable *walkAST(struct astNode *it);

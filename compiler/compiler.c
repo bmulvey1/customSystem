@@ -7,182 +7,9 @@
 #include "symtab.h"
 #include "util.h"
 #include "linearizer.h"
+#include "state.h"
+#include "asm.h" 
 
-void walkStatement(struct astNode *it, struct symbolTable *wip)
-{
-    switch (it->type)
-    {
-    case t_var:
-        char *varName;
-        if (it->child->type == t_assign)
-            varName = it->child->child->value;
-        else
-            varName = it->child->value;
-
-        // lookup the variable being assigned, only insert if unique
-        // also covers modification of argument values
-        if (!symbolTableContains(wip, varName))
-        {
-            symTab_insertVariable(wip, varName, wip->varc++);
-        }
-
-        break;
-
-    case t_assign:
-        if (!symbolTableContains(wip, it->child->value))
-        {
-            printf("Error - variable [%s] assigned before declaration\n", it->child->value);
-            exit(1);
-        }
-        break;
-
-    case t_if:
-        // having fun yet?
-        struct astNode *ifRunner = it->child->sibling->child;
-        while (ifRunner != NULL)
-        {
-            walkStatement(ifRunner, wip);
-            ifRunner = ifRunner->sibling;
-        }
-
-        // no, really!
-        if (it->child->sibling->sibling != NULL)
-        {
-            ifRunner = it->child->sibling->sibling->child->child;
-            while (ifRunner != NULL)
-            {
-                walkStatement(ifRunner, wip);
-                ifRunner = ifRunner->sibling;
-            }
-        }
-
-        break;
-
-    case t_while:
-        struct astNode *whileRunner = it->child->sibling->child;
-        while (whileRunner != NULL)
-        {
-            walkStatement(whileRunner, wip);
-            whileRunner = whileRunner->sibling;
-        }
-        break;
-
-    // function call/return and asm blocks can't create new symbols so ignore
-    case t_call:
-    case t_return:
-    case t_asm:
-        break;
-
-    default:
-        printf("Error walking AST for function %s - expected 'var', name, or function call, saw %s with value of [%s]\n", it->child->value, getTokenName(it->type), it->value);
-        exit(1);
-    }
-}
-
-void walkFunction(struct astNode *it, struct symbolTable *wip)
-{
-    struct astNode *functionRunner = it->child;
-    char *functionName = functionRunner->value;
-    struct symbolTable *subTable = newSymbolTable(functionName);
-    while (functionRunner != NULL)
-    {
-        // printAST(functionRunner, 0);
-        switch (functionRunner->type)
-        {
-        // looking at function name, which will have argument variables as children
-        case t_name:
-            struct astNode *argumentRunner = functionRunner->child;
-            while (argumentRunner != NULL)
-            {
-                if (argumentRunner->child->type == t_assign)
-                {
-                    if (!symbolTableContains(subTable, argumentRunner->child->child->value))
-                        symTab_insertArgument(subTable, argumentRunner->child->child->value, wip->argc++);
-                }
-                else
-                {
-                    if (!symbolTableContains(subTable, argumentRunner->child->value))
-                        symTab_insertArgument(subTable, argumentRunner->child->value, subTable->argc++);
-                }
-
-                argumentRunner = argumentRunner->sibling;
-            }
-            break;
-
-        // function call/return can't create new symbols so ignore
-        case t_call:
-        case t_return:
-            break;
-
-        case t_if:
-            // having fun yet?
-            struct astNode *ifRunner = functionRunner->child->sibling->child;
-            while (ifRunner != NULL)
-            {
-                walkStatement(ifRunner, subTable);
-                ifRunner = ifRunner->sibling;
-            }
-
-            // no, really! (if an else block exists, walk that too)
-            if (functionRunner->child->sibling->sibling != NULL)
-            {
-                ifRunner = functionRunner->child->sibling->sibling->child->child;
-                while (ifRunner != NULL)
-                {
-                    walkStatement(ifRunner, subTable);
-                    ifRunner = ifRunner->sibling;
-                }
-            }
-
-            break;
-
-        case t_while:
-            struct astNode *whileRunner = functionRunner->child->sibling->child;
-            while (whileRunner != NULL)
-            {
-                walkStatement(whileRunner, subTable);
-                whileRunner = whileRunner->sibling;
-            }
-            break;
-
-        // otherwise we are looking at the body of the function, which is a statement list
-        default:
-            walkStatement(functionRunner, subTable);
-        }
-        functionRunner = functionRunner->sibling;
-    }
-    symTab_insertFunction(wip, functionName, subTable);
-}
-
-// given an AST node for a program, walk the AST and generate a symbol table for the entire thing
-struct symbolTable *walkAST(struct astNode *it)
-{
-    struct symbolTable *wip = newSymbolTable("Program");
-    wip->tl = newTempList();
-    struct astNode *runner = it;
-    while (runner != NULL)
-    {
-        printf(".");
-        switch (runner->type)
-        {
-
-        case t_fun:
-            walkFunction(runner, wip);
-            break;
-
-        // ignore asm blocks
-        case t_asm:
-            break;
-
-        default:
-            printf("Error walking AST - expected 'v' or function declaration\n");
-            exit(1);
-            break;
-        }
-        runner = runner->sibling;
-    }
-    return wip;
-}
 
 /*
  * setup code for linked list containing variable lifetime info
@@ -213,63 +40,6 @@ void freeLifetime(struct Lifetime *it)
         it = it->next;
         free(old);
     }
-}
-
-struct ASMline
-{
-    char *data;
-    struct ASMline *next;
-    int correspondingTACindex;
-};
-
-struct ASMblock
-{
-    struct ASMline *head;
-    struct ASMline *tail;
-};
-
-struct ASMblock *newASMblock()
-{
-    struct ASMblock *wip = malloc(sizeof(struct ASMblock));
-    wip->head = NULL;
-    wip->tail = NULL;
-    return wip;
-}
-
-void ASMblock_prepend(struct ASMblock *block, char *data, int correspondingTACindex)
-{
-    struct ASMline *newLine = malloc(sizeof(struct ASMline));
-    newLine->data = data;
-    newLine->correspondingTACindex = correspondingTACindex;
-
-    if (block->head != NULL)
-    {
-        newLine->next = block->head;
-    }
-    else
-    {
-        newLine->next = NULL;
-        block->tail = newLine;
-    }
-    block->head = newLine;
-}
-
-void ASMblock_append(struct ASMblock *block, char *data, int correspondingTACindex)
-{
-    struct ASMline *newLine = malloc(sizeof(struct ASMline));
-    newLine->data = data;
-    newLine->next = NULL;
-    newLine->correspondingTACindex = correspondingTACindex;
-
-    if (block->tail != NULL)
-    {
-        block->tail->next = newLine;
-    }
-    else
-    {
-        block->head = newLine;
-    }
-    block->tail = newLine;
 }
 
 /*
@@ -545,131 +315,6 @@ struct Lifetime *findLifetimes(struct functionEntry *function)
     return ltList;
 }
 
-/*
- *
- * Target code generation // Register Allocation
- *
- */
-struct registerState
-{
-    char live;  // whether this var will be used in the future
-    char dying; // whether this var will be used in the current instruction but no later
-    char dirty;
-    char touched;
-    char *contains;
-};
-
-struct registerState *newRegisterState()
-{
-    struct registerState *wip = malloc(sizeof(struct registerState));
-    wip->live = 0;
-    wip->dirty = 0;
-    wip->touched = 0;
-    wip->contains = NULL;
-    return wip;
-}
-
-void printRegisterStates(struct registerState **registerStates)
-{
-    printf("----------\n");
-
-    for (int i = 0; i < 12; i++)
-    {
-        printf("r%2d:", i);
-        if (registerStates[i]->contains == NULL)
-        {
-            printf("NULL      |");
-        }
-        else
-        {
-            for (int j = 0; j < 10; j++)
-            {
-                if (registerStates[i]->contains[j] == '\0')
-                {
-                    while (j < 10)
-                    {
-                        printf(" ");
-                        j++;
-                    }
-                    break;
-                }
-                else
-                {
-                    printf("%c", registerStates[i]->contains[j]);
-                }
-            }
-            printf("|");
-        }
-
-        if (registerStates[i]->live)
-            printf("live ");
-        else
-            printf("dead ");
-
-        if (registerStates[i]->dirty)
-            printf("dirty");
-        else
-            printf("     ");
-
-        printf("\n");
-    }
-    printf("----------\n\n");
-}
-
-void printRegisterStatesHorizontal(struct registerState **registerStates)
-{
-    for (int i = 0; i < 12; i++)
-        if (registerStates[i]->contains != NULL)
-            printf("   r%2d|", i);
-
-    printf("\n");
-
-    for (int i = 0; i < 12; i++)
-    {
-        if (registerStates[i]->contains != NULL)
-        {
-            int j;
-            for (j = 0; j < 6; j++)
-            {
-                if (registerStates[i]->contains[j] != '\0')
-                    printf("%c", registerStates[i]->contains[j]);
-                else
-                    break;
-            }
-
-            while (j++ < 6)
-                printf(" ");
-
-            printf("|");
-        }
-    }
-    printf("\n");
-}
-
-void freeRegisterStates(struct registerState **s)
-{
-    for (int i = 0; i < 12; i++)
-        free(s[i]);
-
-    free(s);
-}
-
-struct registerState **duplicateRegisterStates(struct registerState **theStates)
-{
-    struct registerState **duplicateStates = malloc(12 * sizeof(struct registerState *));
-    for (int i = 0; i < 12; i++)
-    {
-        duplicateStates[i] = malloc(sizeof(struct registerState));
-        memcpy(duplicateStates[i], theStates[i], sizeof(struct registerState));
-    }
-    return duplicateStates;
-}
-
-/*
- * Stack to contain register state lists
- *
- */
-
 int findUnallocatedRegister(struct registerState **registerStates)
 {
     for (int i = 0; i < 12; i++)
@@ -698,48 +343,6 @@ void modifyRegisterContents(struct registerState **registerStates, int index, ch
     }
 }
 
-// finds and returns the positive/negative offset of a variable
-// value is byte offset relative to base pointer of provided function
-int findStackOffset(char *var, struct functionEntry *function)
-{
-    struct symTabEntry *theEntry = symbolTableLookup(function->table, var);
-    if (theEntry == NULL)
-    {
-        printf("UNABLE TO FIND VARIABLE %s IN SYMBOL TABLE\n", var);
-        exit(0);
-    }
-    int spOffset;
-    switch (theEntry->type)
-    {
-    case e_variable:
-        // may need a hardcoded offset to avoid overlapping return vector
-        spOffset = ((((struct variableEntry *)theEntry->entry)->index * -2) - 2);
-        break;
-
-    case e_argument:
-        // + 4 because return address and old base pointer are on stack before current BP
-        spOffset = (((struct argumentEntry *)theEntry->entry)->index * 2) + 4;
-        break;
-
-    default:
-        printf("Saw something illegal while trying to locate variable/argument %s on the stack\n", var);
-        exit(1);
-    }
-
-    return spOffset;
-}
-
-// find and return the register containing a given temp. variable (since temporaries can be guaranteed to be in a register)
-int findTemp(struct registerState **registerStates, char *var)
-{
-    for (int i = 0; i < 12; i++)
-        if (registerStates[i]->contains != NULL)
-            if (!strcmp(registerStates[i]->contains, var))
-                return i;
-
-    return -1;
-}
-
 void restoreRegisterStates(struct registerState **current, struct registerState **desired, struct ASMblock *outputBlock, struct functionEntry *function, int TACindex)
 {
     char *outputStr;
@@ -764,15 +367,15 @@ void restoreRegisterStates(struct registerState **current, struct registerState 
                         if (current[i]->live || current[i]->dirty)
                         {
                             outputStr = malloc(24 * sizeof(char));
-                            sprintf(outputStr, "mov %%r%d, %d(%%bp)", i, findStackOffset(desired[i]->contains, function));
+                            sprintf(outputStr, "mov %%r%d, %d(%%bp)", i, findInStack(desired[i]->contains, function));
                             ASMblock_append(outputBlock, outputStr, TACindex);
                         }
                     }
-                    int existingVarIndex = findTemp(current, desired[i]->contains);
+                    int existingVarIndex = findInRegisters(current, desired[i]->contains);
                     outputStr = malloc(16 * sizeof(char));
                     if (existingVarIndex == -1)
                     {
-                        sprintf(outputStr, "mov %%r%d, %d(%%bp)", i, findStackOffset(desired[i]->contains, function));
+                        sprintf(outputStr, "mov %%r%d, %d(%%bp)", i, findInStack(desired[i]->contains, function));
                     }
                     else
                     {
@@ -787,11 +390,11 @@ void restoreRegisterStates(struct registerState **current, struct registerState 
             // the register contains nothing, we can just find the variable that needs to be there and place it
             else
             {
-                int existingVarIndex = findTemp(current, desired[i]->contains);
+                int existingVarIndex = findInRegisters(current, desired[i]->contains);
                 outputStr = malloc(16 * sizeof(char));
                 if (existingVarIndex == -1)
                 {
-                    sprintf(outputStr, "mov %%r%d, %d(%%bp)", i, findStackOffset(desired[i]->contains, function));
+                    sprintf(outputStr, "mov %%r%d, %d(%%bp)", i, findInStack(desired[i]->contains, function));
                 }
                 else
                 {
@@ -813,7 +416,7 @@ void restoreRegisterStates(struct registerState **current, struct registerState 
                 if (current[i]->live || current[i]->dirty)
                 {
                     outputStr = malloc(16 * sizeof(char));
-                    sprintf(outputStr, "mov %d(%%bp), %%r%d", findStackOffset(current[i]->contains, function), i);
+                    sprintf(outputStr, "mov %d(%%bp), %%r%d", findInStack(current[i]->contains, function), i);
                     ASMblock_append(outputBlock, outputStr, TACindex);
                 }
             }
@@ -843,7 +446,7 @@ void relocateRegister(struct registerState **registerStates, struct ASMblock *ou
 // assign a value into a register, return the destination index
 int generateAssignmentCode(struct TACLine *line, struct registerState **registerStates, struct ASMblock *outputBlock, struct functionEntry *function, int TACindex)
 {
-    int destinationIndex = findTemp(registerStates, line->operands[0]);
+    int destinationIndex = findInRegisters(registerStates, line->operands[0]);
     if (destinationIndex == -1)
         destinationIndex = findUnallocatedRegister(registerStates);
 
@@ -856,7 +459,7 @@ int generateAssignmentCode(struct TACLine *line, struct registerState **register
     }
     else
     {
-        int sourceIndex = findTemp(registerStates, line->operands[1]);
+        int sourceIndex = findInRegisters(registerStates, line->operands[1]);
         // if the variable whose value we are assigning to exists
         if (sourceIndex != -1)
         {
@@ -865,7 +468,7 @@ int generateAssignmentCode(struct TACLine *line, struct registerState **register
             {
                 // if the variable being assigned to exists in a register
                 // (was originally found up top by the original destinationregister assignment)
-                if (findTemp(registerStates, line->operands[0]) != -1)
+                if (findInRegisters(registerStates, line->operands[0]) != -1)
                 {
                     registerStates[destinationIndex]->contains = NULL;
                     registerStates[destinationIndex]->live = 0;
@@ -885,7 +488,7 @@ int generateAssignmentCode(struct TACLine *line, struct registerState **register
         else
         {
             outputStr = malloc(16 * sizeof(char));
-            sprintf(outputStr, "mov %%r%d, %d(%%bp)", destinationIndex, findStackOffset(line->operands[1], function));
+            sprintf(outputStr, "mov %%r%d, %d(%%bp)", destinationIndex, findInStack(line->operands[1], function));
             ASMblock_append(outputBlock, outputStr, TACindex);
         }
     }
@@ -910,7 +513,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
     // track whether the result value already exists in a register
     // this will inform where and how we attempt to place variables later
     char destinationExists = 1;
-    destinationRegister = findTemp(registerStates, line->operands[0]);
+    destinationRegister = findInRegisters(registerStates, line->operands[0]);
     if (destinationRegister == -1)
     {
         // if not, we need a place for it to go
@@ -935,7 +538,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
             if (line->reorderable)
             {
                 // if the second operand already exists in a register
-                int existingVarIndex = findTemp(registerStates, line->operands[2]);
+                int existingVarIndex = findInRegisters(registerStates, line->operands[2]);
                 if (existingVarIndex != -1)
                 {
                     // if NOT overwriting one of the operands would consume an additional register
@@ -985,12 +588,12 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
 
                 outputStr = malloc(20 * sizeof(char));
                 // see if the variable is already in a register
-                int existingVarIndex = findTemp(registerStates, line->operands[2]);
+                int existingVarIndex = findInRegisters(registerStates, line->operands[2]);
 
                 // if not, get the second operand from the stack
                 if (existingVarIndex == -1)
                 {
-                    sprintf(outputStr, "%s %%r%d, %d(%%bp)", getAsmOp(line->operation), destinationRegister, findStackOffset(line->operands[2], function));
+                    sprintf(outputStr, "%s %%r%d, %d(%%bp)", getAsmOp(line->operation), destinationRegister, findInStack(line->operands[2], function));
                 }
                 // if yes, get the second operand from its register
                 else
@@ -1021,7 +624,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
             if (line->reorderable)
             {
                 // if the first operand already exists in a register
-                int existingVarIndex = findTemp(registerStates, line->operands[1]);
+                int existingVarIndex = findInRegisters(registerStates, line->operands[1]);
                 if (existingVarIndex != -1)
                 {
                     // if (the existing variable can't be overwritten OR destination var already exists in a register)
@@ -1051,12 +654,12 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
             if (!didReorder)
             {
                 // see if the variable is already in a register
-                int existingVarIndex = findTemp(registerStates, line->operands[1]);
+                int existingVarIndex = findInRegisters(registerStates, line->operands[1]);
                 // if not, get the first operand from the stack
                 if (existingVarIndex == -1)
                 {
                     outputStr = malloc(18 * sizeof(char));
-                    sprintf(outputStr, "mov %%r%d, %d(%%bp)", destinationRegister, findStackOffset(line->operands[1], function));
+                    sprintf(outputStr, "mov %%r%d, %d(%%bp)", destinationRegister, findInStack(line->operands[1], function));
                     ASMblock_append(outputBlock, outputStr, TACindex);
                 }
                 // if yes, get the first operand from its register
@@ -1084,8 +687,8 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
         // op1 var, op2 var
         else
         {
-            int firstVarIndex = findTemp(registerStates, line->operands[1]);
-            int secondVarIndex = findTemp(registerStates, line->operands[2]);
+            int firstVarIndex = findInRegisters(registerStates, line->operands[1]);
+            int secondVarIndex = findInRegisters(registerStates, line->operands[2]);
 
             // both operands live in registers
             if (firstVarIndex != -1 && secondVarIndex != -1)
@@ -1167,7 +770,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
 
                 // perform the operation by grabbing the non present var's value from the stack
                 outputStr = malloc(18 * sizeof(char));
-                sprintf(outputStr, "%s %%r%d, %d(%%bp)", getAsmOp(line->operation), destinationRegister, findStackOffset(line->operands[2], function));
+                sprintf(outputStr, "%s %%r%d, %d(%%bp)", getAsmOp(line->operation), destinationRegister, findInStack(line->operands[2], function));
                 ASMblock_append(outputBlock, outputStr, TACindex);
             }
             // first operand isn't in register, second is
@@ -1193,7 +796,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
 
                     // perform the operation by grabbing the non present var's value from the stack
                     outputStr = malloc(18 * sizeof(char));
-                    sprintf(outputStr, "%s %%r%d, %d(%%bp)", getAsmOp(line->operation), destinationRegister, findStackOffset(line->operands[1], function));
+                    sprintf(outputStr, "%s %%r%d, %d(%%bp)", getAsmOp(line->operation), destinationRegister, findInStack(line->operands[1], function));
                     ASMblock_append(outputBlock, outputStr, TACindex);
                 }
                 // can't reorder
@@ -1201,7 +804,7 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
                 {
                     // place the first operand into the destination register
                     outputStr = malloc(18 * sizeof(char));
-                    sprintf(outputStr, "mov %%r%d, %d(%%bp)", destinationRegister, findStackOffset(line->operands[1], function));
+                    sprintf(outputStr, "mov %%r%d, %d(%%bp)", destinationRegister, findInStack(line->operands[1], function));
                     ASMblock_append(outputBlock, outputStr, TACindex);
 
                     // perform arithmetic using the second operand which is in a register
@@ -1214,11 +817,11 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
             else
             {
                 outputStr = malloc(18 * sizeof(char));
-                sprintf(outputStr, "mov %%r%d, %d(%%bp)", destinationRegister, findStackOffset(line->operands[1], function));
+                sprintf(outputStr, "mov %%r%d, %d(%%bp)", destinationRegister, findInStack(line->operands[1], function));
                 ASMblock_append(outputBlock, outputStr, TACindex);
 
                 outputStr = malloc(18 * sizeof(char));
-                sprintf(outputStr, "%s %%r%d, %d(%%bp)", getAsmOp(line->operation), destinationRegister, findStackOffset(line->operands[2], function));
+                sprintf(outputStr, "%s %%r%d, %d(%%bp)", getAsmOp(line->operation), destinationRegister, findInStack(line->operands[2], function));
                 ASMblock_append(outputBlock, outputStr, TACindex);
             }
         }
@@ -1252,7 +855,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
         {
             if (TACindex > lt->end)
             {
-                int varIndex = findTemp(registerStates, lt->variable);
+                int varIndex = findInRegisters(registerStates, lt->variable);
                 if (varIndex != -1)
                     registerStates[varIndex]->live = 0;
             }
@@ -1273,19 +876,19 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
             {
 
             case vt_var:
-                int varIndex = findTemp(registerStates, line->operands[0]);
+                int varIndex = findInRegisters(registerStates, line->operands[0]);
                 if (varIndex != -1)
                 {
                     sprintf(outputStr, "push %%r%d", varIndex);
                 }
                 else
                 {
-                    sprintf(outputStr, "push %d(%%bp)", findStackOffset(line->operands[0], function));
+                    sprintf(outputStr, "push %d(%%bp)", findInStack(line->operands[0], function));
                 }
                 break;
 
             case vt_temp:
-                sprintf(outputStr, "push %%r%d", findTemp(registerStates, line->operands[0]));
+                sprintf(outputStr, "push %%r%d", findInRegisters(registerStates, line->operands[0]));
                 break;
 
             case vt_literal:
@@ -1335,7 +938,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                 ASMblock_append(outputBlock, outputStr, TACindex);
 
                 // find whether the variable the return value goes into exists in a register
-                int existingVarIndex = findTemp(registerStates, line->operands[0]);
+                int existingVarIndex = findInRegisters(registerStates, line->operands[0]);
                 // if it does, just nullify that register since the value will be replaced entirely
                 if (existingVarIndex != -1)
                 {
@@ -1371,7 +974,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
 
         case tt_return:
         {
-            int retValIndex = findTemp(registerStates, ".RETVAL");
+            int retValIndex = findInRegisters(registerStates, ".RETVAL");
             if (retValIndex != 0)
                 relocateRegister(registerStates, outputBlock, retValIndex, 0, TACindex);
 
@@ -1401,12 +1004,12 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                 if (line->operandTypes[2] == vt_literal)
                 {
                     // see if the var exists in a register
-                    int varIndex = findTemp(registerStates, line->operands[1]);
+                    int varIndex = findInRegisters(registerStates, line->operands[1]);
                     if (varIndex == -1)
                     {
                         // if not, grab it from the stack
                         varIndex = findUnallocatedRegister(registerStates);
-                        sprintf(outputStr, "mov %%r%d, %d(%%bp)", varIndex, findStackOffset(line->operands[1], function));
+                        sprintf(outputStr, "mov %%r%d, %d(%%bp)", varIndex, findInStack(line->operands[1], function));
                         ASMblock_append(outputBlock, outputStr, TACindex);
                         outputStr = malloc(16 * sizeof(char));
                     }
@@ -1416,21 +1019,21 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
                 else
                 {
                     // try to find both variables
-                    int firstVarIndex = findTemp(registerStates, line->operands[1]);
-                    int secondVarIndex = findTemp(registerStates, line->operands[2]);
+                    int firstVarIndex = findInRegisters(registerStates, line->operands[1]);
+                    int secondVarIndex = findInRegisters(registerStates, line->operands[2]);
 
                     // if the first variable doesn't exist, find and place it
                     if (firstVarIndex == -1)
                     {
                         firstVarIndex = findUnallocatedRegister(registerStates);
-                        sprintf(outputStr, "mov %%r%d, %d(%%bp)", firstVarIndex, findStackOffset(line->operands[1], function));
+                        sprintf(outputStr, "mov %%r%d, %d(%%bp)", firstVarIndex, findInStack(line->operands[1], function));
                         ASMblock_append(outputBlock, outputStr, TACindex);
                         outputStr = malloc(16 * sizeof(char));
                     }
                     // if the second var doesn't exist, just do the operation from the stack
                     if (secondVarIndex == -1)
                     {
-                        sprintf(outputStr, "cmp %%r%d, %d(%%bp)", firstVarIndex, findStackOffset(line->operands[2], function));
+                        sprintf(outputStr, "cmp %%r%d, %d(%%bp)", firstVarIndex, findInStack(line->operands[2], function));
                     }
                     // otherwise, use the register containing the value
                     else
@@ -1515,11 +1118,11 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
 
                     // allocate another intermediate string to store where the variable will actually come from
                     char locationString[16];
-                    int registerLocation = findTemp(registerStates, intermediateBuffer);
+                    int registerLocation = findInRegisters(registerStates, intermediateBuffer);
                     if (registerLocation != -1)
                         sprintf(locationString, "%%r%d", registerLocation);
                     else
-                        sprintf(locationString, "%d(%%sp)", findStackOffset(intermediateBuffer, function));
+                        sprintf(locationString, "%d(%%sp)", findInStack(intermediateBuffer, function));
 
                     // finally, copy the location of the variable to the final output string
                     for (int j = 0; j < strlen(locationString); j++)

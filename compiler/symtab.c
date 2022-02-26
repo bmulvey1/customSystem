@@ -240,3 +240,214 @@ void freeSymTab(struct symbolTable *it)
     free(it->entries);
     free(it);
 }
+
+
+// finds and returns the positive/negative offset of a variable
+// value is byte offset relative to base pointer of provided function
+int findInStack(char *var, struct functionEntry *function)
+{
+    struct symTabEntry *theEntry = symbolTableLookup(function->table, var);
+    if (theEntry == NULL)
+    {
+        printf("UNABLE TO FIND VARIABLE %s IN SYMBOL TABLE\n", var);
+        exit(0);
+    }
+    int spOffset;
+    switch (theEntry->type)
+    {
+    case e_variable:
+        // may need a hardcoded offset to avoid overlapping return vector
+        spOffset = ((((struct variableEntry *)theEntry->entry)->index * -2) - 2);
+        break;
+
+    case e_argument:
+        // + 4 because return address and old base pointer are on stack before current BP
+        spOffset = (((struct argumentEntry *)theEntry->entry)->index * 2) + 4;
+        break;
+
+    default:
+        printf("Saw something illegal while trying to locate variable/argument %s on the stack\n", var);
+        exit(1);
+    }
+
+    return spOffset;
+}
+
+/*
+ * AST walk and symbol table generation functions
+ */
+void walkStatement(struct astNode *it, struct symbolTable *wip)
+{
+    switch (it->type)
+    {
+    case t_var:
+        char *varName;
+        if (it->child->type == t_assign)
+            varName = it->child->child->value;
+        else
+            varName = it->child->value;
+
+        // lookup the variable being assigned, only insert if unique
+        // also covers modification of argument values
+        if (!symbolTableContains(wip, varName))
+        {
+            symTab_insertVariable(wip, varName, wip->varc++);
+        }
+
+        break;
+
+    case t_assign:
+        if (!symbolTableContains(wip, it->child->value))
+        {
+            printf("Error - variable [%s] assigned before declaration\n", it->child->value);
+            exit(1);
+        }
+        break;
+
+    case t_if:
+        // having fun yet?
+        struct astNode *ifRunner = it->child->sibling->child;
+        while (ifRunner != NULL)
+        {
+            walkStatement(ifRunner, wip);
+            ifRunner = ifRunner->sibling;
+        }
+
+        // no, really!
+        if (it->child->sibling->sibling != NULL)
+        {
+            ifRunner = it->child->sibling->sibling->child->child;
+            while (ifRunner != NULL)
+            {
+                walkStatement(ifRunner, wip);
+                ifRunner = ifRunner->sibling;
+            }
+        }
+
+        break;
+
+    case t_while:
+        struct astNode *whileRunner = it->child->sibling->child;
+        while (whileRunner != NULL)
+        {
+            walkStatement(whileRunner, wip);
+            whileRunner = whileRunner->sibling;
+        }
+        break;
+
+    // function call/return and asm blocks can't create new symbols so ignore
+    case t_call:
+    case t_return:
+    case t_asm:
+        break;
+
+    default:
+        printf("Error walking AST for function %s - expected 'var', name, or function call, saw %s with value of [%s]\n", it->child->value, getTokenName(it->type), it->value);
+        exit(1);
+    }
+}
+
+void walkFunction(struct astNode *it, struct symbolTable *wip)
+{
+    struct astNode *functionRunner = it->child;
+    char *functionName = functionRunner->value;
+    struct symbolTable *subTable = newSymbolTable(functionName);
+    while (functionRunner != NULL)
+    {
+        // printAST(functionRunner, 0);
+        switch (functionRunner->type)
+        {
+        // looking at function name, which will have argument variables as children
+        case t_name:
+            struct astNode *argumentRunner = functionRunner->child;
+            while (argumentRunner != NULL)
+            {
+                if (argumentRunner->child->type == t_assign)
+                {
+                    if (!symbolTableContains(subTable, argumentRunner->child->child->value))
+                        symTab_insertArgument(subTable, argumentRunner->child->child->value, wip->argc++);
+                }
+                else
+                {
+                    if (!symbolTableContains(subTable, argumentRunner->child->value))
+                        symTab_insertArgument(subTable, argumentRunner->child->value, subTable->argc++);
+                }
+
+                argumentRunner = argumentRunner->sibling;
+            }
+            break;
+
+        // function call/return can't create new symbols so ignore
+        case t_call:
+        case t_return:
+            break;
+
+        case t_if:
+            // having fun yet?
+            struct astNode *ifRunner = functionRunner->child->sibling->child;
+            while (ifRunner != NULL)
+            {
+                walkStatement(ifRunner, subTable);
+                ifRunner = ifRunner->sibling;
+            }
+
+            // no, really! (if an else block exists, walk that too)
+            if (functionRunner->child->sibling->sibling != NULL)
+            {
+                ifRunner = functionRunner->child->sibling->sibling->child->child;
+                while (ifRunner != NULL)
+                {
+                    walkStatement(ifRunner, subTable);
+                    ifRunner = ifRunner->sibling;
+                }
+            }
+
+            break;
+
+        case t_while:
+            struct astNode *whileRunner = functionRunner->child->sibling->child;
+            while (whileRunner != NULL)
+            {
+                walkStatement(whileRunner, subTable);
+                whileRunner = whileRunner->sibling;
+            }
+            break;
+
+        // otherwise we are looking at the body of the function, which is a statement list
+        default:
+            walkStatement(functionRunner, subTable);
+        }
+        functionRunner = functionRunner->sibling;
+    }
+    symTab_insertFunction(wip, functionName, subTable);
+}
+
+// given an AST node for a program, walk the AST and generate a symbol table for the entire thing
+struct symbolTable *walkAST(struct astNode *it)
+{
+    struct symbolTable *wip = newSymbolTable("Program");
+    wip->tl = newTempList();
+    struct astNode *runner = it;
+    while (runner != NULL)
+    {
+        printf(".");
+        switch (runner->type)
+        {
+
+        case t_fun:
+            walkFunction(runner, wip);
+            break;
+
+        // ignore asm blocks
+        case t_asm:
+            break;
+
+        default:
+            printf("Error walking AST - expected 'v' or function declaration\n");
+            exit(1);
+            break;
+        }
+        runner = runner->sibling;
+    }
+    return wip;
+}
