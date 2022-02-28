@@ -537,10 +537,14 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
             generatedTAC->operation = tt_label;
             generatedTAC->operands[0] = 0;
             appendTAC(generatedTAC, linearizeStatementList(runner->child->sibling, &tempNum, &labelCount, table->tl));
-            theFunction->codeBlock = generatedTAC;
+            theFunction->table->codeBlock = generatedTAC;
             break;
         }
         break;
+
+        case t_asm:
+            break;
+            
 
         // ignore everything else (for now) - no global vars, etc...
         default:

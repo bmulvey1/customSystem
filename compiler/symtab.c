@@ -62,8 +62,6 @@ struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
 struct variableEntry *newVariableEntry(int index)
 {
     struct variableEntry *wip = malloc(sizeof(struct variableEntry));
-    wip->lsStart = 0;
-    wip->lsEnd = 0;
     wip->isAssigned = 0;
     wip->index = index;
     return wip;
@@ -72,8 +70,6 @@ struct variableEntry *newVariableEntry(int index)
 struct argumentEntry *newArgumentEntry(int index)
 {
     struct argumentEntry *wip = malloc(sizeof(struct argumentEntry));
-    wip->lsStart = 0;
-    wip->lsEnd = 0;
     wip->index = index;
     return wip;
 }
@@ -82,7 +78,6 @@ struct functionEntry *newFunctionEntry(struct symbolTable *table)
 {
     struct functionEntry *wip = malloc(sizeof(struct functionEntry));
     wip->table = table;
-    wip->codeBlock = NULL;
     return wip;
 }
 
@@ -177,14 +172,14 @@ void printSymTabRec(struct symbolTable *it, int depth)
         case e_argument:
         {
             struct argumentEntry *theArgument = it->entries[i]->entry;
-            printf("> argument %2d: [%s]: lifespan %d - %d\n", theArgument->index, it->entries[i]->name, theArgument->lsStart, theArgument->lsEnd);
+            printf("> argument %2d: [%s]\n", theArgument->index, it->entries[i]->name);
         }
         break;
 
         case e_variable:
         {
             struct variableEntry *theVariable = it->entries[i]->entry;
-            printf("> variable %2d: [%s]: lifespan %d - %d\n", theVariable->index, it->entries[i]->name, theVariable->lsStart, theVariable->lsEnd);
+            printf("> variable %2d: [%s]\n", theVariable->index, it->entries[i]->name);
         }
         break;
 
@@ -193,7 +188,7 @@ void printSymTabRec(struct symbolTable *it, int depth)
             struct functionEntry *theFunction = it->entries[i]->entry;
             printf("> function [%s]: %d symbols\n", it->entries[i]->name, theFunction->table->size);
             printSymTabRec(theFunction->table, depth + 1);
-            printTACBlock(theFunction->codeBlock);
+            printTACBlock(theFunction->table->codeBlock);
             printf("\n");
         }
         break;
@@ -226,7 +221,7 @@ void freeSymTab(struct symbolTable *it)
 
         case e_function:
             freeSymTab(((struct functionEntry *)currentEntry->entry)->table);
-            freeTAC(((struct functionEntry *)currentEntry->entry)->codeBlock);
+            freeTAC(((struct functionEntry *)currentEntry->entry)->table->codeBlock);
             free((struct functionEntry *)currentEntry->entry);
             break;
         }

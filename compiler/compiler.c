@@ -54,7 +54,7 @@ void checkVariableLifetimes(struct functionEntry *function)
 {
     int lineIndex = 0;
     // iterate all lines of TAC in the function's codeblock
-    for (struct TACLine *t = function->codeBlock; t != NULL; t = t->nextLine)
+    for (struct TACLine *t = function->table->codeBlock; t != NULL; t = t->nextLine)
     {
         switch (t->operation)
         {
@@ -100,12 +100,6 @@ void checkVariableLifetimes(struct functionEntry *function)
                         printf("Error: use of variable [%s] before assignment\n", varEntry->name);
                         exit(1);
                     }
-                    // otherwise, the variable is used normally in this step
-                    // this means its lifespan can end no sooner than this index
-                    else
-                    {
-                        ((struct variableEntry *)varEntry->entry)->lsEnd = lineIndex;
-                    }
                     break;
 
                 // won't hit this at the moment, only captures e_function
@@ -136,10 +130,6 @@ void checkVariableLifetimes(struct functionEntry *function)
                     {
                         printf("Error: use of variable [%s] before assignment\n", varEntry->name);
                         exit(1);
-                    }
-                    else
-                    {
-                        ((struct variableEntry *)varEntry->entry)->lsEnd = lineIndex;
                     }
                     break;
 
@@ -173,15 +163,11 @@ void checkVariableLifetimes(struct functionEntry *function)
                     {
                         // set the assigned flag and record the start of its lifetime
                         theVar->isAssigned = 1;
-                        theVar->lsStart = lineIndex;
                     }
-                    theVar->lsEnd = lineIndex;
                     break;
 
                 case e_argument:
-                    // in the case we have an argument, just extend its lifespan end
-                    struct variableEntry *theArg = assignedVar->entry;
-                    theArg->lsEnd = lineIndex;
+                    // just ignore arguments
                     break;
 
                 default:
@@ -211,7 +197,7 @@ struct Lifetime *findLifetimes(struct functionEntry *function)
 
     // look at all lines in the TAC block for this function, keeping track of our index
     int lineIndex = 0;
-    for (struct TACLine *line = function->codeBlock; line != NULL; line = line->nextLine)
+    for (struct TACLine *line = function->table->codeBlock; line != NULL; line = line->nextLine)
     {
         switch (line->operation)
         {
@@ -849,7 +835,7 @@ struct ASMblock *generateCode(struct functionEntry *function, char *functionName
     int TACindex = 0;
     char *outputStr;
 
-    for (struct TACLine *line = function->codeBlock; line != NULL; line = line->nextLine)
+    for (struct TACLine *line = function->table->codeBlock; line != NULL; line = line->nextLine)
     {
         for (struct Lifetime *lt = lifetimes; lt != NULL; lt = lt->next)
         {
@@ -1237,7 +1223,7 @@ int main(int argc, char **argv)
             struct ASMblock *output = generateCode(theTable->entries[i]->entry, theTable->entries[i]->name, theseLifetimes);
             // run along all the lines of asm output from this funtcion, printing and freeing as we go
             struct ASMline *runner = output->head;
-            struct TACLine *tacrunner = ((struct functionEntry *)theTable->entries[i]->entry)->codeBlock;
+            struct TACLine *tacrunner = ((struct functionEntry *)theTable->entries[i]->entry)->table->codeBlock;
             int TACindex = 0;
             while (runner != NULL)
             {

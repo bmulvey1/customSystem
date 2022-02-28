@@ -29,21 +29,18 @@ struct symTabEntry
 
 struct variableEntry
 {
-    int lsStart, lsEnd;
     int isAssigned;
     int index;
 };
 
 struct argumentEntry
 {
-    int lsStart, lsEnd;
     int index;
 };
 
 struct functionEntry
 {
     struct symbolTable *table;
-    struct TACLine *codeBlock;
 };
 
 struct symbolTable
@@ -54,6 +51,7 @@ struct symbolTable
     struct tempList *tl;
     int argc;
     int varc;
+    struct TACLine *codeBlock;
 };
 
 char *getTempString(struct tempList *tempList, int tempNum);
