@@ -63,6 +63,7 @@ struct variableEntry *newVariableEntry()
 {
     struct variableEntry *wip = malloc(sizeof(struct variableEntry));
     wip->isAssigned = 0;
+    wip->ensureWriteBack = 0;
     return wip;
 }
 

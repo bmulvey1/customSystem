@@ -4,9 +4,23 @@ asm
     entry code
     code:
     push $20
-    call firstNeverything
+    call firstnfibs
     hlt
 };
+
+/*fun fib(var n){
+    var *fibarr = 1000;
+
+    *fibarr = 0;
+    *(fibarr + 1) = 1;
+    var i = 2;
+    while(i < n)
+    {
+        *(fibarr + i) = *(fibarr - 1) + *(fibarr - 2)
+    }
+
+}*/
+
 
 // this function computes the nth fibonacci number 
 fun fib(var n)
@@ -32,6 +46,8 @@ fun firstnfibs(var n)
     }
 }
 
+
+/*
 // software modulo! (are you having fun yet?)
 fun modulo(var a, var b)
 {
@@ -80,4 +96,5 @@ fun firstNeverything(var n){
     firstnfibs(n);
     firstNPrimes(n);
 }
+*/
 $$

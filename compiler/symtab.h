@@ -31,6 +31,7 @@ struct symTabEntry
 struct variableEntry
 {
     int isAssigned;
+    char ensureWriteBack;
     int stackOffset;
     enum variableTypes type;
 };

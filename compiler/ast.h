@@ -17,6 +17,8 @@ enum token
     t_unOp,
     t_binOp,
     t_compOp,
+    t_reference,
+    t_dereference,
     t_assign,
     t_comma,
     t_semicolon,

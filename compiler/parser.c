@@ -147,7 +147,7 @@ char lookahead()
     return r;
 }
 
-#define RESERVED_COUNT 22
+#define RESERVED_COUNT 24
 
 char *reserved[RESERVED_COUNT] = {
     "asm",
@@ -166,6 +166,8 @@ char *reserved[RESERVED_COUNT] = {
     "=",
     "+",
     "-",
+    "*",
+    "&",
     ">",
     "<",
     ">=",
@@ -190,6 +192,8 @@ enum token reserved_t[RESERVED_COUNT] = {
     t_assign,
     t_unOp,
     t_unOp,
+    t_dereference,
+    t_reference,
     t_compOp,
     t_compOp,
     t_compOp,
@@ -266,6 +270,7 @@ enum token scan(char trackPos)
         case '+':
         case '-':
         case '*':
+        case '&':
         case '/':
             return currentToken;
             break;
@@ -409,6 +414,7 @@ struct astNode *parseStatementList(struct Dictionary *dict)
         case t_return:
         case t_if:
         case t_while:
+        case t_dereference:
             stmt = parseStatement(dict);
             if (stmtList == NULL)
                 stmtList = stmt;
@@ -445,17 +451,28 @@ struct astNode *parseStatement(struct Dictionary *dict)
     // v [variable name] = [expression];
     case t_var:
     {
-        statement = match(t_var, dict);
+        struct astNode *type = match(upcomingToken, dict);
+        statement = type;
+        upcomingToken = lookaheadToken();
+        while (upcomingToken == t_dereference)
+        {
+            printf("upcoming token is %s\n", token_names[upcomingToken]);
+            astNode_insertChild(type, match(upcomingToken, dict));
+            type = type->child;
+            upcomingToken = lookaheadToken();
+        }
         struct astNode *name = match(t_name, dict);
 
         // check whether or not whether this is an assignment or just a declaration
         if (lookaheadToken() == t_assign)
-            astNode_insertChild(statement, parseAssignment(name, dict));
+            astNode_insertChild(type, parseAssignment(name, dict));
         else
         {
             // printf("var with no assignment\n");
-            astNode_insertChild(statement, name);
+            astNode_insertChild(type, name);
         }
+
+        // astNode_insertChild(statement, type);
 
         consume(t_semicolon);
     }
@@ -484,6 +501,27 @@ struct astNode *parseStatement(struct Dictionary *dict)
         consume(t_semicolon);
     }
     break;
+
+        /*
+        case t_dereference:
+            struct astNode* deref = match(t_dereference, dict);
+            switch (lookahead())
+            {
+            case '(':
+                astNode_insertSibling(statement, parseExpression(dict));
+                break;
+            case '*':
+                astNode_insertSibling(statement, parseStatement(dict));
+                break;
+
+            default:
+                break;
+            }
+            printAST(deref, 0);
+            statement = parseAssignment(deref, dict);
+
+            break;
+            */
 
     case t_return:
     {
@@ -539,6 +577,18 @@ struct astNode *parseExpression(struct Dictionary *dict)
         lSide = parseExpression(dict);
         consume(t_rParen);
     }
+    else if (lookahead() == '*' || lookahead() == '&')
+    {
+        lSide = match(lookaheadToken(), dict);
+        astNode_insertChild(lSide, parseExpression(dict));
+        /*struct astNode* runner = lSide;
+        enum token upcomingToken = lookaheadToken();
+        while(upcomingToken == t_dereference || upcomingToken == t_reference){
+            astNode_insertChild(runner, match(upcomingToken, dict));
+            runner = runner->child;
+        }
+        astNode_insertChild(runner, match(t_name, dict));*/
+    }
     else
     {
         error("Error - expected literal or name in expression");
@@ -569,15 +619,14 @@ struct astNode *parseExpression(struct Dictionary *dict)
     case ',':
     case ')':
         expression = lSide;
-        return expression;
         break;
 
     default:
         error("Error - expected unary operator or terminator in expression");
     }
 
-    // printf("done parsing expression - here's what we got:\n");
-    // printAST(expression, 0);
+    printf("done parsing expression - here's what we got:\n");
+    printAST(expression, 0);
     return expression;
 }
 
