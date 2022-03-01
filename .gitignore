@@ -8,6 +8,8 @@ a.out
 *.o
 
 *.bin
+./compiler/mcc
+./emu/emu
 
 
 
