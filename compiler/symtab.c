@@ -59,18 +59,10 @@ struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
     return wip;
 }
 
-struct variableEntry *newVariableEntry(int index)
+struct variableEntry *newVariableEntry()
 {
     struct variableEntry *wip = malloc(sizeof(struct variableEntry));
     wip->isAssigned = 0;
-    wip->index = index;
-    return wip;
-}
-
-struct argumentEntry *newArgumentEntry(int index)
-{
-    struct argumentEntry *wip = malloc(sizeof(struct argumentEntry));
-    wip->index = index;
     return wip;
 }
 
@@ -86,12 +78,13 @@ struct symbolTable *newSymbolTable(char *name)
     struct symbolTable *wip = malloc(sizeof(struct symbolTable));
     wip->size = 0;
     wip->entries = NULL;
+    wip->codeBlock = NULL;
     wip->name = name;
+    wip->localStackSize = 0;
+    wip->argStackSize = 0;
     // generate a single templist at the top level symTab
     // leave all others as NULL to avoid duplication
     wip->tl = NULL;
-    wip->argc = 0;
-    wip->varc = 0;
     return wip;
 }
 
@@ -104,13 +97,13 @@ int symbolTableContains(struct symbolTable *table, char *name)
     return 0;
 }
 
+// return a symbol table entry by name, or NULL if not found
 struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name)
 {
     for (int i = 0; i < table->size; i++)
         if (!strcmp(table->entries[i]->name, name))
             return table->entries[i];
 
-    // return NULL if not found
     return NULL;
 }
 
@@ -138,15 +131,36 @@ void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum sy
     table->size++;
 }
 
-void symTab_insertVariable(struct symbolTable *table, char *name, int index)
+void symTab_insertVariable(struct symbolTable *table, char *name, enum variableTypes type)
 {
-    struct variableEntry *newVariable = newVariableEntry(index);
+    struct variableEntry *newVariable = newVariableEntry();
+    newVariable->stackOffset = (table->localStackSize * -1) - 2;
+    switch (type)
+    {
+    case vt_var:
+        table->localStackSize += 2;
+        break;
+
+    default:
+        break;
+    }
     symTabInsert(table, name, newVariable, e_variable);
 }
 
-void symTab_insertArgument(struct symbolTable *table, char *name, int index)
+void symTab_insertArgument(struct symbolTable *table, char *name, enum variableTypes type)
 {
-    struct argumentEntry *newArgument = newArgumentEntry(index);
+    struct variableEntry *newArgument = newVariableEntry();
+    newArgument->isAssigned = 1;
+    newArgument->stackOffset = table->argStackSize + 4;
+    switch (type)
+    {
+    case vt_var:
+        table->argStackSize += 2;
+        break;
+
+    default:
+        break;
+    }
     symTabInsert(table, name, newArgument, e_argument);
 }
 
@@ -161,7 +175,7 @@ void printSymTabRec(struct symbolTable *it, int depth)
     for (int i = 0; i < depth; i++)
         printf("\t");
 
-    printf("~~~~~Symbol table for [%s]\n", it->name);
+    printf("~~~~~Symbol table for [%s] (stack footprint of %d:%d)\n", it->name, it->argStackSize, it->localStackSize);
     for (int i = 0; i < it->size; i++)
     {
         for (int i = 0; i < depth; i++)
@@ -171,15 +185,15 @@ void printSymTabRec(struct symbolTable *it, int depth)
         {
         case e_argument:
         {
-            struct argumentEntry *theArgument = it->entries[i]->entry;
-            printf("> argument %2d: [%s]\n", theArgument->index, it->entries[i]->name);
+            struct variableEntry *theArgument = it->entries[i]->entry;
+            printf("> argument [%s] - stack offset %d\n", it->entries[i]->name, theArgument->stackOffset);
         }
         break;
 
         case e_variable:
         {
             struct variableEntry *theVariable = it->entries[i]->entry;
-            printf("> variable %2d: [%s]\n", theVariable->index, it->entries[i]->name);
+            printf("> variable [%s] - stack offset %d\n", it->entries[i]->name, theVariable->stackOffset);
         }
         break;
 
@@ -188,7 +202,7 @@ void printSymTabRec(struct symbolTable *it, int depth)
             struct functionEntry *theFunction = it->entries[i]->entry;
             printf("> function [%s]: %d symbols\n", it->entries[i]->name, theFunction->table->size);
             printSymTabRec(theFunction->table, depth + 1);
-            printTACBlock(theFunction->table->codeBlock);
+            //printTACBlock(theFunction->table->codeBlock);
             printf("\n");
         }
         break;
@@ -211,61 +225,50 @@ void freeSymTab(struct symbolTable *it)
         struct symTabEntry *currentEntry = it->entries[i];
         switch (currentEntry->type)
         {
+        case e_argument:
         case e_variable:
             free((struct variableEntry *)currentEntry->entry);
             break;
 
-        case e_argument:
-            free((struct argumentEntry *)currentEntry->entry);
-            break;
-
         case e_function:
             freeSymTab(((struct functionEntry *)currentEntry->entry)->table);
-            freeTAC(((struct functionEntry *)currentEntry->entry)->table->codeBlock);
             free((struct functionEntry *)currentEntry->entry);
             break;
         }
         //free(it->name);
         free(currentEntry);
     }
+    freeTAC(it->codeBlock);
+
     if (it->tl != NULL)
     {
         freeTempList(it->tl);
     }
+    
     free(it->entries);
     free(it);
 }
 
-
 // finds and returns the positive/negative offset of a variable
 // value is byte offset relative to base pointer of provided function
-int findInStack(char *var, struct functionEntry *function)
+int findInStack(char *var, struct symbolTable *table)
 {
-    struct symTabEntry *theEntry = symbolTableLookup(function->table, var);
+    struct symTabEntry *theEntry = symbolTableLookup(table, var);
     if (theEntry == NULL)
     {
         printf("UNABLE TO FIND VARIABLE %s IN SYMBOL TABLE\n", var);
         exit(0);
     }
-    int spOffset;
     switch (theEntry->type)
     {
     case e_variable:
-        // may need a hardcoded offset to avoid overlapping return vector
-        spOffset = ((((struct variableEntry *)theEntry->entry)->index * -2) - 2);
-        break;
-
     case e_argument:
-        // + 4 because return address and old base pointer are on stack before current BP
-        spOffset = (((struct argumentEntry *)theEntry->entry)->index * 2) + 4;
-        break;
+        return ((struct variableEntry *)theEntry->entry)->stackOffset;
 
     default:
         printf("Saw something illegal while trying to locate variable/argument %s on the stack\n", var);
         exit(1);
     }
-
-    return spOffset;
 }
 
 /*
@@ -286,7 +289,7 @@ void walkStatement(struct astNode *it, struct symbolTable *wip)
         // also covers modification of argument values
         if (!symbolTableContains(wip, varName))
         {
-            symTab_insertVariable(wip, varName, wip->varc++);
+            symTab_insertVariable(wip, varName, vt_var);
         }
 
         break;
@@ -354,19 +357,24 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
         {
         // looking at function name, which will have argument variables as children
         case t_name:
+            printf("GOT A NAME\n");
             struct astNode *argumentRunner = functionRunner->child;
+            printAST(argumentRunner, 0);
             while (argumentRunner != NULL)
             {
-                if (argumentRunner->child->type == t_assign)
+                enum variableTypes theType;
+                switch (argumentRunner->type)
                 {
-                    if (!symbolTableContains(subTable, argumentRunner->child->child->value))
-                        symTab_insertArgument(subTable, argumentRunner->child->child->value, wip->argc++);
+                case t_var:
+                    theType = vt_var;
+                    break;
+
+                default:
+                    printf("Unexpected argument type while walking function!\n");
+                    exit(1);
+                    break;
                 }
-                else
-                {
-                    if (!symbolTableContains(subTable, argumentRunner->child->value))
-                        symTab_insertArgument(subTable, argumentRunner->child->value, subTable->argc++);
-                }
+                symTab_insertArgument(subTable, argumentRunner->child->value, theType);
 
                 argumentRunner = argumentRunner->sibling;
             }

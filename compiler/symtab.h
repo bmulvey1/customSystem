@@ -4,6 +4,7 @@
 #include "ast.h"
 #include "tac.h"
 #include "parser.h"
+#include "tac.h"
 
 #pragma once
 
@@ -30,12 +31,8 @@ struct symTabEntry
 struct variableEntry
 {
     int isAssigned;
-    int index;
-};
-
-struct argumentEntry
-{
-    int index;
+    int stackOffset;
+    enum variableTypes type;
 };
 
 struct functionEntry
@@ -49,8 +46,8 @@ struct symbolTable
     struct symTabEntry **entries;
     int size;
     struct tempList *tl;
-    int argc;
-    int varc;
+    int localStackSize;
+    int argStackSize;
     struct TACLine *codeBlock;
 };
 
@@ -62,8 +59,6 @@ void freeTempList(struct tempList *it);
 
 struct variableEntry *newVariableEntry();
 
-struct argumentEntry *newArgumentEntry(int index);
-
 struct functionEntry *newFunctionEntry(struct symbolTable *table);
 
 struct symbolTable *newSymbolTable(char *name);
@@ -74,9 +69,9 @@ struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name);
 
 void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum symTabEntryType type);
 
-void symTab_insertVariable(struct symbolTable *table, char *name, int index);
+void symTab_insertVariable(struct symbolTable *table, char *name, enum variableTypes type);
 
-void symTab_insertArgument(struct symbolTable *table, char *name, int index);
+void symTab_insertArgument(struct symbolTable *table, char *name, enum variableTypes type);
 
 void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolTable *subTable);
 
@@ -86,7 +81,7 @@ void printSymTab(struct symbolTable *it);
 
 void freeSymTab(struct symbolTable *it);
 
-int findInStack(char *var, struct functionEntry *function);
+int findInStack(char *var, struct symbolTable *table);
 
 // AST walk functions
 void walkStatement(struct astNode *it, struct symbolTable *wip);

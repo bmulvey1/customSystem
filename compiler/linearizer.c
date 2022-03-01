@@ -543,6 +543,7 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
         break;
 
         case t_asm:
+            table->codeBlock = appendTAC(table->codeBlock, linearizeASMBlock(runner));
             break;
             
 
