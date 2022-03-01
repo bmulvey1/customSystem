@@ -1,12 +1,13 @@
-#include "CPU.asm"
-entry code
+	#include "CPU.asm"
+	entry code
 code:
-	push $168
-	call firstNPrimes
+	push $20
+	call firstnfibs
 	hlt
-
+Program_done:
+	ret 0
 fib:
-	sub %sp, $0
+	sub %sp, $2
 	push %r1
 	mov %r0, 4(%bp)
 	cmp %r0, $2
@@ -28,8 +29,8 @@ fib_1:
 	jmp fib_done
 fib_done:
 	pop %r1
-	add %sp, $0
-	ret 1
+	add %sp, $2
+	ret 2
 firstnfibs:
 	sub %sp, $2
 	push %r1
@@ -45,6 +46,7 @@ firstnfibs_1:
 	call fib
 	out %r0
 	add %r2, $1
+	mov %r0, -2(%bp)
 	mov %r0, %r2
 	jmp firstnfibs_1
 firstnfibs_2:
@@ -52,89 +54,9 @@ firstnfibs_done:
 	pop %r2
 	pop %r1
 	add %sp, $2
-	ret 1
-tet:
-	sub %sp, $0
-	push %r1
-	push %r2
-	mov %r0, 4(%bp)
-	cmp %r0, $1
-	jne tet_1
-	mov %r0, $0
-	jmp tet_done
-tet_1:
-	mov %r0, 4(%bp)
-	cmp %r0, $2
-	jne tet_2
-	mov %r0, $0
-	jmp tet_done
-tet_2:
-	mov %r0, 4(%bp)
-	cmp %r0, $3
-	jne tet_3
-	mov %r0, $0
-	jmp tet_done
-tet_3:
-	mov %r0, 4(%bp)
-	cmp %r0, $4
-	jne tet_4
-	mov %r0, $1
-	jmp tet_done
-tet_4:
-	mov %r1, 4(%bp)
-	sub %r1, $4
-	push %r1
-	mov %r1, %r0
-	call tet
-	mov %r2, 4(%bp)
-	sub %r2, $3
-	push %r2
-	mov %r2, %r0
-	call tet
-	add %r2, %r0
-	mov %r0, 4(%bp)
-	sub %r0, $2
-	push %r0
-	call tet
-	add %r2, %r0
-	mov %r0, 4(%bp)
-	sub %r0, $1
-	push %r0
-	call tet
-	mov %r1, %r0
-	add %r1, %r2
-	mov %r0, %r1
-	jmp tet_done
-tet_done:
-	pop %r2
-	pop %r1
-	add %sp, $0
-	ret 1
-firstntets:
-	sub %sp, $2
-	push %r1
-	push %r2
-	mov %r0, $0
-firstntets_1:
-	cmp %r0, 4(%bp)
-	jge firstntets_2
-	mov %r1, %r0
-	add %r1, $1
-	push %r1
-	mov %r2, %r0
-	call tet
-	out %r0
-	add %r2, $1
-	mov %r0, %r2
-	jmp firstntets_1
-firstntets_2:
-firstntets_done:
-	pop %r2
-	pop %r1
-	add %sp, $2
-	ret 1
+	ret 2
 modulo:
-	sub %sp, $0
+	sub %sp, $4
 modulo_1:
 	mov %r0, 4(%bp)
 	cmp %r0, 6(%bp)
@@ -147,10 +69,10 @@ modulo_2:
 	mov %r0, 4(%bp)
 	jmp modulo_done
 modulo_done:
-	add %sp, $0
-	ret 2
+	add %sp, $4
+	ret 4
 isPrime:
-	sub %sp, $4
+	sub %sp, $2
 	push %r1
 	push %r2
 	mov %r0, $2
@@ -176,10 +98,10 @@ isPrime_2:
 isPrime_done:
 	pop %r2
 	pop %r1
-	add %sp, $4
-	ret 1
+	add %sp, $2
+	ret 2
 firstNPrimes:
-	sub %sp, $6
+	sub %sp, $2
 	push %r1
 	push %r2
 	mov %r0, $2
@@ -203,16 +125,14 @@ firstNPrimes_2:
 firstNPrimes_done:
 	pop %r2
 	pop %r1
-	add %sp, $6
-	ret 1
+	add %sp, $2
+	ret 2
 firstNeverything:
-	sub %sp, $0
+	sub %sp, $2
 	push 4(%bp)
 	call firstnfibs
 	push 4(%bp)
 	call firstNPrimes
-	push 4(%bp)
-	call firstntets
 firstNeverything_done:
-	add %sp, $0
-	ret 1
+	add %sp, $2
+	ret 2

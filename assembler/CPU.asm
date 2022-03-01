@@ -127,8 +127,8 @@
     pop %{rd: reg}                          => 0xcf @ 0b0000 @ rd
     call {address: i16}                     => 0xd0 @ address
     ret                                     => 0xd1
-    ; dynamically pop x number of args from the stack?
-    ret {argc: i8}                          => 0xd2 @ argc
+    ; wipe 'argw' number of bytes off the stack from arguments
+    ret {argw: i8}                          => 0xd2 @ argw
 
     out %{rs: reg}                          => 0xd3 @ 0b0000 @ rs
 

@@ -612,13 +612,10 @@ int main(int argc, char *argv[])
 
         case 0xd2: // RET {argc}
         {
-            uint8_t argc = consumeByte(registers[IP]);
+            uint8_t argw = consumeByte(registers[IP]);
             registers[IP] = stackPop();
             registers[BP] = stackPop();
-            for (int i = 0; i < argc; i++)
-            {
-                stackPop();
-            }
+            registers[SP] += argw;
         }
         break;
 
