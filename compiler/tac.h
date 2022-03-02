@@ -55,7 +55,7 @@ char* getAsmOp(enum TACType t);
 
 void printTACLine(struct TACLine *it);
 
-void printTACBlock(struct TACLine *it);
+void printTACBlock(struct TACLine *it, int indentLevel);
 
 struct TACLine *newTACLine();
 

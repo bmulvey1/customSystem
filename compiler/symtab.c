@@ -209,18 +209,16 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
             struct functionEntry *theFunction = it->entries[i]->entry;
             printf("> function [%s]: %d symbols\n", it->entries[i]->name, theFunction->table->size);
             printSymTabRec(theFunction->table, depth + 1, printTAC);
-            if (printTAC)
-                printTACBlock(theFunction->table->codeBlock);
+            //if (printTAC)
+                //printTACBlock(theFunction->table->codeBlock, depth);
             printf("\n");
         }
         break;
         }
     }
     if (printTAC)
-        printTACBlock(it->codeBlock);
+        printTACBlock(it->codeBlock, depth * 2);
 
-    for (int i = 0; i < depth; i++)
-        printf("\t");
     printf("\n");
 }
 
