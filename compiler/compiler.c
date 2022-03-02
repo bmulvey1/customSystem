@@ -1212,7 +1212,7 @@ int main(int argc, char **argv)
     linearizeProgram(program, theTable);
     printf("\n");
 
-    printSymTab(theTable);
+    printSymTab(theTable, 1);
     printf("\n\n");
 
     FILE *outFile = fopen(argv[2], "wb");

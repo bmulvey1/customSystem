@@ -84,6 +84,22 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         // increment count of temp variables, the parse of this expression will be written to a temp
         (*tempNum)++;
     }
+    // support dereference and reference operations separately
+    // since these have only one operand
+    if (it->type == t_dereference)
+    {
+        thisExpression->operandTypes[1] = vt_temp;
+        thisExpression->operands[1] = getTempString(tl, *tempNum);
+        thisExpression->operation = tt_dereference;
+        return prependTAC(thisExpression, linearizeExpression(it->child, tempNum, tl));
+    }
+    if (it->type == t_reference)
+    {
+        thisExpression->operandTypes[1] = vt_temp;
+        thisExpression->operands[1] = getTempString(tl, *tempNum);
+        thisExpression->operation = tt_reference;
+        return prependTAC(thisExpression, linearizeExpression(it->child, tempNum, tl));
+    }
 
     switch (it->child->type)
     {
@@ -108,6 +124,12 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
     case t_literal:
         thisExpression->operands[1] = it->child->value;
         thisExpression->operandTypes[1] = vt_literal;
+        break;
+
+    case t_dereference:
+        thisExpression->operandTypes[1] = vt_temp;
+        thisExpression->operands[1] = getTempString(tl, *tempNum);
+        returnExpression = prependTAC(thisExpression, linearizeExpression(it->child, tempNum, tl));
         break;
 
     default:
@@ -162,6 +184,16 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
     case t_literal:
         thisExpression->operands[2] = it->child->sibling->value;
         thisExpression->operandTypes[2] = vt_literal;
+        break;
+
+    case t_dereference:
+        thisExpression->operandTypes[2] = vt_temp;
+        thisExpression->operands[2] = getTempString(tl, *tempNum);
+        if (returnExpression != NULL)
+            returnExpression = prependTAC(returnExpression, linearizeExpression(it->child->sibling, tempNum, tl));
+        else
+            returnExpression = prependTAC(thisExpression, linearizeExpression(it->child->sibling, tempNum, tl));
+
         break;
 
     default:
@@ -277,7 +309,6 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             returnTac->operands[0] = findLastTAC(sltac)->operands[0];
             returnTac->operation = tt_return;
             sltac = appendTAC(sltac, returnTac);
-            // printf("return %s\n", findLastTAC(asttac)->operands[0]);
             break;
 
         case t_if:
@@ -545,7 +576,6 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
         case t_asm:
             table->codeBlock = appendTAC(table->codeBlock, linearizeASMBlock(runner));
             break;
-            
 
         // ignore everything else (for now) - no global vars, etc...
         default:

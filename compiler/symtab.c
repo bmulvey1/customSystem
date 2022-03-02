@@ -59,11 +59,12 @@ struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
     return wip;
 }
 
-struct variableEntry *newVariableEntry()
+struct variableEntry *newVariableEntry(int indirectionLevel)
 {
     struct variableEntry *wip = malloc(sizeof(struct variableEntry));
     wip->isAssigned = 0;
     wip->ensureWriteBack = 0;
+    wip->indirectionLevel = indirectionLevel;
     return wip;
 }
 
@@ -132,9 +133,9 @@ void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum sy
     table->size++;
 }
 
-void symTab_insertVariable(struct symbolTable *table, char *name, enum variableTypes type)
+void symTab_insertVariable(struct symbolTable *table, char *name, enum variableTypes type, int indirectionLevel)
 {
-    struct variableEntry *newVariable = newVariableEntry();
+    struct variableEntry *newVariable = newVariableEntry(indirectionLevel);
     newVariable->stackOffset = (table->localStackSize * -1) - 2;
     switch (type)
     {
@@ -148,9 +149,9 @@ void symTab_insertVariable(struct symbolTable *table, char *name, enum variableT
     symTabInsert(table, name, newVariable, e_variable);
 }
 
-void symTab_insertArgument(struct symbolTable *table, char *name, enum variableTypes type)
+void symTab_insertArgument(struct symbolTable *table, char *name, enum variableTypes type, int indirectionLevel)
 {
-    struct variableEntry *newArgument = newVariableEntry();
+    struct variableEntry *newArgument = newVariableEntry(indirectionLevel);
     newArgument->isAssigned = 1;
     newArgument->stackOffset = table->argStackSize + 4;
     switch (type)
@@ -171,7 +172,7 @@ void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolT
     symTabInsert(table, name, newFunction, e_function);
 }
 
-void printSymTabRec(struct symbolTable *it, int depth)
+void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
 {
     for (int i = 0; i < depth; i++)
         printf("\t");
@@ -194,7 +195,12 @@ void printSymTabRec(struct symbolTable *it, int depth)
         case e_variable:
         {
             struct variableEntry *theVariable = it->entries[i]->entry;
-            printf("> variable [%s] - stack offset %d\n", it->entries[i]->name, theVariable->stackOffset);
+            printf("> variable");
+            for (int i = 0; i < theVariable->indirectionLevel; i++)
+            {
+                printf("*");
+            }
+            printf(" [%s] - stack offset %d\n", it->entries[i]->name, theVariable->stackOffset);
         }
         break;
 
@@ -202,21 +208,25 @@ void printSymTabRec(struct symbolTable *it, int depth)
         {
             struct functionEntry *theFunction = it->entries[i]->entry;
             printf("> function [%s]: %d symbols\n", it->entries[i]->name, theFunction->table->size);
-            printSymTabRec(theFunction->table, depth + 1);
-            //printTACBlock(theFunction->table->codeBlock);
+            printSymTabRec(theFunction->table, depth + 1, printTAC);
+            if (printTAC)
+                printTACBlock(theFunction->table->codeBlock);
             printf("\n");
         }
         break;
         }
     }
+    if (printTAC)
+        printTACBlock(it->codeBlock);
+
     for (int i = 0; i < depth; i++)
         printf("\t");
     printf("\n");
 }
 
-void printSymTab(struct symbolTable *it)
+void printSymTab(struct symbolTable *it, char printTAC)
 {
-    printSymTabRec(it, 0);
+    printSymTabRec(it, 0, printTAC);
 }
 
 void freeSymTab(struct symbolTable *it)
@@ -236,7 +246,7 @@ void freeSymTab(struct symbolTable *it)
             free((struct functionEntry *)currentEntry->entry);
             break;
         }
-        //free(it->name);
+        // free(it->name);
         free(currentEntry);
     }
     freeTAC(it->codeBlock);
@@ -245,7 +255,7 @@ void freeSymTab(struct symbolTable *it)
     {
         freeTempList(it->tl);
     }
-    
+
     free(it->entries);
     free(it);
 }
@@ -277,30 +287,63 @@ int findInStack(char *var, struct symbolTable *table)
  */
 void walkStatement(struct astNode *it, struct symbolTable *wip)
 {
+    printf("walking statement:\n");
+    printAST(it, 0);
+    printf("\n");
+    struct astNode *runner;
     switch (it->type)
     {
     case t_var:
         char *varName;
-        if (it->child->type == t_assign)
-            varName = it->child->child->value;
+        int indirectionLevel = 0;
+        runner = it;
+        char scraping = 1;
+        while (scraping)
+        {
+            runner = runner->child;
+            printf("Scraping on:\n");
+            printAST(runner, 0);
+            switch (runner->type)
+            {
+            case t_dereference:
+                indirectionLevel++;
+                break;
+
+            default:
+                scraping = 0;
+                break;
+            }
+        }
+
+        if (runner->type == t_assign)
+        {
+            varName = runner->child->value;
+        }
         else
-            varName = it->child->value;
+            varName = runner->value;
 
         // lookup the variable being assigned, only insert if unique
         // also covers modification of argument values
         if (!symbolTableContains(wip, varName))
         {
-            symTab_insertVariable(wip, varName, vt_var);
+            symTab_insertVariable(wip, varName, vt_var, indirectionLevel);
         }
 
         break;
 
     case t_assign:
-        if (!symbolTableContains(wip, it->child->value))
+        /*
+        ignore assignments as lifetime checks can be done more easily on TAC
+        runner = it->child;
+        while(runner->type == t_dereference){
+            runner = runner->child;
+        }
+        if (!symbolTableContains(wip, runner->value))
         {
-            printf("Error - variable [%s] assigned before declaration\n", it->child->value);
+            printf("Error - variable [%s] assigned before declaration\n", runner->child->value);
             exit(1);
         }
+        */
         break;
 
     case t_if:
@@ -353,14 +396,11 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
     struct symbolTable *subTable = newSymbolTable(functionName);
     while (functionRunner != NULL)
     {
-        // printAST(functionRunner, 0);
         switch (functionRunner->type)
         {
         // looking at function name, which will have argument variables as children
         case t_name:
-            printf("GOT A NAME\n");
             struct astNode *argumentRunner = functionRunner->child;
-            printAST(argumentRunner, 0);
             while (argumentRunner != NULL)
             {
                 enum variableTypes theType;
@@ -375,7 +415,29 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
                     exit(1);
                     break;
                 }
-                symTab_insertArgument(subTable, argumentRunner->child->value, theType);
+
+                int indirectionLevel = 0;
+                struct astNode *runner = argumentRunner;
+                char scraping = 1;
+                while (scraping)
+                {
+                    switch (runner->type)
+                    {
+                    case t_dereference:
+                        indirectionLevel++;
+                        break;
+
+                    case t_reference:
+                        indirectionLevel--;
+                        break;
+
+                    default:
+                        scraping = 0;
+                        break;
+                    }
+                }
+
+                symTab_insertArgument(subTable, runner->child->value, theType, indirectionLevel);
 
                 argumentRunner = argumentRunner->sibling;
             }

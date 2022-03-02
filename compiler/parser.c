@@ -532,8 +532,6 @@ struct astNode *parseStatement(struct Dictionary *dict)
             astNode_insertChild(deref, match(t_name, dict));
             break;
         }
-        printf("done parsing deref (LHS)\n");
-        printAST(deref, 0);
         statement = parseAssignment(deref, dict);
         consume(t_semicolon);
 
@@ -561,8 +559,8 @@ struct astNode *parseStatement(struct Dictionary *dict)
     default:
         error("statement", "expected 'var', 'if', 'while', '}', or name");
     }
-    printf("Done parsing statement- heres what we got\n");
-    printAST(statement, 0);
+    // printf("Done parsing statement- heres what we got\n");
+    // printAST(statement, 0);
     return statement;
 }
 
@@ -600,7 +598,7 @@ struct astNode *parseExpression(struct Dictionary *dict)
         /* need to explicitly handle parens so that reference/dereference operators bind properly
          * if handled by simply letting the recursive call to parseExpression() deal with the parens
          * the reference/dereference will bind as a parent to the entire subtree generated
-        */
+         */
         if (lookahead() == '(')
         {
             consume(t_lParen);
@@ -655,10 +653,8 @@ struct astNode *parseExpression(struct Dictionary *dict)
         error("expression", "expected unary operator or terminator");
     }
 
-    printf("done parsing expression - here's what we got:\n");
-    printAST(expression, 0);
-    printf("\n\n");
-
+    // printf("done parsing expression - here's what we got:\n");
+    // printAST(expression, 0);
     return expression;
 }
 
@@ -834,7 +830,6 @@ struct astNode *parseASM(struct Dictionary *dict)
 
         case '\n':
             asmLine[lineLen] = '\0';
-            printf("newline in asm block [%s]\n", asmLine);
             curCol = 0;
             curLine++;
             astNode_insertChild(asmNode, newastNode(t_asm, DictionaryLookupOrInsert(dict, asmLine)));

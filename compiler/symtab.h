@@ -34,6 +34,7 @@ struct variableEntry
     char ensureWriteBack;
     int stackOffset;
     enum variableTypes type;
+    int indirectionLevel;
 };
 
 struct functionEntry
@@ -58,7 +59,7 @@ struct tempList *newTempList();
 
 void freeTempList(struct tempList *it);
 
-struct variableEntry *newVariableEntry();
+struct variableEntry *newVariableEntry(int indirectionLevel);
 
 struct functionEntry *newFunctionEntry(struct symbolTable *table);
 
@@ -70,15 +71,15 @@ struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name);
 
 void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum symTabEntryType type);
 
-void symTab_insertVariable(struct symbolTable *table, char *name, enum variableTypes type);
+void symTab_insertVariable(struct symbolTable *table, char *name, enum variableTypes type, int indirectionLevel);
 
-void symTab_insertArgument(struct symbolTable *table, char *name, enum variableTypes type);
+void symTab_insertArgument(struct symbolTable *table, char *name, enum variableTypes type, int indirectionLevel);
 
 void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolTable *subTable);
 
-void printSymTabRec(struct symbolTable *it, int depth);
+void printSymTabRec(struct symbolTable *it, int depth, char printTAC);
 
-void printSymTab(struct symbolTable *it);
+void printSymTab(struct symbolTable *it, char printTAC);
 
 void freeSymTab(struct symbolTable *it);
 

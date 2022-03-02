@@ -10,7 +10,6 @@ asm
 
 fun firstNfibs(var n){
     var *fibarr = 1000;
-
     *fibarr = 0;
     *(fibarr + 1) = 1;
     var i = 2;

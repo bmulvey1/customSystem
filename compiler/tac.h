@@ -20,6 +20,8 @@ enum TACType
     tt_assign,
     tt_add,
     tt_subtract,
+    tt_dereference,
+    tt_reference,
     tt_cmp,
     tt_jg,
     tt_jge,

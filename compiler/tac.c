@@ -6,12 +6,18 @@ char *getAsmOp(enum TACType t)
     {
     case tt_asm:
         return "";
-        
+
     case tt_assign:
         return "";
 
     case tt_add:
         return "add";
+
+    case tt_dereference:
+        return "dereference";
+
+    case tt_reference:
+        return "reference";
 
     case tt_cmp:
         return "cmp";
@@ -113,6 +119,14 @@ void printTACLine(struct TACLine *it)
         width = printf("%s = %s %s %s", it->operands[0], it->operands[1], operationStr, it->operands[2]);
         break;
 
+    case tt_dereference:
+        width = printf("%s = *%s", it->operands[0], it->operands[1]);
+        break;
+
+    case tt_reference:
+        width = printf("%s = &%s", it->operands[0], it->operands[1]);
+        break;
+
     case tt_jg:
     case tt_jge:
     case tt_jl:
@@ -136,7 +150,7 @@ void printTACLine(struct TACLine *it)
         break;
 
     case tt_call:
-        if(it->operands[0] == NULL)
+        if (it->operands[0] == NULL)
             width = printf("call %s", it->operands[1]);
         else
             width = printf("%s = call %s", it->operands[0], it->operands[1]);
@@ -176,7 +190,8 @@ void printTACLine(struct TACLine *it)
         break;
     }
     width += printf("%s", it->reorderable ? " - Reorderable" : "");
-    while(width++ < 24){
+    while (width++ < 24)
+    {
         printf(" ");
     }
     // printf("\t%d %d %d\n", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
