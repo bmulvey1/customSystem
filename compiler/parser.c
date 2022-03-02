@@ -6,13 +6,21 @@ int buflen;
 int curLine, curCol;
 char inChar;
 char *token_names[] = {
+    "asm",
     "var",
-    "function",
+    "fun",
     "return",
+    "if",
+    "else",
+    "while",
+    "do",
     "name",
     "literal",
     "unary operator",
     "binary operator",
+    "comparison operator",
+    "reference operator",
+    "dereference operator",
     "assignment",
     "comma",
     "semicolon",
@@ -20,10 +28,12 @@ char *token_names[] = {
     "r paren",
     "l curly",
     "r curly",
+    "call",
     "EOF"};
 
-void error(char *info)
+void error(char *production, char *info)
 {
+    printf("Error while parsing %s\n", production);
     printf("Error at line %d, col %d\n", curLine, curCol);
     printf("%s\n", info);
     printf("Parse buffer when error occurred: [%s]\n", buffer);
@@ -105,7 +115,7 @@ void trimWhitespace(char trackPos)
                         // disallow nesting of block comments
                     case '/':
                         if (lookahead_dumb(1) == '*')
-                            error("Error - nested block comments not allowed");
+                            error("comment", "Error - nested block comments not allowed");
 
                         break;
 
@@ -252,7 +262,7 @@ enum token scan(char trackPos)
         {
             // simple error checking for letters in literals
             if (currentToken == t_literal && isalpha(inChar))
-                error("Error - alphabetical character in literal!");
+                error("literal", "Error - alphabetical character in literal!");
         }
 
         // if the next input char is whitespace or a single-character token, we're done with this token
@@ -292,7 +302,10 @@ struct astNode *match(enum token t, struct Dictionary *dict)
 {
     enum token result = scan(1);
     if (result != t)
-        error("Error matching a token!");
+    {
+        printf("Expected token %s, got %s\n", token_names[t], token_names[result]);
+        error("match", "Error matching a token!");
+    }
 
     return newastNode(result, DictionaryLookupOrInsert(dict, buffer));
 }
@@ -302,7 +315,10 @@ void consume(enum token t)
 {
     enum token result = scan(1);
     if (result != t)
-        error("Error consuming a token!");
+    {
+        printf("Expected token %s, got %s\n", token_names[t], token_names[result]);
+        error("consume", "Error consuming a token!");
+    }
 }
 
 char *getTokenName(enum token t)
@@ -376,7 +392,7 @@ struct astNode *parseTLD(struct Dictionary *dict)
     }
     break;
     default:
-        error("Expected function or variable in Top Level Declaration");
+        error("top level declaration", "Expected function or variable");
         exit(1);
     }
     return TLD;
@@ -428,7 +444,7 @@ struct astNode *parseStatementList(struct Dictionary *dict)
             break;
 
         default:
-            error("Error parsing statement list - expected 'var', 'if', 'while', '}', or name");
+            error("statement", "expected 'var', 'if', 'while', '}', or name");
         }
     }
 
@@ -456,7 +472,6 @@ struct astNode *parseStatement(struct Dictionary *dict)
         upcomingToken = lookaheadToken();
         while (upcomingToken == t_dereference)
         {
-            printf("upcoming token is %s\n", token_names[upcomingToken]);
             astNode_insertChild(type, match(upcomingToken, dict));
             type = type->child;
             upcomingToken = lookaheadToken();
@@ -495,33 +510,34 @@ struct astNode *parseStatement(struct Dictionary *dict)
             break;
 
         default:
-            error("Error - expected '(' or '=' after name");
-            exit(1);
+            error("statement", "expected '(' or '=' after name");
         }
         consume(t_semicolon);
     }
     break;
 
-        /*
-        case t_dereference:
-            struct astNode* deref = match(t_dereference, dict);
-            switch (lookahead())
-            {
-            case '(':
-                astNode_insertSibling(statement, parseExpression(dict));
-                break;
-            case '*':
-                astNode_insertSibling(statement, parseStatement(dict));
-                break;
-
-            default:
-                break;
-            }
-            printAST(deref, 0);
-            statement = parseAssignment(deref, dict);
-
+    case t_dereference:
+        struct astNode *deref = match(t_dereference, dict);
+        switch (lookahead())
+        {
+        case '(':
+            struct astNode *expr = parseExpression(dict);
+            astNode_insertChild(deref, expr);
             break;
-            */
+        case '*':
+            astNode_insertChild(deref, parseStatement(dict));
+            break;
+
+        default:
+            astNode_insertChild(deref, match(t_name, dict));
+            break;
+        }
+        printf("done parsing deref (LHS)\n");
+        printAST(deref, 0);
+        statement = parseAssignment(deref, dict);
+        consume(t_semicolon);
+
+        break;
 
     case t_return:
     {
@@ -543,10 +559,10 @@ struct astNode *parseStatement(struct Dictionary *dict)
         break;
 
     default:
-        error("Error parsing statement - expected 'var', 'if', 'while', '}', or name");
+        error("statement", "expected 'var', 'if', 'while', '}', or name");
     }
-    // printf("Done parsing statement- heres what we got\n");
-    // printAST(statement, 0);
+    printf("Done parsing statement- heres what we got\n");
+    printAST(statement, 0);
     return statement;
 }
 
@@ -580,18 +596,25 @@ struct astNode *parseExpression(struct Dictionary *dict)
     else if (lookahead() == '*' || lookahead() == '&')
     {
         lSide = match(lookaheadToken(), dict);
-        astNode_insertChild(lSide, parseExpression(dict));
-        /*struct astNode* runner = lSide;
-        enum token upcomingToken = lookaheadToken();
-        while(upcomingToken == t_dereference || upcomingToken == t_reference){
-            astNode_insertChild(runner, match(upcomingToken, dict));
-            runner = runner->child;
+
+        /* need to explicitly handle parens so that reference/dereference operators bind properly
+         * if handled by simply letting the recursive call to parseExpression() deal with the parens
+         * the reference/dereference will bind as a parent to the entire subtree generated
+        */
+        if (lookahead() == '(')
+        {
+            consume(t_lParen);
+            astNode_insertChild(lSide, parseExpression(dict));
+            consume(t_rParen);
         }
-        astNode_insertChild(runner, match(t_name, dict));*/
+        else
+        {
+            astNode_insertChild(lSide, match(t_name, dict));
+        }
     }
     else
     {
-        error("Error - expected literal or name in expression");
+        error("expression", "expected literal or name");
         exit(1);
     }
 
@@ -606,9 +629,15 @@ struct astNode *parseExpression(struct Dictionary *dict)
         astNode_insertChild(expression, parseExpression(dict));
         break;
 
+    case '=':
+        // only continue to match comparison operator if we have '=='
+        if (lookaheadToken() == t_assign)
+        {
+            expression = lSide;
+            break;
+        }
     case '<':
     case '>':
-    case '=':
         expression = match(t_compOp, dict);
         astNode_insertChild(expression, lSide);
         astNode_insertChild(expression, parseExpression(dict));
@@ -622,11 +651,14 @@ struct astNode *parseExpression(struct Dictionary *dict)
         break;
 
     default:
-        error("Error - expected unary operator or terminator in expression");
+        printf("\n[%c]\n", lookahead());
+        error("expression", "expected unary operator or terminator");
     }
 
     printf("done parsing expression - here's what we got:\n");
     printAST(expression, 0);
+    printf("\n\n");
+
     return expression;
 }
 
@@ -771,7 +803,7 @@ struct astNode *parseWhileLoop(struct Dictionary *dict)
         consume(t_rCurly);
     }
     else
-        error("Expected '{' after 'while([condition])'");
+        error("while loop", "Expected '{' after 'while([condition])'");
 
     // printf("done parsing if statement - here's what we got!\n");
     // printAST(ifStatement, 0);
@@ -817,7 +849,5 @@ struct astNode *parseASM(struct Dictionary *dict)
     }
     consume(t_rCurly);
     consume(t_semicolon);
-    printf("MATCHED ASM BLOCK\n");
-    printAST(asmNode, 0);
     return asmNode;
 }

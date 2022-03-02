@@ -8,7 +8,7 @@ asm
     hlt
 };
 
-/*fun fib(var n){
+fun firstNfibs(var n){
     var *fibarr = 1000;
 
     *fibarr = 0;
@@ -16,12 +16,12 @@ asm
     var i = 2;
     while(i < n)
     {
-        *(fibarr + i) = *(fibarr - 1) + *(fibarr - 2)
+        *(fibarr + i) = *(fibarr - 1) + *(fibarr - 2);
     }
 
-}*/
+}
 
-
+/*
 // this function computes the nth fibonacci number 
 fun fib(var n)
 {
@@ -45,6 +45,7 @@ fun firstnfibs(var n)
         i = i + 1;
     }
 }
+*/
 
 
 /*
