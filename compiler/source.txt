@@ -9,14 +9,11 @@ asm
 };
 
 fun firstNfibs(var n){
-    var *fibarr = 1000;
-    *fibarr = 0;
-    *(fibarr + 1) = 1;
-    var i = 2;
-    while(i < n)
-    {
-        *(fibarr + i) = *(fibarr - 1) + *(fibarr - 2);
-    }
+    //var *fibarr = 1000;
+    //var i = *(fibarr + 2);
+
+    *fibarr = *(a - 1);
+    //var i = *(fibarr - 1);
 
 }
 

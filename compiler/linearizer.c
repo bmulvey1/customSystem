@@ -20,7 +20,172 @@ struct TACLine *linearizeASMBlock(struct astNode *it)
     return asmBlock;
 }
 
-struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tempList *tl);
+struct TACLine *linearizeDereference(struct astNode *it, int *tempNum, struct tempList *tl)
+{
+    printf("Call to linearize dereference:\n");
+    printAST(it, 0);
+    printf("\n");
+    struct TACLine *thisDereference = newTACLine();
+    struct TACLine *returnLine = thisDereference;
+
+    thisDereference->operands[0] = getTempString(tl, *tempNum);
+    thisDereference->operandTypes[0] = vt_temp;
+    thisDereference->operation = tt_memr_1;
+    (*tempNum)++;
+
+    switch (it->type)
+    {
+    case t_name:
+        thisDereference->operands[1] = it->value;
+        thisDereference->operandTypes[1] = vt_var;
+        break;
+
+    case t_dereference:
+        thisDereference->operands[1] = getTempString(tl, *tempNum);
+        thisDereference->operandTypes[1] = vt_temp;
+        returnLine = prependTAC(returnLine, linearizeDereference(it->child, tempNum, tl));
+        break;
+
+    case t_unOp:
+        thisDereference->operands[1] = getTempString(tl, *tempNum);
+        thisDereference->operandTypes[1] = vt_temp;
+        returnLine = prependTAC(returnLine, linearizePointerArithmetic(it->child, tempNum, tl));
+        break;
+
+    default:
+        printf("Malformed parse tree when linearizing dereference!\n");
+        exit(1);
+    }
+
+    return returnLine;
+}
+
+struct TACLine *linearizePointerArithmetic(struct astNode *it, int *tempNum, struct tempList *tl)
+{
+    printf("Linearize pointer arithmetic for tree:\n");
+    printAST(it, 0);
+
+    struct TACLine *thisOperation = newTACLine();
+    struct TACLine *returnOperation = thisOperation;
+
+    switch (it->type)
+    {
+    case t_unOp:
+        switch (it->child->type)
+        {
+
+        case t_unOp:
+            thisOperation->operands[1] = getTempString(tl, *tempNum);
+            thisOperation->operandTypes[1] = vt_temp;
+            (*tempNum)++;
+
+            returnOperation = prependTAC(thisOperation, linearizePointerArithmetic(it->child, tempNum, tl));
+
+            break;
+        case t_dereference:
+            thisOperation->operands[1] = getTempString(tl, *tempNum);
+            thisOperation->operandTypes[1] = vt_temp;
+            (*tempNum)++;
+            returnOperation = prependTAC(thisOperation, linearizeDereference(it->child, tempNum, tl));
+            break;
+
+        case t_name:
+            thisOperation->operands[1] = it->child->value;
+            thisOperation->operandTypes[1] = vt_var;
+            break;
+
+        default:
+            printf("Bad LHS of pointer assignment expression:\n");
+            printAST(it, 0);
+            exit(1);
+
+            break;
+        }
+
+        switch (it->child->sibling->type)
+        {
+        case t_unOp:
+            thisOperation->operands[2] = getTempString(tl, *tempNum);
+            thisOperation->operandTypes[2] = vt_temp;
+            (*tempNum)++;
+            returnOperation = prependTAC(thisOperation, linearizePointerArithmetic(it->child, tempNum, tl));
+            break;
+
+        case t_dereference:
+            thisOperation->operands[2] = getTempString(tl, *tempNum);
+            (*tempNum)++;
+            thisOperation->operandTypes[2] = vt_temp;
+            returnOperation = prependTAC(thisOperation, linearizeDereference(it->child->sibling, tempNum, tl));
+            break;
+
+        case t_name:
+            struct TACLine *scaleMultiplication = newTACLine();
+            scaleMultiplication->operands[1] = it->child->value;
+            scaleMultiplication->operandTypes[1] = vt_var;
+            scaleMultiplication->operands[0] = getTempString(tl, *tempNum);
+            scaleMultiplication->operandTypes[0] = vt_temp;
+            (*tempNum)++;
+            scaleMultiplication->operation = tt_mul;
+            returnOperation = prependTAC(returnOperation, scaleMultiplication);
+        case t_literal:
+            scaleMultiplication->operandTypes[1] = vt_literal;
+            break;
+
+        default:
+            printf("Bad RHS of pointer assignment expression:\n");
+            printAST(it, 0);
+            exit(1);
+        }
+        break;
+
+    case t_dereference:
+        thisOperation->operands[0] = getTempString(tl, *tempNum);
+        (*tempNum)++;
+        thisOperation->operandTypes[0] = vt_temp;
+
+        thisOperation->operands[1] = getTempString(tl, *tempNum);
+        thisOperation->operation = tt_memr_1;
+        thisOperation->operandTypes[1] = vt_temp;
+        returnOperation = prependTAC(returnOperation, linearizeDereference(it->child, tempNum, tl));
+        break;
+
+    default:
+        printf("malformed parse tree or bad call to linearize pointer arithmetic!\n");
+        exit(1);
+        break;
+    }
+
+    return returnOperation;
+}
+
+struct TACLine *linearizePointerWrite(struct astNode *it, int *tempNum, struct tempList *tl)
+{
+    printf("call to linearize pointer write\n");
+    printAST(it, 0);
+    struct TACLine *writeOperation = newTACLine();
+    struct TACLine *returnLine = writeOperation;
+
+    switch (it->type)
+    {
+    case t_literal:
+    case t_name:
+        writeOperation->operands[1] = getTempString(tl, *tempNum);
+        (*tempNum)++;
+        writeOperation->operation = tt_memw_1;
+        writeOperation->operands[0] = it->value;
+        break;
+
+    default:
+        writeOperation->operands[0] = getTempString(tl, *tempNum);
+        returnLine = prependTAC(writeOperation, linearizePointerArithmetic(it->child, tempNum, tl));
+        break;
+    }
+
+    printf("done linearizing pointer write: here's what we got\n");
+    printTACBlock(returnLine, 0);
+
+    return returnLine;
+}
 
 struct TACLine *linearizeFunctionCall(struct astNode *it, int *tempNum, struct tempList *tl)
 {
@@ -73,6 +238,8 @@ struct TACLine *linearizeFunctionCall(struct astNode *it, int *tempNum, struct t
 // given an AST node of an expression, figure out how to break it down into multiple lines of three address code
 struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tempList *tl)
 {
+    printf("Linearizing expression:\n");
+    printAST(it, 0);
     struct TACLine *thisExpression = newTACLine();
     struct TACLine *returnExpression = NULL;
 
@@ -88,17 +255,41 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
     // since these have only one operand
     if (it->type == t_dereference)
     {
-        thisExpression->operandTypes[1] = vt_temp;
-        thisExpression->operands[1] = getTempString(tl, *tempNum);
-        thisExpression->operation = tt_dereference;
-        return prependTAC(thisExpression, linearizeExpression(it->child, tempNum, tl));
+        thisExpression->operation = tt_memr_1;
+        if (it->child->type == t_var)
+        {
+            thisExpression->operands[1] = it->child->value;
+        }
+        else
+        {
+            thisExpression->operands[1] = getTempString(tl, *tempNum);
+            returnExpression = prependTAC(thisExpression, linearizePointerArithmetic(it->child, tempNum, tl));
+        }
+        return returnExpression;
+
+        /*
+        switch (it->child->type)
+        {
+        case t_name:
+            thisExpression->operandTypes[1] = vt_var;
+            thisExpression->operands[1] = it->child->value;
+            return thisExpression;
+            break;
+
+        default:
+            thisExpression->operandTypes[1] = vt_temp;
+            thisExpression->operands[1] = getTempString(tl, *tempNum);
+
+            return prependTAC(thisExpression, linearizeExpression(it->child, tempNum, tl));
+            break;
+        }*/
     }
     if (it->type == t_reference)
     {
         thisExpression->operandTypes[1] = vt_temp;
         thisExpression->operands[1] = getTempString(tl, *tempNum);
         thisExpression->operation = tt_reference;
-        return prependTAC(thisExpression, linearizeExpression(it->child, tempNum, tl));
+        return prependTAC(thisExpression, linearizePointerArithmetic(it->child, tempNum, tl));
     }
 
     switch (it->child->type)
@@ -127,9 +318,9 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         break;
 
     case t_dereference:
-        thisExpression->operandTypes[1] = vt_temp;
         thisExpression->operands[1] = getTempString(tl, *tempNum);
-        returnExpression = prependTAC(thisExpression, linearizeExpression(it->child, tempNum, tl));
+        thisExpression->operandTypes[1] = vt_temp;
+        returnExpression = prependTAC(thisExpression, linearizeDereference(it->child->child, tempNum, tl));
         break;
 
     default:
@@ -187,13 +378,10 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         break;
 
     case t_dereference:
-        thisExpression->operandTypes[2] = vt_temp;
-        thisExpression->operands[2] = getTempString(tl, *tempNum);
         if (returnExpression != NULL)
-            returnExpression = prependTAC(returnExpression, linearizeExpression(it->child->sibling, tempNum, tl));
+            returnExpression = prependTAC(returnExpression, linearizeDereference(it->child->sibling, tempNum, tl));
         else
-            returnExpression = prependTAC(thisExpression, linearizeExpression(it->child->sibling, tempNum, tl));
-
+            returnExpression = prependTAC(thisExpression, linearizeDereference(it->child->sibling, tempNum, tl));
         break;
 
     default:
@@ -218,10 +406,7 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
     {
         // pull out the relevant values and generate a single line of TAC to return
         assignment = newTACLine();
-        assignment->operands[0] = it->child->value;
         assignment->operands[1] = it->child->sibling->value;
-        assignment->operandTypes[0] = vt_var;
-        assignment->operandTypes[2] = vt_null;
 
         switch (it->child->sibling->type)
         {
@@ -238,11 +423,13 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
             exit(1);
         }
     }
+
     // otherwise there is some sort of expression, which will need to be broken down into multiple lines of TAC
     else
     {
         switch (it->child->sibling->type)
         {
+        case t_dereference:
         case t_unOp:
             assignment = linearizeExpression(it->child->sibling, tempNum, tl);
             break;
@@ -255,8 +442,30 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
             printf("Error linearizing expression - malformed parse tree (expected unOp or call)\n");
             exit(1);
         }
-        struct TACLine *lastLine = findLastTAC(assignment);
+    }
+    printf("DONE linearizing RHS of assignment:\n");
+    printTACBlock(assignment, 0);
+    printf("\n");
+    struct TACLine *lastLine = findLastTAC(assignment);
+    printf("\nlast line is:");
+    printTACLine(lastLine);
+    if (it->child->type == t_dereference)
+    {
+        /*(*tempNum)++;
+        lastLine->operands[0] = getTempString(tl, *tempNum);
+        lastLine->operandTypes[0] = vt_temp;*/
 
+        printf("need to linearize LHS\n");
+        printAST(it->child, 0);
+        lastLine->operands[0] = getTempString(tl, *tempNum);
+        struct TACLine *LHS = linearizePointerWrite(it->child->child, tempNum, tl);
+        assignment = appendTAC(assignment, LHS);
+        printf("linearized LHS - here's what we got\n");
+
+        printTACBlock(LHS, 0);
+    }
+    else
+    {
         // set the final line's operand 0 to the variable actually being assigned
         lastLine->operands[0] = it->child->value;
         lastLine->operandTypes[0] = vt_var;

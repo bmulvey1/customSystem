@@ -20,8 +20,16 @@ enum TACType
     tt_assign,
     tt_add,
     tt_subtract,
+    tt_mul,
+    tt_div,
     tt_dereference,
     tt_reference,
+    tt_memw_1, // mov (reg), reg
+    tt_memw_2, // mov offset(reg), reg
+    tt_memw_3, // mov offset(reg, scale), reg
+    tt_memr_1, // same addressing modes as write
+    tt_memr_2,
+    tt_memr_3,
     tt_cmp,
     tt_jg,
     tt_jge,
@@ -44,8 +52,8 @@ enum TACType
 
 struct TACLine
 {
-    char *operands[3];                  // track all 3 operands
-    enum variableTypes operandTypes[3]; // track whether the left hand side operands are literals
+    char *operands[4];                  // track all 3 operands
+    enum variableTypes operandTypes[4]; // track whether the left hand side operands are literals
     enum TACType operation;
     char reorderable;
     struct TACLine *nextLine;

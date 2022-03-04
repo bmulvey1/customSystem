@@ -13,17 +13,41 @@ char *getAsmOp(enum TACType t)
     case tt_add:
         return "add";
 
+    case tt_subtract:
+        return "sub";
+
+    case tt_mul:
+        return "mul";
+
+    case tt_div:
+        return "div";
+
     case tt_dereference:
         return "dereference";
 
     case tt_reference:
         return "reference";
 
+    case tt_memw_1:
+        return "mov (reg), reg";
+
+    case tt_memw_2:
+        return "mov offset(reg), reg";
+
+    case tt_memw_3:
+        return "mov offset(reg, scale), reg";
+
+    case tt_memr_1:
+        return "mov reg, (reg)";
+
+    case tt_memr_2:
+        return "mov reg, offset(reg)";
+
+    case tt_memr_3:
+        return "mov reg, offset(reg, scale)";
+
     case tt_cmp:
         return "cmp";
-
-    case tt_subtract:
-        return "sub";
 
     case tt_push:
         return "push";
@@ -87,9 +111,11 @@ struct TACLine *newTACLine()
     wip->operands[0] = NULL;
     wip->operands[1] = NULL;
     wip->operands[2] = NULL;
+    wip->operands[3] = NULL;
     wip->operandTypes[0] = vt_null;
     wip->operandTypes[1] = vt_null;
     wip->operandTypes[2] = vt_null;
+    wip->operandTypes[3] = vt_null;
     // default type of a line of TAC is assignment
     wip->operation = tt_assign;
     // by default operands are NOT reorderable
@@ -115,6 +141,15 @@ void printTACLine(struct TACLine *it)
     case tt_subtract:
         if (!fallingThrough)
             operationStr = "-";
+        fallingThrough = 1;
+    case tt_mul:
+        if (!fallingThrough)
+            operationStr = "*";
+        fallingThrough = 1;
+    case tt_div:
+        if (!fallingThrough)
+            operationStr = "/";
+        fallingThrough = 1;
 
         width += printf("%s = %s %s %s", it->operands[0], it->operands[1], operationStr, it->operands[2]);
         break;
@@ -125,6 +160,30 @@ void printTACLine(struct TACLine *it)
 
     case tt_reference:
         width += printf("%s = &%s", it->operands[0], it->operands[1]);
+        break;
+
+    case tt_memw_1:
+        width += printf("(%s) = %s", it->operands[0], it->operands[1]);
+        break;
+
+    case tt_memw_2:
+        width += printf("%d(%s) = %s", (int)(long int)it->operands[0], it->operands[1], it->operands[2]);
+        break;
+
+    case tt_memw_3:
+        width += printf("%s(%s, %d) = %s", it->operands[0], it->operands[1], (int)(long int)it->operands[2], it->operands[3]);
+        break;
+
+    case tt_memr_1:
+        width += printf("%s = (%s)", it->operands[0], it->operands[1]);
+        break;
+
+    case tt_memr_2:
+        width += printf("%s = %d(%s)", it->operands[0], (int)(long int)it->operands[1], it->operands[2]);
+        break;
+
+    case tt_memr_3:
+        width += printf("%s = %s(%s, %d)", it->operands[0], it->operands[1], it->operands[2], (int)(long int)it->operands[3]);
         break;
 
     case tt_jg:
@@ -202,7 +261,8 @@ void printTACBlock(struct TACLine *it, int indentLevel)
     int lineIndex = 0;
     while (it != NULL)
     {
-        for(int i = 0; i < indentLevel; i++){
+        for (int i = 0; i < indentLevel; i++)
+        {
             printf("\t");
         }
         if (it->operation != tt_label)
@@ -241,6 +301,7 @@ struct TACLine *prependTAC(struct TACLine *after, struct TACLine *before)
         runner = runner->nextLine;
 
     runner->nextLine = after;
+    after->prevLine = runner;
     return before;
 }
 
