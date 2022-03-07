@@ -599,16 +599,21 @@ struct astNode *parseExpression(struct Dictionary *dict)
          * if handled by simply letting the recursive call to parseExpression() deal with the parens
          * the reference/dereference will bind as a parent to the entire subtree generated
          */
-        if (lookahead() == '(')
+        switch (lookahead())
         {
+        case '(':
+        case '*':
             consume(t_lParen);
             astNode_insertChild(lSide, parseExpression(dict));
             consume(t_rParen);
-        }
-        else
-        {
+            return lSide;
+            break;
+
+        default:
             astNode_insertChild(lSide, match(t_name, dict));
+
         }
+
     }
     else
     {

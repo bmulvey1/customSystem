@@ -9,7 +9,7 @@ struct TACLine *linearizeASMBlock(struct astNode *it);
 
 struct TACLine *linearizeDereference(struct astNode *it, int *tempNum, struct tempList *tl);
 
-struct TACLine *linearizePointerArithmetic(struct astNode *it, int *tempNum, struct tempList *tl);
+struct TACLine *linearizePointerArithmetic(struct astNode *it, int *tempNum, struct tempList *tl, int depth);
 
 struct TACLine *linearizePointerWrite(struct astNode *it, int *tempNum, struct tempList *tl);
 

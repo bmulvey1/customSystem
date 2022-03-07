@@ -11,8 +11,10 @@ asm
 fun firstNfibs(var n){
     //var *fibarr = 1000;
     //var i = *(fibarr + 2);
+    //var i = 2;
 
-    *fibarr = *(a - 1);
+    // missing a scaling multiplication for the (*(b+c+3)) part
+    *fibarr = *(a + (*(b + c + 3)));
     //var i = *(fibarr - 1);
 
 }
