@@ -253,7 +253,7 @@ void printTACLine(struct TACLine *it)
     {
         printf(" ");
     }
-    // printf("\t%d %d %d\n", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
+    printf("\t%d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
 }
 
 void printTACBlock(struct TACLine *it, int indentLevel)

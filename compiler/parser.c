@@ -520,12 +520,9 @@ struct astNode *parseStatement(struct Dictionary *dict)
         struct astNode *deref = match(t_dereference, dict);
         switch (lookahead())
         {
-        case '(':
-            struct astNode *expr = parseExpression(dict);
-            astNode_insertChild(deref, expr);
-            break;
         case '*':
-            astNode_insertChild(deref, parseStatement(dict));
+        case '(':
+            astNode_insertChild(deref, parseExpression(dict));
             break;
 
         default:
@@ -606,14 +603,11 @@ struct astNode *parseExpression(struct Dictionary *dict)
             consume(t_lParen);
             astNode_insertChild(lSide, parseExpression(dict));
             consume(t_rParen);
-            return lSide;
             break;
 
         default:
             astNode_insertChild(lSide, match(t_name, dict));
-
         }
-
     }
     else
     {

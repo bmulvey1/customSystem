@@ -9,13 +9,15 @@ asm
 };
 
 fun firstNfibs(var n){
-    //var *fibarr = 1000;
-    //var i = *(fibarr + 2);
-    //var i = 2;
+    var *fibarr = 1000;
+    *fibarr = 0;
+    *(fibarr + 1) = 1;
 
-    // missing a scaling multiplication for the (*(b+c+3)) part
-    *fibarr = *(a + (*(b + c + 3)));
-    //var i = *(fibarr - 1);
+    var i = 2;
+    while(i < n){
+        *(fibarr + i) = *(fibarr + i - 1) + *(fibarr + i - 2);
+        i = i + 1;
+    }    
 
 }
 

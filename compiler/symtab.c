@@ -285,9 +285,6 @@ int findInStack(char *var, struct symbolTable *table)
  */
 void walkStatement(struct astNode *it, struct symbolTable *wip)
 {
-    printf("walking statement:\n");
-    printAST(it, 0);
-    printf("\n");
     struct astNode *runner;
     switch (it->type)
     {
@@ -299,8 +296,6 @@ void walkStatement(struct astNode *it, struct symbolTable *wip)
         while (scraping)
         {
             runner = runner->child;
-            printf("Scraping on:\n");
-            printAST(runner, 0);
             switch (runner->type)
             {
             case t_dereference:
