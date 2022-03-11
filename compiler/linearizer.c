@@ -46,7 +46,8 @@ struct TACLine *linearizeDereference(struct astNode *it, int *tempNum, struct te
         break;
 
         // handle pointer arithmetic to evalute the correct adddress to dereference
-    case t_unOp:
+    case t_un_add:
+    case t_un_sub:
         thisDereference->operands[1] = getTempString(tl, *tempNum);
         thisDereference->operandTypes[1] = vt_temp;
         returnLine = prependTAC(returnLine, linearizePointerArithmetic(it, tempNum, tl, 0));
@@ -78,28 +79,27 @@ struct TACLine *linearizePointerArithmetic(struct astNode *it, int *tempNum, str
     thisOperation->operands[0] = getTempString(tl, *tempNum);
     thisOperation->operandTypes[0] = vt_temp;
     (*tempNum)++;
-
+    char fallingThrough = 0;
     switch (it->type)
     {
         // assign the correct operation based on the operator node
-    case t_unOp:
-        switch (it->value[0])
+    case t_un_add:
+        thisOperation->reorderable = 1;
+        thisOperation->operation = tt_add;
+        fallingThrough = 1;
+    case t_un_sub:
+        if (!fallingThrough)
         {
-        case '+':
-            thisOperation->reorderable = 1;
-            thisOperation->operation = tt_add;
-            break;
-
-        case '-':
             thisOperation->operation = tt_subtract;
-            break;
+            fallingThrough = 1;
         }
 
         // see what the LHS of the tree is
         switch (it->child->type)
         {
         // recursively handle more operations
-        case t_unOp:
+        case t_un_add:
+        case t_un_sub:
             thisOperation->operands[1] = getTempString(tl, *tempNum);
             thisOperation->operandTypes[1] = vt_temp;
             returnOperation = prependTAC(thisOperation, linearizePointerArithmetic(it->child, tempNum, tl, depth));
@@ -141,7 +141,8 @@ struct TACLine *linearizePointerArithmetic(struct astNode *it, int *tempNum, str
 
         switch (it->child->sibling->type)
         {
-        case t_unOp:
+        case t_un_add:
+        case t_un_sub:
             // scale iff depth 0
             if (depth == 0)
             {
@@ -362,7 +363,8 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         break;
 
     case t_compOp:
-    case t_unOp:
+    case t_un_add:
+    case t_un_sub:
         thisExpression->operands[1] = getTempString(tl, *tempNum);
         thisExpression->operandTypes[1] = vt_temp;
 
@@ -422,7 +424,8 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         break;
 
     case t_compOp:
-    case t_unOp:
+    case t_un_add:
+    case t_un_sub:
         thisExpression->operands[2] = getTempString(tl, *tempNum);
         thisExpression->operandTypes[2] = vt_temp;
         // when recursing, we need to prepend this line so things happen in the correct order
@@ -492,7 +495,8 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
             assignment = linearizeDereference(it->child->sibling->child, tempNum, tl);
             break;
 
-        case t_unOp:
+        case t_un_add:
+        case t_un_sub:
             assignment = linearizeExpression(it->child->sibling, tempNum, tl);
             break;
 
@@ -541,7 +545,8 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
 
             break;
 
-        case t_unOp:
+        case t_un_add:
+        case t_un_sub:
             finalWrite = newTACLine();
             finalWrite->operation = tt_memw_1;
             finalWrite->operands[1] = lastLine->operands[0];

@@ -200,8 +200,8 @@ enum token reserved_t[RESERVED_COUNT] = {
     t_rCurly,
     t_semicolon,
     t_assign,
-    t_unOp,
-    t_unOp,
+    t_un_add,
+    t_un_sub,
     t_dereference,
     t_reference,
     t_compOp,
@@ -620,8 +620,13 @@ struct astNode *parseExpression(struct Dictionary *dict)
     {
     // [left side][operator][right side]
     case '+':
+        expression = match(t_un_add, dict);
+        astNode_insertChild(expression, lSide);
+        astNode_insertChild(expression, parseExpression(dict));
+        break;
+
     case '-':
-        expression = match(t_unOp, dict);
+        expression = match(t_un_sub, dict);
         astNode_insertChild(expression, lSide);
         astNode_insertChild(expression, parseExpression(dict));
         break;
