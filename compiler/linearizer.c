@@ -58,8 +58,8 @@ struct TACLine *linearizeDereference(struct astNode *it, int *tempNum, struct te
         exit(1);
     }
 
-    printf("here's what we got:\n");
-    printTACBlock(returnLine, 0);
+    // printf("here's what we got:\n");
+    // printTACBlock(returnLine, 0);
 
     return returnLine;
 }
@@ -305,8 +305,6 @@ struct TACLine *linearizeFunctionCall(struct astNode *it, int *tempNum, struct t
 // given an AST node of an expression, figure out how to break it down into multiple lines of three address code
 struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tempList *tl)
 {
-    printf("Linearizing expression:\n");
-    printAST(it, 0);
     struct TACLine *thisExpression = newTACLine();
     struct TACLine *returnExpression = thisExpression;
 
@@ -509,20 +507,9 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
             exit(1);
         }
     }
-    printf("DONE linearizing RHS of assignment:\n");
-    printTACBlock(assignment, 0);
-    printf("\n");
     struct TACLine *lastLine = findLastTAC(assignment);
-    printf("\nlast line is:");
-    printTACLine(lastLine);
     if (it->child->type == t_dereference)
     {
-        /*(*tempNum)++;
-        lastLine->operands[0] = getTempString(tl, *tempNum);
-        lastLine->operandTypes[0] = vt_temp;*/
-
-        printf("need to linearize LHS\n");
-        printAST(it->child, 0);
         lastLine->operands[0] = getTempString(tl, *tempNum);
         lastLine->operandTypes[0] = vt_temp;
         (*tempNum)++;
@@ -576,9 +563,8 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
 
         // struct TACLine *LHS = linearizePointerArithmetic(it->child, tempNum, tl, 0);
         assignment = appendTAC(assignment, LHS);
-        printf("linearized LHS - here's what we got\n");
-
-        printTACBlock(LHS, 0);
+        // printf("linearized LHS - here's what we got\n");
+        // printTACBlock(LHS, 0);
     }
     else
     {
@@ -607,7 +593,6 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
         // if we see a variable being declared and then assigned
         // generate the code and stick it on to the end of the block
         case t_var:
-            printf("see var\n");
             switch (runner->child->type)
             {
             case t_assign:
@@ -615,13 +600,11 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
                 break;
 
             case t_dereference:
-                printf("declare and assign to deref\n");
                 struct astNode *dereferenceScraper = runner->child;
                 while (dereferenceScraper->type == t_dereference)
                 {
                     dereferenceScraper = dereferenceScraper->child;
                 }
-                printAST(dereferenceScraper, 0);
                 if (dereferenceScraper->type == t_assign)
                 {
                     sltac = appendTAC(sltac, linearizeAssignment(dereferenceScraper, tempNum, tl));
@@ -722,7 +705,6 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             // (avoids having to use more fields in the struct)
             noifLabel->operands[0] = (char *)((long int)++(*labelCount));
             noifJump->operands[0] = (char *)(long int)(*labelCount);
-            // printf("\n\n~~~\n");
 
             struct TACLine *ifBody = linearizeStatementList(runner->child->sibling->child, tempNum, labelCount, tl);
 
@@ -887,9 +869,6 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             exit(1);
         }
         runner = runner->sibling;
-        printf("done with one iteration of linearizeSL:\n");
-        printTACBlock(sltac, 0);
-        printf("\n\n");
     }
     return sltac;
 }

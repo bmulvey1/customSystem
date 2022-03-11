@@ -378,7 +378,7 @@ void restoreRegisterStates(struct registerState **current, struct registerState 
                 // if there's something there that needs to be saved, save it
                 if (current[i]->live || current[i]->dirty)
                 {
-                    outputStr = malloc(16 * sizeof(char));
+                    outputStr = malloc(20 * sizeof(char));
                     sprintf(outputStr, "mov %d(%%bp), %%r%d", findInStack(current[i]->contains, table), i);
                     ASMblock_append(outputBlock, outputStr, TACindex);
                 }
@@ -911,9 +911,6 @@ struct ASMblock *generateCode(struct symbolTable *table, char *functionName, str
                     registerStates[varIndex]->live = 0;
             }
         }
-        printf("TAC LINE %s:", getAsmOp(line->operation));
-        printTACLine(line);
-        printf("\n");
 
         switch (line->operation)
         {
@@ -1203,8 +1200,8 @@ struct ASMblock *generateCode(struct symbolTable *table, char *functionName, str
             break;
         }
         TACindex++;
-        printRegisterStatesHorizontal(registerStates);
-        printf("\n\n");
+        // printRegisterStatesHorizontal(registerStates);
+        // printf("\n\n");
     }
 
     //  clean up the registers states
@@ -1303,10 +1300,10 @@ int main(int argc, char **argv)
             struct functionEntry *thisEntry = theTable->entries[i]->entry;
             theseLifetimes = findLifetimes(thisEntry->table);
 
-            for (struct Lifetime *ltRunner = theseLifetimes; ltRunner != NULL; ltRunner = ltRunner->next)
-            {
-                printf("Var [%8s]: %2x - %2x\n", ltRunner->variable, ltRunner->start, ltRunner->end);
-            }
+            // for (struct Lifetime *ltRunner = theseLifetimes; ltRunner != NULL; ltRunner = ltRunner->next)
+            // {
+                // printf("Var [%8s]: %2x - %2x\n", ltRunner->variable, ltRunner->start, ltRunner->end);
+            // }
 
             output = generateCode(thisEntry->table, theTable->entries[i]->name, theseLifetimes);
             // run along all the lines of asm output from this funtcion, printing and freeing as we go
