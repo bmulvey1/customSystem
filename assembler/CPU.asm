@@ -111,7 +111,7 @@
     ; data movement (word)
     mov %{rd: reg}, %{rs:reg}                       => 0xa8 @ rs @ rd
     mov %{rd:reg}, (%{rs:reg})                      => 0xa9 @ rs @ rd
-    mov %{rd:reg}, (%{rs:reg})                      => 0xaa @ rs @ rd
+    mov (%{rd:reg}), %{rs:reg}                      => 0xaa @ rs @ rd
     mov %{rd:reg}, {off:i8}(%{rs:reg})              => 0xab @ rs @ rd @ off
     mov {off:i8}(%{rd:reg}), %{rs:reg}              => 0xac @ rs @ rd @ off
     mov %{rd: reg}, %{ro: reg}(%{rs: reg},{scl:i8}) => 0xad @ rs @ rd @ 0b0000 @ ro @ scl

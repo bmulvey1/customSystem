@@ -8,17 +8,21 @@ asm
     hlt
 };
 
-fun firstNfibs(var n){
+// compute the first n fibonacci numbers (using pointers!)
+fun firstnfibs(var n){
     var *fibarr = 1000;
     *fibarr = 0;
     *(fibarr + 1) = 1;
 
     var i = 2;
-    while(i < n){
-        *(fibarr + i) = *(fibarr + i - 1) + *(fibarr + i - 2);
+    while(i <= n){
+        var j = *(fibarr + i - 1) + *(fibarr + i - 2);
+        *(fibarr + i) = j;
+        asm{
+            out (j)
+        };
         i = i + 1;
-    }    
-
+    }
 }
 
 /*

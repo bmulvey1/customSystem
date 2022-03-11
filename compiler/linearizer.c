@@ -560,7 +560,7 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
             LHS->operandTypes[0] = vt_var;
 
             LHS->operands[1] = lastLine->operands[0];
-            LHS->operandTypes[1] = lastLine->operandTypes[1];
+            LHS->operandTypes[1] = lastLine->operandTypes[0];
             LHS->operation = tt_memw_1;
             break;
 
@@ -623,7 +623,12 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
                 }
                 break;
 
+            // if just a declaration, do nothing
+            case t_name:
+                break;
+
             default:
+                printAST(runner, 0);
                 printf("Error linearizing statement - malformed parse tree under 'var' node\n");
                 exit(1);
             }

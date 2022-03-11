@@ -821,6 +821,94 @@ void generateArithmeticCode(struct TACLine *line, struct registerState **registe
         registerStates[destinationRegister]->dirty = 1;
 }
 
+void generateMemoryCode(struct TACLine *line, struct registerState **registerStates, struct ASMblock *outputBlock, struct symbolTable *table, int TACindex)
+{
+    char *outputStr;
+    int sourceIndex;
+    int destinationIndex;
+    switch (line->operation)
+    {
+    case tt_memr_1:
+        outputStr = malloc(32 * sizeof(char));
+        destinationIndex = findInRegisters(registerStates, line->operands[0]);
+        sourceIndex = findInRegisters(registerStates, line->operands[1]);
+        if (destinationIndex == -1)
+        {
+            destinationIndex = findUnallocatedRegister(registerStates);
+            registerStates[destinationIndex]->dirty = 1;
+        }
+
+        if (sourceIndex == -1)
+        {
+            printf("Couldn't find %s\n", line->operands[1]);
+            destinationIndex = findUnallocatedRegister(registerStates);
+            sprintf(outputStr, "mov %%r%d, %d(%%sp)", destinationIndex, findInStack(line->operands[1], table));
+            ASMblock_append(outputBlock, outputStr, TACindex);
+            outputStr = malloc(32 * sizeof(char));
+        }
+
+        sprintf(outputStr, "mov %%r%d, (%%r%d)", destinationIndex, sourceIndex);
+        registerStates[destinationIndex]->contains = line->operands[0];
+        registerStates[destinationIndex]->live = 1;
+        registerStates[destinationIndex]->touched = 1;
+
+        ASMblock_append(outputBlock, outputStr, TACindex);
+        break;
+
+    case tt_memr_2:
+        printf("TAC for unsupported addressing mode! Can't generate code (yet)\n");
+        exit(1);
+        break;
+
+    case tt_memr_3:
+        printf("TAC for unsupported addressing mode! Can't generate code (yet)\n");
+        exit(1);
+        break;
+
+    case tt_memw_1:
+        outputStr = malloc(32 * sizeof(char));
+        destinationIndex = findInRegisters(registerStates, line->operands[0]);
+        sourceIndex = findInRegisters(registerStates, line->operands[1]);
+        if (destinationIndex == -1)
+        {
+            destinationIndex = findUnallocatedRegister(registerStates);
+            sprintf(outputStr, "mov %%r%d, %d(%%sp)", destinationIndex, findInStack(line->operands[0], table));
+            ASMblock_append(outputBlock, outputStr, TACindex);
+            outputStr = malloc(32 * sizeof(char));
+        }
+
+        if (sourceIndex == -1)
+        {
+            destinationIndex = findUnallocatedRegister(registerStates);
+            sprintf(outputStr, "mov %%r%d, %d(%%sp)", destinationIndex, findInStack(line->operands[1], table));
+            ASMblock_append(outputBlock, outputStr, TACindex);
+            outputStr = malloc(32 * sizeof(char));
+        }
+
+        sprintf(outputStr, "mov (%%r%d), %%r%d", destinationIndex, sourceIndex);
+        registerStates[destinationIndex]->contains = line->operands[0];
+        registerStates[destinationIndex]->live = 1;
+        registerStates[destinationIndex]->touched = 1;
+
+        ASMblock_append(outputBlock, outputStr, TACindex);
+        break;
+
+    case tt_memw_2:
+        printf("TAC for unsupported addressing mode! Can't generate code (yet)\n");
+        exit(1);
+        break;
+
+    case tt_memw_3:
+        printf("TAC for unsupported addressing mode! Can't generate code (yet)\n");
+        exit(1);
+        break;
+
+    default:
+        printf("Illegal TAC type passe to generateMemoryCode()\n");
+        exit(1);
+    }
+}
+
 struct ASMblock *generateCode(struct symbolTable *table, char *functionName, struct Lifetime *lifetimes)
 {
     struct ASMblock *outputBlock = newASMblock();
@@ -845,6 +933,9 @@ struct ASMblock *generateCode(struct symbolTable *table, char *functionName, str
                     registerStates[varIndex]->live = 0;
             }
         }
+        printf("TAC LINE %s:", getAsmOp(line->operation));
+        printTACLine(line);
+        printf("\n");
 
         switch (line->operation)
         {
@@ -1045,6 +1136,15 @@ struct ASMblock *generateCode(struct symbolTable *table, char *functionName, str
         }
         break;
 
+        case tt_memw_1:
+        case tt_memw_2:
+        case tt_memw_3:
+        case tt_memr_1:
+        case tt_memr_2:
+        case tt_memr_3:
+            generateMemoryCode(line, registerStates, outputBlock, table, TACindex);
+            break;
+
         case tt_pushstate:
         {
             StackPush(stateStack, duplicateRegisterStates(registerStates));
@@ -1130,6 +1230,8 @@ struct ASMblock *generateCode(struct symbolTable *table, char *functionName, str
             break;
         }
         TACindex++;
+        printRegisterStatesHorizontal(registerStates);
+        printf("\n\n");
     }
 
     //  clean up the registers states
@@ -1227,6 +1329,11 @@ int main(int argc, char **argv)
         {
             struct functionEntry *thisEntry = theTable->entries[i]->entry;
             theseLifetimes = findLifetimes(thisEntry->table);
+
+            for (struct Lifetime *ltRunner = theseLifetimes; ltRunner != NULL; ltRunner = ltRunner->next)
+            {
+                printf("Var [%8s]: %2x - %2x\n", ltRunner->variable, ltRunner->start, ltRunner->end);
+            }
 
             output = generateCode(thisEntry->table, theTable->entries[i]->name, theseLifetimes);
             // run along all the lines of asm output from this funtcion, printing and freeing as we go

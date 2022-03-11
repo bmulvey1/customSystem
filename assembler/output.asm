@@ -6,51 +6,34 @@ code:
 	hlt
 Program_done:
 	ret 0
-fib:
-	sub %sp, $2
-	push %r1
-	mov %r0, 4(%bp)
-	cmp %r0, $2
-	jge fib_1
-	mov %r0, 4(%bp)
-	jmp fib_done
-fib_1:
-	mov %r0, 4(%bp)
-	sub %r0, $2
-	push %r0
-	call fib
-	mov %r1, 4(%bp)
-	sub %r1, $1
-	push %r1
-	mov %r1, %r0
-	call fib
-	add %r1, %r0
-	mov %r0, %r1
-	jmp fib_done
-fib_done:
-	pop %r1
-	add %sp, $2
-	ret 2
-firstnfibs:
+firstNfibs:
 	sub %sp, $2
 	push %r1
 	push %r2
-	mov %r0, $0
-firstnfibs_1:
-	cmp %r0, 4(%bp)
-	jge firstnfibs_2
-	mov %r1, %r0
-	add %r1, $1
-	push %r1
-	mov %r2, %r0
-	call fib
-	out %r0
-	add %r2, $1
-	mov %r0, -2(%bp)
-	mov %r0, %r2
-	jmp firstnfibs_1
-firstnfibs_2:
-firstnfibs_done:
+	push %r3
+	push %r4
+	mov %r0, $1000
+	mov %r1, (%r0)
+	mov %r2, %r1
+	sub %r2, $2
+	mov %r3, %r2
+	mul %r3, $2
+	add %r3, %r0
+	mov %r2, (%r3)
+	mov %r3, %r1
+	sub %r3, $1
+	mov %r4, %r3
+	mul %r4, $2
+	add %r4, %r0
+	mov %r3, (%r4)
+	add %r2, %r3
+	mov %r3, %r1
+	mul %r3, $2
+	add %r3, %r0
+	mov (%r3), %r2
+firstNfibs_done:
+	pop %r4
+	pop %r3
 	pop %r2
 	pop %r1
 	add %sp, $2

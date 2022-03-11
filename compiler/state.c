@@ -85,6 +85,15 @@ void printRegisterStatesHorizontal(struct registerState **registerStates)
         }
     }
     printf("\n");
+
+    for (int i = 0; i < 12; i++)
+    {
+        if (registerStates[i]->contains != NULL)
+        {
+            printf("%c%c    |", (registerStates[i]->live ? 'L':' '), (registerStates[i]->dirty ? 'D':' '));
+        }
+    }
+    printf("\n");
 }
 
 void freeRegisterStates(struct registerState **s)
