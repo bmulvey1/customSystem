@@ -65,10 +65,6 @@ void checkVariableLifetimes(struct symbolTable *table)
         case tt_je:
         case tt_jne:
         case tt_jmp:
-            // do and enddo are handled in lifetime generation
-        case tt_do:
-        case tt_enddo:
-            break;
 
         default:
 
@@ -208,24 +204,6 @@ struct Lifetime *findLifetimes(struct symbolTable *table)
         case tt_je:
         case tt_jne:
         case tt_jmp:
-            break;
-
-        // if we have a do block, keep track of a lifetime threshold
-        // any variable with a lt ending after this threshold
-        // will have its lifetime extended to the index of the "enddo" label
-        case tt_do:
-            int *pushedIndex = malloc(sizeof(int));
-            *pushedIndex = lineIndex;
-            StackPush(doBlockLifetimes, pushedIndex);
-            break;
-
-        case tt_enddo:
-            int *ltThreshold = StackPop(doBlockLifetimes);
-            for (struct Lifetime *ltRunner = ltList; ltRunner != NULL; ltRunner = ltRunner->next)
-                if (ltRunner->end >= *ltThreshold)
-                    ltRunner->end = lineIndex;
-
-            free(ltThreshold);
             break;
 
         default:
@@ -1170,11 +1148,6 @@ struct ASMblock *generateCode(struct symbolTable *table, char *functionName, str
             freeRegisterStates(StackPop(stateStack));
         }
         break;
-
-        // do and end do blocks for lifetime extension in loops - no output to generate here
-        case tt_do:
-        case tt_enddo:
-            break;
 
         case tt_asm:
         {

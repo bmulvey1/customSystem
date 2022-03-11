@@ -4,10 +4,11 @@ asm
     entry code
     code:
     push $20
-    call firstnfibs
+    call firstkprimes
     hlt
 };
 
+/*
 // compute the first n fibonacci numbers (using pointers!)
 fun firstnfibs(var n){
     var *fibarr = 1000;
@@ -17,10 +18,32 @@ fun firstnfibs(var n){
     var i = 2;
     while(i <= n){
         var j = *(fibarr + i - 1) + *(fibarr + i - 2);
-        *(fibarr + i) = j;
         asm{
             out (j)
         };
+        *(fibarr + i) = j;
+        i = i + 1;
+    }
+    asm{
+            out (j)
+    };
+    j = 1;
+}*/
+
+fun firstkprimes(){
+    var *primes = 2000;
+    var i = 2;
+    while(i <= 1000){
+        if(*(primes + i) == 0){
+            var j = i;
+            while(j <= 1000){
+                *(primes + j) = 1;
+                j = j + i;
+            }
+            asm{
+                out (i)
+            };
+        }
         i = i + 1;
     }
 }
@@ -46,6 +69,7 @@ fun firstnfibs(var n)
         {
             out (result)
         };
+        result =
         i = i + 1;
     }
 }

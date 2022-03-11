@@ -794,9 +794,6 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             // establish a block during which any live variable's lifetime will be extended
             // since a variable could "die" during the while loop, then the loop could repeat
             // we need to extend all the lifetimes within the loop or risk overwriting and losing some variables
-            struct TACLine *doLine = newTACLine();
-            doLine->operation = tt_do;
-            appendTAC(sltac, doLine);
 
             // generate a label for the top of the while loop
             struct TACLine *beginWhile = newTACLine();
@@ -870,11 +867,6 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             loopJump->operation = tt_jmp;
             loopJump->operands[0] = beginWhile->operands[0];
             appendTAC(sltac, loopJump);
-
-            // end the period over which lifetimes will be extended
-            struct TACLine *endDoLine = newTACLine();
-            endDoLine->operation = tt_enddo;
-            appendTAC(sltac, endDoLine);
 
             // at the very end, add the label we jump to if the condition test fails
             appendTAC(sltac, noWhileLabel);
