@@ -72,13 +72,10 @@ void checkVariableLifetimes(struct symbolTable *table)
             struct symTabEntry *varEntry;
             if (t->operandTypes[2] == vt_var)
             {
-                // attempt to get the variable's entry from the table
                 varEntry = symbolTableLookup(table, t->operands[2]);
-
-                // if we get nothing back, we have a use before declare
                 if (varEntry == NULL)
                 {
-                    printf("Error: use of undeclared variable %s\n", t->operands[2]);
+                    fprintf(stderr, "Error: use of undeclared variable %s\n", t->operands[2]);
                     exit(1);
                 }
 
@@ -89,12 +86,17 @@ void checkVariableLifetimes(struct symbolTable *table)
                     break;
 
                 case e_variable:
+                    // bypass use-before-assign checking because of global variables
+                    
+                    /*
                     // if a variable on the RHS hasn't been assigned yet, we have a use before asssign
+
                     if (!((struct variableEntry *)varEntry->entry)->isAssigned)
                     {
                         printf("Error: use of variable [%s] before assignment\n", varEntry->name);
                         exit(1);
                     }
+                    */
                     break;
 
                 // won't hit this at the moment, only captures e_function
@@ -111,9 +113,10 @@ void checkVariableLifetimes(struct symbolTable *table)
                 varEntry = symbolTableLookup(table, t->operands[1]);
                 if (varEntry == NULL)
                 {
-                    printf("Error: use of undeclared variable %s\n", t->operands[1]);
+                    fprintf(stderr, "Error: use of undeclared variable %s\n", t->operands[1]);
                     exit(1);
                 }
+
                 switch (varEntry->type)
                 {
                 case e_argument:
@@ -121,11 +124,15 @@ void checkVariableLifetimes(struct symbolTable *table)
                     break;
 
                 case e_variable:
+                    // bypass use-before-assign checking because of global variables
+
+                    /*
                     if (!((struct variableEntry *)varEntry->entry)->isAssigned)
                     {
                         printf("Error: use of variable [%s] before assignment\n", varEntry->name);
                         exit(1);
                     }
+                    */
                     break;
 
                 default:
@@ -138,13 +145,10 @@ void checkVariableLifetimes(struct symbolTable *table)
             // we only care about it if it's an explicitly defined variable (not a temp)
             if (t->operandTypes[0] == vt_var)
             {
-                // do a lookup in the symbol table for a variable with this name
                 struct symTabEntry *assignedVar = symbolTableLookup(table, t->operands[0]);
-
-                // catch assign before initialize
                 if (assignedVar == NULL)
                 {
-                    printf("Error: assignment to uninitialized variable %s\n", t->operands[0]);
+                    fprintf(stderr, "Error - assignment to undeclared variable [%s]\n", t->operands[0]);
                     exit(1);
                 }
 
@@ -1302,7 +1306,7 @@ int main(int argc, char **argv)
 
             // for (struct Lifetime *ltRunner = theseLifetimes; ltRunner != NULL; ltRunner = ltRunner->next)
             // {
-                // printf("Var [%8s]: %2x - %2x\n", ltRunner->variable, ltRunner->start, ltRunner->end);
+            // printf("Var [%8s]: %2x - %2x\n", ltRunner->variable, ltRunner->start, ltRunner->end);
             // }
 
             output = generateCode(thisEntry->table, theTable->entries[i]->name, theseLifetimes);

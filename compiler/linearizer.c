@@ -878,6 +878,7 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
 {
     // scrape along the top level of the AST
     struct astNode *runner = it;
+    int tempNum = 0;
     while (runner != NULL)
     {
         printf(".");
@@ -887,14 +888,14 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
         // then generate the TAC for it and add a reference to the start of the generated code to the function entry
         case t_fun:
         {
-            int tempNum = 0; // track the number of temporary variables used
+            int funTempNum = 0; // track the number of temporary variables used
             int labelCount = 0;
             struct functionEntry *theFunction = symbolTableLookup(table, runner->child->value)->entry;
             struct TACLine *generatedTAC = newTACLine();
 
             generatedTAC->operation = tt_label;
             generatedTAC->operands[0] = 0;
-            appendTAC(generatedTAC, linearizeStatementList(runner->child->sibling, &tempNum, &labelCount, table->tl));
+            appendTAC(generatedTAC, linearizeStatementList(runner->child->sibling, &funTempNum, &labelCount, table->tl));
             theFunction->table->codeBlock = generatedTAC;
             break;
         }
@@ -902,6 +903,23 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
 
         case t_asm:
             table->codeBlock = appendTAC(table->codeBlock, linearizeASMBlock(runner));
+            break;
+
+        case t_var:
+            struct astNode *declarationScraper = runner;
+
+            // scrape down all pointer levels if necessary, then linearize if the variable is actually assigned
+            while (declarationScraper->child->type == t_dereference)
+                declarationScraper = declarationScraper->child;
+
+            declarationScraper = declarationScraper->child;
+            if (declarationScraper->type == t_assign)
+                table->codeBlock = appendTAC(table->codeBlock, linearizeAssignment(declarationScraper, &tempNum, table->tl));
+
+            break;
+
+        case t_assign:
+            table->codeBlock = appendTAC(table->codeBlock, linearizeAssignment(runner, &tempNum, table->tl));
             break;
 
         // ignore everything else (for now) - no global vars, etc...

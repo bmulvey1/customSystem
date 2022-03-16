@@ -31,7 +31,7 @@ struct symTabEntry
 struct variableEntry
 {
     int isAssigned;
-    char ensureWriteBack;
+    char global;
     int stackOffset;
     enum variableTypes type;
     int indirectionLevel;
@@ -46,6 +46,7 @@ struct symbolTable
 {
     char *name;
     struct symTabEntry **entries;
+    struct symbolTable *parentScope;
     int size;
     struct tempList *tl;
     int localStackSize;

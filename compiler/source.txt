@@ -8,6 +8,16 @@ asm
     hlt
 };
 
+var loopCount = 0;
+
+fun loopy(var howMany){
+    var i = 0;
+    while(i < howMany){
+        loopCount = loopCount + 1;
+        i = i + 1;
+    }
+}
+
 /*
 // compute the first n fibonacci numbers (using pointers!)
 fun firstnfibs(var n){
@@ -28,7 +38,7 @@ fun firstnfibs(var n){
             out (j)
     };
     j = 1;
-}*/
+}
 
 fun firstkprimes(){
     var *primes = 2000;
@@ -46,84 +56,6 @@ fun firstkprimes(){
         }
         i = i + 1;
     }
-}
-
-/*
-// this function computes the nth fibonacci number 
-fun fib(var n)
-{
-    if(n < 2)
-        return n;
-    else
-        return fib(n - 1) + fib(n - 2); 
-}
-
-// find all fibonacci numbers up to and including n
-fun firstnfibs(var n)
-{
-    var i = 0;
-    while(i < n)
-    {
-        var result = fib(i + 1);
-        asm
-        {
-            out (result)
-        };
-        result =
-        i = i + 1;
-    }
-}
-*/
-
-
-/*
-// software modulo! (are you having fun yet?)
-fun modulo(var a, var b)
-{
-    while(a >= b)
-    {
-        a = a - b;
-    }
-    return a;
-}
-
-// return whether or not a number is prime
-fun isPrime(var n)
-{
-    var i = 2;
-    while(i < n)
-    {
-        var result = modulo(n, i);
-        if(result == 0)
-            return 0;
-
-        i = i + 1;
-    }
-    return 1;
-}
-
-fun firstNPrimes(var n)
-{
-    var i = 2;
-    var foundNum = 0;
-    while(foundNum < n)
-    {
-        var result = isPrime(i);
-        if(result == 1)
-        {
-            asm
-            {
-                out %r2
-            };
-            foundNum = foundNum + 1;
-        }
-        i = i + 1;
-    }
-}
-
-fun firstNeverything(var n){
-    firstnfibs(n);
-    firstNPrimes(n);
 }
 */
 $$

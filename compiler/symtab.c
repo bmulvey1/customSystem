@@ -63,7 +63,7 @@ struct variableEntry *newVariableEntry(int indirectionLevel)
 {
     struct variableEntry *wip = malloc(sizeof(struct variableEntry));
     wip->isAssigned = 0;
-    wip->ensureWriteBack = 0;
+    wip->global = 0;
     wip->indirectionLevel = indirectionLevel;
     return wip;
 }
@@ -79,6 +79,7 @@ struct symbolTable *newSymbolTable(char *name)
 {
     struct symbolTable *wip = malloc(sizeof(struct symbolTable));
     wip->size = 0;
+    wip->parentScope = NULL;
     wip->entries = NULL;
     wip->codeBlock = NULL;
     wip->name = name;
@@ -100,11 +101,17 @@ int symbolTableContains(struct symbolTable *table, char *name)
 }
 
 // return a symbol table entry by name, or NULL if not found
+// automatically looks at most local scope, then enclosing scopes until found or no scopes left
 struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name)
 {
-    for (int i = 0; i < table->size; i++)
-        if (!strcmp(table->entries[i]->name, name))
-            return table->entries[i];
+    while (table != NULL)
+    {
+        for (int i = 0; i < table->size; i++)
+            if (!strcmp(table->entries[i]->name, name))
+                return table->entries[i];
+
+        table = table->parentScope;
+    }
 
     return NULL;
 }
@@ -195,7 +202,9 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
         case e_variable:
         {
             struct variableEntry *theVariable = it->entries[i]->entry;
+
             printf("> variable");
+
             for (int i = 0; i < theVariable->indirectionLevel; i++)
             {
                 printf("*");
@@ -209,8 +218,8 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
             struct functionEntry *theFunction = it->entries[i]->entry;
             printf("> function [%s]: %d symbols\n", it->entries[i]->name, theFunction->table->size);
             printSymTabRec(theFunction->table, depth + 1, printTAC);
-            //if (printTAC)
-                //printTACBlock(theFunction->table->codeBlock, depth);
+            // if (printTAC)
+            // printTACBlock(theFunction->table->codeBlock, depth);
             printf("\n");
         }
         break;
@@ -265,8 +274,8 @@ int findInStack(char *var, struct symbolTable *table)
     struct symTabEntry *theEntry = symbolTableLookup(table, var);
     if (theEntry == NULL)
     {
-        printf("UNABLE TO FIND VARIABLE %s IN SYMBOL TABLE\n", var);
-        exit(0);
+        fprintf(stderr, "UNABLE TO FIND VARIABLE %s IN SYMBOL TABLE\n", var);
+        exit(1);
     }
     switch (theEntry->type)
     {
@@ -275,7 +284,7 @@ int findInStack(char *var, struct symbolTable *table)
         return ((struct variableEntry *)theEntry->entry)->stackOffset;
 
     default:
-        printf("Saw something illegal while trying to locate variable/argument %s on the stack\n", var);
+        fprintf(stderr, "Saw something illegal while trying to locate variable/argument %s on the stack\n", var);
         exit(1);
     }
 }
@@ -387,6 +396,7 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
     struct astNode *functionRunner = it->child;
     char *functionName = functionRunner->value;
     struct symbolTable *subTable = newSymbolTable(functionName);
+    subTable->parentScope = wip;
     while (functionRunner != NULL)
     {
         switch (functionRunner->type)
@@ -492,6 +502,25 @@ struct symbolTable *walkAST(struct astNode *it)
         printf(".");
         switch (runner->type)
         {
+
+        // global variable declarations/definitions are allowed
+        // use walkStatement to handle this
+        case t_var:
+            walkStatement(runner, wip);
+            struct astNode *scraper = runner->child;
+            while (scraper->type != t_name)
+            {
+                scraper = scraper->child;
+            }
+
+            struct variableEntry *theGlobal = symbolTableLookup(wip, scraper->value)->entry;
+            if (theGlobal->global == 0)
+            {
+                theGlobal->global = 1;
+                theGlobal->stackOffset = (wip->localStackSize * -1) - 2;
+                wip->localStackSize += 2;
+            }
+            break;
 
         case t_fun:
             walkFunction(runner, wip);
