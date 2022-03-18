@@ -1,11 +1,26 @@
-	#include "CPU.asm"
-	entry code
-code:
-	push $20
-	call firstnfibs
-	hlt
-Program_done:
-	ret 0
+# Source code
+```
+// compute the first n fibonacci numbers (using pointers!)
+fun firstnfibs(var n){
+    var *fibarr = 1000;
+    *fibarr = 0;
+    *(fibarr + 1) = 1;
+    var j;
+
+    var i = 2;
+    while(i <= n){
+        j = *(fibarr + i - 1) + *(fibarr + i - 2);
+        asm{
+            out [j]
+        };
+        *(fibarr + i) = j;
+        i = i + 1;
+    }
+}
+```
+
+# Generated assembly
+```
 firstnfibs:
 	sub %sp, $6
 	push %r1
@@ -52,3 +67,8 @@ firstnfibs_done:
 	pop %r1
 	add %sp, $6
 	ret 2
+```
+
+# Results
+
+call to firstnfibs with argument of 20: 461 instructions

@@ -87,7 +87,7 @@ void checkVariableLifetimes(struct symbolTable *table)
 
                 case e_variable:
                     // bypass use-before-assign checking because of global variables
-                    
+
                     /*
                     // if a variable on the RHS hasn't been assigned yet, we have a use before asssign
 
@@ -1157,18 +1157,18 @@ struct ASMblock *generateCode(struct symbolTable *table, char *functionName, str
             for (int i = 0; i < strlen(line->operands[0]); i++)
             {
                 // check to see if we need to substitute any variables in
-                if (line->operands[0][i] == '(')
+                if (line->operands[0][i] == '[')
                 {
                     // establish an intermediate buffer to contain the name of the variable
                     char intermediateBuffer[BUF_SIZE];
                     int intermediateBufLen = 0;
                     // scan through the asm line, copy the string to the intermediate buffer
-                    while (line->operands[0][++i] != ')')
+                    while (line->operands[0][++i] != ']')
                     {
-                        // break if we see the end of the asm line with no close paren
+                        // break if we see the end of the asm line with no close bracket
                         if (line->operands[0][i] == '\0')
                         {
-                            printf("Error - unmatched open paren in asm line\n[%s]\n", line->operands[0]);
+                            printf("Error - unmatched open bracket in asm line\n[%s]\n", line->operands[0]);
                             exit(1);
                         }
                         intermediateBuffer[intermediateBufLen++] = line->operands[0][i];
@@ -1228,12 +1228,23 @@ struct ASMblock *generateCode(struct symbolTable *table, char *functionName, str
             sprintf(outputStr, "pop %%r%d", i);
             ASMblock_append(outputBlock, outputStr, 999);
         }
+
+        if (registerStates[i]->dirty)
+        {
+            struct variableEntry *theVariable = symbolTableLookup(table, registerStates[i]->contains)->entry;
+            if (theVariable->global)
+            {
+                outputStr = malloc(16 * sizeof(char));
+                sprintf(outputStr, "mov (%d), %%r%d", 0xffff + theVariable->stackOffset, i);
+                ASMblock_append(outputBlock, outputStr, 999);
+            }
+        }
     }
 
-    if (table->argStackSize > 0)
+    if (table->localStackSize > 0)
     {
         outputStr = malloc(16 * sizeof(char));
-        sprintf(outputStr, "sub %%sp, $%d", table->argStackSize);
+        sprintf(outputStr, "sub %%sp, $%d", table->localStackSize);
         ASMblock_prepend(outputBlock, outputStr, 0);
     }
 
@@ -1241,11 +1252,11 @@ struct ASMblock *generateCode(struct symbolTable *table, char *functionName, str
     outputBlock->head = entryLabel;
 
     // deal with making and freeing room on the stack for local variables
-    if (table->argStackSize > 0)
+    if (table->localStackSize > 0)
     {
         // reset the room made on the stack for local variables
         outputStr = malloc(16 * sizeof(char));
-        sprintf(outputStr, "add %%sp, $%d", table->argStackSize);
+        sprintf(outputStr, "add %%sp, $%d", table->localStackSize);
         ASMblock_append(outputBlock, outputStr, 999);
     }
     outputStr = malloc(6 * sizeof(char));

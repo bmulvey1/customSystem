@@ -202,8 +202,14 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
         case e_variable:
         {
             struct variableEntry *theVariable = it->entries[i]->entry;
-
-            printf("> variable");
+            if (theVariable->global)
+            {
+                printf("> global variable");
+            }
+            else
+            {
+                printf("> variable");
+            }
 
             for (int i = 0; i < theVariable->indirectionLevel; i++)
             {

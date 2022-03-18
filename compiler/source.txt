@@ -4,58 +4,50 @@ asm
     entry code
     code:
     push $20
-    call firstkprimes
+    call firstnfibs
     hlt
 };
 
-var loopCount = 0;
 
-fun loopy(var howMany){
-    var i = 0;
-    while(i < howMany){
-        loopCount = loopCount + 1;
-        i = i + 1;
-    }
-}
-
-/*
 // compute the first n fibonacci numbers (using pointers!)
 fun firstnfibs(var n){
     var *fibarr = 1000;
     *fibarr = 0;
     *(fibarr + 1) = 1;
+    var j;
 
     var i = 2;
     while(i <= n){
-        var j = *(fibarr + i - 1) + *(fibarr + i - 2);
+        j = *(fibarr + i - 1) + *(fibarr + i - 2);
         asm{
-            out (j)
+            out [j]
         };
         *(fibarr + i) = j;
         i = i + 1;
     }
-    asm{
-            out (j)
-    };
-    j = 1;
 }
 
+
+
+/*
 fun firstkprimes(){
-    var *primes = 2000;
+    var *primes = 1000;
     var i = 2;
-    while(i <= 1000){
+    while(i <= 10000){
         if(*(primes + i) == 0){
             var j = i;
-            while(j <= 1000){
+            while(j <= 10000){
                 *(primes + j) = 1;
                 j = j + i;
             }
             asm{
-                out (i)
+                out [i]
             };
         }
         i = i + 1;
     }
 }
 */
+
+
 $$
