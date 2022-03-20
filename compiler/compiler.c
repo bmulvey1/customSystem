@@ -9,11 +9,13 @@
 #include "linearizer.h"
 #include "state.h"
 #include "asm.h"
+#include "regalloc.h"
 
 /*
+
  * setup code for linked list containing variable lifetime info
  * may belong in its own file, depends on how beginning code generation works out
- */
+
 struct Lifetime
 {
     int start, end;
@@ -41,13 +43,13 @@ void freeLifetime(struct Lifetime *it)
     }
 }
 
-/*
+
  * Given a symbol table entry for a function, calculate lifetime for variables defined within
  * Also enforces some basic error checking (use before declare / use before assign)
  *
  * SymTab entries for variables containing their own lifetimes may be redundant since
  * findLifetimes() will also re-find lifetimes for these variables
- */
+
 
 void checkVariableLifetimes(struct symbolTable *table)
 {
@@ -88,15 +90,15 @@ void checkVariableLifetimes(struct symbolTable *table)
                 case e_variable:
                     // bypass use-before-assign checking because of global variables
 
-                    /*
+
                     // if a variable on the RHS hasn't been assigned yet, we have a use before asssign
 
-                    if (!((struct variableEntry *)varEntry->entry)->isAssigned)
-                    {
-                        printf("Error: use of variable [%s] before assignment\n", varEntry->name);
-                        exit(1);
-                    }
-                    */
+                    //if (!((struct variableEntry *)varEntry->entry)->isAssigned)
+                    //{
+                    //    printf("Error: use of variable [%s] before assignment\n", varEntry->name);
+                    //    exit(1);
+                    //}
+
                     break;
 
                 // won't hit this at the moment, only captures e_function
@@ -126,13 +128,13 @@ void checkVariableLifetimes(struct symbolTable *table)
                 case e_variable:
                     // bypass use-before-assign checking because of global variables
 
-                    /*
-                    if (!((struct variableEntry *)varEntry->entry)->isAssigned)
-                    {
-                        printf("Error: use of variable [%s] before assignment\n", varEntry->name);
-                        exit(1);
-                    }
-                    */
+
+                    //if (!((struct variableEntry *)varEntry->entry)->isAssigned)
+                    //{
+                    //    printf("Error: use of variable [%s] before assignment\n", varEntry->name);
+                    //    exit(1);
+                    //}
+
                     break;
 
                 default:
@@ -1270,6 +1272,13 @@ struct ASMblock *generateCode(struct symbolTable *table, char *functionName, str
     return outputBlock;
 }
 
+*/
+
+char compare_ints(int *element1, int *element2)
+{
+    return (*element1) == (*element2);
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2)
@@ -1303,6 +1312,17 @@ int main(int argc, char **argv)
     printf("\n\n");
 
     FILE *outFile = fopen(argv[2], "wb");
+
+    for (int i = 0; i < theTable->size; i++)
+    {
+        if (theTable->entries[i]->type == e_function)
+        {
+            struct functionEntry *thisEntry = theTable->entries[i]->entry;
+            findLifetimes(thisEntry->table);
+        }
+    }
+
+    /*
     struct Lifetime *theseLifetimes = findLifetimes(theTable);
     struct ASMblock *output = generateCode(theTable, theTable->name, theseLifetimes);
     ASMblock_output(output, outFile);
@@ -1327,6 +1347,7 @@ int main(int argc, char **argv)
             freeLifetime(theseLifetimes);
         }
     }
+    */
     fclose(outFile);
     freeDictionary(parseDict);
     freeAST(program);

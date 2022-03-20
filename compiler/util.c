@@ -172,3 +172,102 @@ void *StackPeek(struct Stack *s)
         exit(1);
     }
 }
+
+/*
+ * LINKED LIST FUNCTIONS
+ *
+ */
+
+struct LinkedList *LinkedList_new()
+{
+    struct LinkedList *wip = malloc(sizeof(struct LinkedList));
+    wip->head = NULL;
+    wip->tail = NULL;
+    wip->size = 0;
+    return wip;
+}
+
+void LinkedList_free(struct LinkedList *l, char freeData)
+{
+    struct LinkedListNode *runner = l->head;
+    while (runner != NULL)
+    {
+        if (freeData)
+        {
+            free(runner->data);
+        }
+        struct LinkedListNode *old = runner;
+        runner = runner->next;
+        free(old);
+    }
+    free(l);
+}
+
+void LinkedList_insert(struct LinkedList *l, void *element)
+{
+    struct LinkedListNode *newNode = malloc(sizeof(struct LinkedListNode));
+    newNode->data = element;
+    if (l->size == 0)
+    {
+        newNode->next = NULL;
+        newNode->prev = NULL;
+        l->head = newNode;
+        l->tail = newNode;
+    }
+    else
+    {
+        l->tail->next = newNode;
+        newNode->prev = l->tail;
+        newNode->next = NULL;
+        l->tail = newNode;
+    }
+    l->size++;
+}
+
+void *LinkedList_delete(struct LinkedList *l, char (*compareFunction)(), void *element)
+{
+    for (struct LinkedListNode *runner = l->head; runner != NULL; runner = runner->next)
+    {
+        if (compareFunction(runner->data, element))
+        {
+            if (l->size > 1)
+            {
+                if (runner == l->head)
+                {
+                    l->head = runner->next;
+                    runner->next->prev = NULL;
+                }
+                else
+                {
+                    if (runner == l->tail)
+                    {
+                        l->tail = runner->prev;
+                        runner->prev->next = NULL;
+                    }
+                    else
+                    {
+                        runner->prev->next = runner->next;
+                        runner->next->prev = runner->prev;
+                    }
+                }
+            }
+            void *data = runner->data;
+            free(runner);
+            return data;
+        }
+    }
+    fprintf(stderr, "Error - could not delete element from linked list!\n");
+    exit(1);
+}
+
+void *LinkedList_find(struct LinkedList *l, char (*compareFunction)(), void *element)
+{
+    for (struct LinkedListNode *runner = l->head; runner != NULL; runner = runner->next)
+    {
+        if (!compareFunction(runner->data, element))
+        {
+            return runner->data;
+        }
+    }
+    return NULL;
+}
