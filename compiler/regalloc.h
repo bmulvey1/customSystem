@@ -28,4 +28,5 @@ struct SpilledRegister
     struct Lifetime *lifetime;
     int lastUsed;
     int stackOffset;
+    char occupied;
 };

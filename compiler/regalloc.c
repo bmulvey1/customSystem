@@ -62,13 +62,14 @@ void sortByEndPoint(struct Register **list, int size)
     }
 }
 
+// sort so the lowest register indices are on top of the stack
 void sortByRegisterNumber(struct Register **list, int size)
 {
     for (int i = 0; i < size; i++)
     {
         for (int j = 0; j < size - i - 1; j++)
         {
-            if (list[j]->index > list[j + 1]->index)
+            if (list[j]->index < list[j + 1]->index)
             {
                 struct Register *temp = list[j];
                 list[j] = list[j + 1];
@@ -78,67 +79,120 @@ void sortByRegisterNumber(struct Register **list, int size)
     }
 }
 
-void expireOldIntervals(struct Stack *activeList, struct Stack *inactiveList, int TACIndex)
+void expireOldIntervals(struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, int TACIndex)
 {
-    struct Stack *intermediateStack = newStack();
+
+    struct Stack *intermediateStack = Stack_new();
     while (activeList->size > 0)
     {
-        struct Register *poppedRegister = StackPop(activeList);
+        // pop all active retisters
+        struct Register *poppedRegister = Stack_pop(activeList);
         if (poppedRegister->lifetime->end < TACIndex)
         {
+            // if the variable this register contains expires, add register to inactive list
             printf("Expire %s\n", poppedRegister->lifetime->variable);
-            StackPush(inactiveList, poppedRegister);
+            Stack_push(inactiveList, poppedRegister);
         }
         else
         {
-            StackPush(intermediateStack, poppedRegister);
+            // otherwise put on intermediate stack
+            Stack_push(intermediateStack, poppedRegister);
         }
     }
 
+    // return all surviving lifetimes to the active list
     while (intermediateStack->size > 0)
-        StackPush(activeList, StackPop(intermediateStack));
+        Stack_push(activeList, Stack_pop(intermediateStack));
 
-    freeStack(intermediateStack);
+    Stack_free(intermediateStack);
+
+    // iterate over the list of spilled registers
+    for (int i = 0; i < spilledList->size; i++)
+    {
+        struct SpilledRegister *checkedSpill = spilledList->data[i];
+        // if the spill slot is occupied and the variable in that slot is expired
+        if (checkedSpill->occupied && checkedSpill->lifetime->end < TACIndex)
+        {
+            printf("Expire %s (spilled on stack)\n", checkedSpill->lifetime->variable);
+            // free the slot
+            checkedSpill->occupied = 0;
+        }
+    }
+    // if possible (slots on top are unoccupied/expired), reduce the size of the spill stack
+    while (spilledList->size > 0 && ((struct SpilledRegister *)Stack_peek(spilledList))->occupied == 0)
+    {
+        printf("pop stack\n");
+        Stack_pop(spilledList);
+    }
 }
 
-void spillRegister(struct Stack *activeList, struct Stack *inactiveList, struct LinkedList *spilledList)
+void spillRegister(struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList)
 {
-    struct Stack *intermediate = newStack();
+    // invert the order of the active list by pushing onto an intermediate stack
+    struct Stack *intermediate = Stack_new();
     while (activeList->size > 0)
-        StackPush(intermediate, StackPop(activeList));
+        Stack_push(intermediate, Stack_pop(activeList));
 
-    struct Register *victim = StackPop(intermediate);
-    // if a variable was last used 0 ago, it will be used in the current TAC - can't spill it!
+    // examine inverted active list (variables with latest expiration will appear first)
+    struct Register *victim = Stack_pop(intermediate);
+    // skip variables which will be used in the current TAC
     while (victim->lastUsed == 0)
     {
-        StackPush(activeList, victim);
-        victim = StackPop(intermediate);
+        Stack_push(activeList, victim);
+        victim = Stack_pop(intermediate);
     }
-    struct SpilledRegister *thisSpill = malloc(sizeof(struct SpilledRegister));
-    thisSpill->lifetime = victim->lifetime;
-    thisSpill->lastUsed = victim->lastUsed;
-    thisSpill->stackOffset = (spilledList->size * -2) - 2;
-    printf("Spill [%s]\n", victim->lifetime->variable);
-    // printf("spill variable %s to stack (offset of %d)\n", victim->lifetime->variable, thisSpill->stackOffset);
-    LinkedList_insert(spilledList, thisSpill);
 
-    StackPush(inactiveList, victim);
-
+    // return the rest of the intermediate stack back to the active list
     while (intermediate->size > 0)
-        StackPush(activeList, StackPop(intermediate));
+        Stack_push(activeList, Stack_pop(intermediate));
 
-    freeStack(intermediate);
+    Stack_free(intermediate);
+
+    printf("Spill [%s]", victim->lifetime->variable);
+    // printf("spill variable %s to stack (offset of %d)\n", victim->lifetime->variable, thisSpill->stackOffset);
+
+    // examine the existing slots on the stack
+    char needNewSlot = 1;
+    for (int i = 0; i < spilledList->size; i++)
+    {
+        struct SpilledRegister *checkedSlot = spilledList->data[i];
+        // if there is an unoccupied slot, use it
+        if (checkedSlot->occupied == 0)
+        {
+            needNewSlot = 0;
+            checkedSlot->lifetime = victim->lifetime;
+            checkedSlot->lastUsed = victim->lastUsed;
+            checkedSlot->occupied = 1;
+            printf(" to existing slot\n");
+            break;
+        }
+    }
+
+    // no unoccupied slot was found, push a new spill to the stack
+    if (needNewSlot)
+    {
+        struct SpilledRegister *thisSpill = malloc(sizeof(struct SpilledRegister));
+        thisSpill->lifetime = victim->lifetime;
+        thisSpill->lastUsed = victim->lastUsed;
+        thisSpill->stackOffset = (spilledList->size * -2) - 2;
+        thisSpill->occupied = 1;
+        Stack_push(spilledList, thisSpill);
+        printf(" to new slot\n");
+    }
+
+    // return the newly-spilled register to the inactive list
+    Stack_push(inactiveList, victim);
 }
 
 int assignRegister(struct Stack *activeList, struct Stack *inactiveList, struct Lifetime *assignedLifetime)
 {
-    struct Register *assignedRegister = StackPop(inactiveList);
+    struct Register *assignedRegister = Stack_pop(inactiveList);
     // printf("assign register %d for [%s]\n", assignedRegister->index, assignedLifetime->variable);
     printf("assign register for [%s]\n", assignedLifetime->variable);
     assignedRegister->lifetime = assignedLifetime;
     assignedRegister->lastUsed = 0;
 
-    StackPush(activeList, assignedRegister);
+    Stack_push(activeList, assignedRegister);
     if (inactiveList->size > 0)
         sortByEndPoint((struct Register **)activeList->data, activeList->size);
 
@@ -147,6 +201,7 @@ int assignRegister(struct Stack *activeList, struct Stack *inactiveList, struct 
     return assignedRegister->index;
 }
 
+/*
 void unSpillVariable(struct Stack *activeList, struct Stack *inactiveList, struct LinkedList *spilledList, char *varName)
 {
     if (inactiveList->size == 0)
@@ -157,6 +212,27 @@ void unSpillVariable(struct Stack *activeList, struct Stack *inactiveList, struc
     LinkedList_delete(spilledList, &compareLifetimes, varName);
 
     assignRegister(activeList, inactiveList, toUnspill->lifetime);
+}
+*/
+void printLifetimesGraph(struct LinkedList *lifetimeList)
+{
+    for (struct LinkedListNode *runner = lifetimeList->head; runner != NULL; runner = runner->next)
+    {
+        struct Lifetime *thisLifetime = runner->data;
+        printf("%8s:", thisLifetime->variable);
+        int i = 0;
+        for (; i < thisLifetime->start; i++)
+        {
+            printf(" ");
+        }
+        printf("#");
+        i++;
+        for (; i <= thisLifetime->end; i++)
+        {
+            printf("-");
+        }
+        printf("\n");
+    }
 }
 
 void findLifetimes(struct symbolTable *table)
@@ -188,38 +264,39 @@ void findLifetimes(struct symbolTable *table)
         TACIndex++;
     }
 
+    // convert the linked list of lifetimes to an array for easy indexing
     struct Lifetime **lifetimeIntervals = malloc(lifetimes->size * sizeof(struct Lifetime *));
     int lifetimeCount = 0;
     for (struct LinkedListNode *runner = lifetimes->head; runner != NULL; runner = runner->next)
-    {
-        struct Lifetime *this = runner->data;
-        printf("%s: %x-%x\n", this->variable, this->start, this->end);
-        lifetimeIntervals[lifetimeCount++] = this;
-    }
-    printf("\n");
+        lifetimeIntervals[lifetimeCount++] = runner->data;
 
-    struct Stack *inactiveList = newStack();
-    struct Stack *activeList = newStack();
-    struct LinkedList *spilledList = LinkedList_new();
+    // print out the variable lifetimes as a horizontal graph
+    printLifetimesGraph(lifetimes);
+
+    struct Stack *inactiveList = Stack_new(); // registers not currently in use
+    struct Stack *activeList = Stack_new();   // registers containing variables
+    struct Stack *spilledList = Stack_new();  // list of live variables which have been spilled to stack
     int maxSpillSpace = 0;
-    // struct Stack *stackList = newStack();
+
+    // create all register instances, add to inactive list
     for (int i = 0; i < 2; i++)
     {
         struct Register *wip = malloc(sizeof(struct Register));
         wip->lifetime = NULL;
         wip->index = 1 - i;
-        StackPush(inactiveList, wip);
+        Stack_push(inactiveList, wip);
     }
+
+    // iterate each TAC line
     TACIndex = 0;
     int currentLifetimeIndex = 0;
-    // iterate each TAC line
     for (struct TACLine *runner = table->codeBlock; runner != NULL; runner = runner->nextLine)
     {
         // printf("TAC INDEX %d\n", TACIndex);
         printTACLine(runner);
         printf("\n");
-        
-        expireOldIntervals(activeList, inactiveList, TACIndex);
+
+        expireOldIntervals(activeList, inactiveList, spilledList, TACIndex);
 
         // increment last used values of all active registers or reset if variable used in this step
         for (int i = 0; i < activeList->size; i++)
@@ -257,7 +334,7 @@ void findLifetimes(struct symbolTable *table)
                 // printf("need to spill\n");
                 spillRegister(activeList, inactiveList, spilledList);
 
-                // StackPush(spilledList, thisSpill);
+                // Stack_push(spilledList, thisSpill);
                 if (spilledList->size * 2 > maxSpillSpace)
                     maxSpillSpace = spilledList->size * 2;
             }
@@ -266,23 +343,49 @@ void findLifetimes(struct symbolTable *table)
             int destinationIndex = assignRegister(activeList, inactiveList, this);
 
             // place the value into the register if this is an argument (value starts on the stack)
-            if (symbolTableLookup(table, this->variable)->type == e_argument)
+            if (this->variable[0] != '.' && symbolTableLookup(table, this->variable)->type == e_argument)
             {
                 printf("need to place argument [%s] in newly assigned register %d\n", this->variable, destinationIndex);
             }
         }
-        printf("Free registers after this step:");
-        for(int i = 0; i < inactiveList->size; i++){
+
+        printf("\nFree registers after this step:");
+        for (int i = 0; i < inactiveList->size; i++)
+        {
             printf("%%r%d, ", ((struct Register *)inactiveList->data[i])->index);
         }
         printf("\n");
 
+        /*
         printf("Allocated registers after this step:");
-        for(int i = 0; i < activeList->size; i++){
+        for (int i = 0; i < activeList->size; i++)
+        {
             printf("%%r%d, ", ((struct Register *)activeList->data[i])->index);
         }
         printf("\n");
-        
+        */
+        printf("Variables in registers after this step:");
+        for (int i = 0; i < activeList->size; i++)
+        {
+            printf("%s, ", ((struct Register *)activeList->data[i])->lifetime->variable);
+        }
+        printf("\n");
+
+        printf("Spilled variables after this step:");
+        for (int i = 0; i < spilledList->size; i++)
+        {
+            struct SpilledRegister *sr = spilledList->data[i];
+            if (sr->occupied)
+            {
+                printf("%s, ", sr->lifetime->variable);
+            }
+            else
+            {
+                printf("[ ],");
+            }
+        }
+        printf("\n\n");
+
         switch (runner->operation)
         {
         case tt_add:
@@ -309,14 +412,19 @@ void findLifetimes(struct symbolTable *table)
 
     // clean up active, inactive, and spilled lists
     while (activeList->size > 0)
-        free(StackPop(activeList));
+        free(Stack_pop(activeList));
 
-    freeStack(activeList);
+    Stack_free(activeList);
 
     while (inactiveList->size > 0)
-        free(StackPop(inactiveList));
+        free(Stack_pop(inactiveList));
 
-    freeStack(inactiveList);
+    Stack_free(inactiveList);
+
+    while (spilledList->size > 0)
+        free(Stack_pop(spilledList));
+
+    Stack_free(spilledList);
 
     LinkedList_free(lifetimes, 0);
 
@@ -324,6 +432,4 @@ void findLifetimes(struct symbolTable *table)
         free(lifetimeIntervals[i]);
 
     free(lifetimeIntervals);
-
-    LinkedList_free(spilledList, 1);
 }

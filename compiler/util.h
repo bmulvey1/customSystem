@@ -45,15 +45,18 @@ struct Stack
     int allocated;
 };
 
-struct Stack *newStack();
+struct Stack *Stack_new();
 
-void freeStack(struct Stack *s);
+void Stack_free(struct Stack *s);
 
-void StackPush(struct Stack *s, void *data);
+struct Stack *Stack_duplicate(struct Stack *s);
 
-void *StackPop(struct Stack *s);
+void Stack_push(struct Stack *s, void *data);
 
-void *StackPeek(struct Stack *s);
+void *Stack_pop(struct Stack *s);
+
+void *Stack_peek(struct Stack *s);
+
 
 /*
  * Unordered List data structure

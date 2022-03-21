@@ -119,7 +119,7 @@ void freeDictionary(struct Dictionary *dict)
  *
  */
 
-struct Stack *newStack()
+struct Stack *Stack_new()
 {
     struct Stack *wip = malloc(sizeof(struct Stack));
     wip->data = malloc(5 * sizeof(void *));
@@ -128,13 +128,23 @@ struct Stack *newStack()
     return wip;
 }
 
-void freeStack(struct Stack *s)
+void Stack_free(struct Stack *s)
 {
     free(s->data);
     free(s);
 }
 
-void StackPush(struct Stack *s, void *data)
+struct Stack *Stack_duplicate(struct Stack *s)
+{
+    struct Stack *wip = malloc(sizeof(struct Stack));
+    wip->allocated = s->allocated;
+    wip->size = s->size;
+    wip->data = malloc(s->allocated * sizeof(void *));
+    memcpy(wip->data, s->data, s->size * sizeof(void *));
+    return wip;
+}
+
+void Stack_push(struct Stack *s, void *data)
 {
     if (s->size >= s->allocated)
     {
@@ -147,7 +157,7 @@ void StackPush(struct Stack *s, void *data)
     s->data[s->size++] = data;
 }
 
-void *StackPop(struct Stack *s)
+void *Stack_pop(struct Stack *s)
 {
     if (s->size > 0)
     {
@@ -160,7 +170,7 @@ void *StackPop(struct Stack *s)
     }
 }
 
-void *StackPeek(struct Stack *s)
+void *Stack_peek(struct Stack *s)
 {
     if (s->size > 0)
     {
