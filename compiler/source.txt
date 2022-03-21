@@ -13,6 +13,7 @@ fun test(var i){
     var k = j - 1;
     var l = j + 1;
     var m = j - k;
+    j = 1;
 }
 
 /*
