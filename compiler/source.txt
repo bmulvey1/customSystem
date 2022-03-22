@@ -8,7 +8,9 @@ asm
     hlt
 };
 
+
 fun test(var i){
+    /*
     var j = i;
     var k = j - 1;
     var l = j + 1;
@@ -16,6 +18,29 @@ fun test(var i){
     var n = j + i + l;
     var o = j + m;
     j = 1 - o;
+    */
+    i = i;
+    //var z = 0;
+    var j = 0;
+    var k;
+    var l;
+    if(i < 5){
+        k = j - 1;
+        l = 1 - k;
+        //l = j + 1;
+        var m = 1 - k - l;
+    }//else{
+        //j = i;
+        //k = j + 1;
+        //l = j - 1;
+    //}
+
+    j = j;
+    k = k;
+    //l = l;
+    i = i;
+    //z = z;
+
 }
 
 /*

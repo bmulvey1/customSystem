@@ -136,7 +136,7 @@ void spillRegister(struct Stack *activeList, struct Stack *inactiveList, struct 
     // examine inverted active list (variables with latest expiration will appear first)
     struct Register *victim = Stack_pop(intermediate);
     // skip variables which will be used in the current TAC
-    while (victim->lastUsed == 0)
+    while (victim->lastUsed == 0 && intermediate->size > 0)
     {
         Stack_push(activeList, victim);
         victim = Stack_pop(intermediate);
@@ -235,6 +235,62 @@ void printLifetimesGraph(struct LinkedList *lifetimeList)
     }
 }
 
+void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList)
+{
+    printf("restore register states\n");
+    printf("%d live registers, %d free registers, %d vars on stack\n\n", activeList->size, inactiveList->size, spilledList->size);
+
+    // pull the saved states off the stack, re-duplicate and re-place them on the stack
+    struct Stack *savedSpilledList = Stack_pop(savedStateStack);
+    struct Stack *savedInactiveList = Stack_pop(savedStateStack);
+    struct Stack *savedActiveList = Stack_pop(savedStateStack);
+    Stack_push(savedStateStack, Stack_duplicate(savedSpilledList));
+    Stack_push(savedStateStack, Stack_duplicate(savedInactiveList));
+    Stack_push(savedStateStack, Stack_duplicate(savedActiveList));
+
+    // variables which have literally been pushed to the stack to free their registers
+    struct Stack *relocationStack = Stack_new();
+
+    struct Stack *intermediateStack = Stack_new(); // intermediate stack to aid in removal of elements buried within stacks
+
+    // examine every currently active variable
+    while (activeList->size > 0)
+    {
+        struct Register *currentAllocation = Stack_pop(activeList);
+        // scan through the saved active list (desired state)
+        for (int i = 0; i < savedActiveList->size; i++)
+        {
+            struct Register *desiredRegister = activeList->data[i];
+            if (desiredRegister->index == currentAllocation->index)
+            {
+                // if variable is in the correct place, keep this allocation, push to intermediate stack
+                if (!strcmp(desiredRegister->lifetime->variable, currentAllocation->lifetime->variable))
+                {
+                    printf("[%s] (%%r%d) Is in the right place!\n", desiredRegister->lifetime->variable, desiredRegister->index);
+                    Stack_push(intermediateStack, currentAllocation);
+                    break;
+                }
+                // if this variable isn't in the right place, push the register's contents to the stack to preserve the value
+                // add the newly-freed register to inactive list
+                else
+                {
+                    printf("[%s] is in the wrong place - need to push %%r%d\n", desiredRegister->lifetime->variable, desiredRegister->index);
+                    Stack_push(relocationStack, currentAllocation->lifetime);
+                    Stack_push(inactiveList, currentAllocation);
+                }
+                break;
+            }
+        }
+       
+    }
+
+}
+
+void resetRegisterStates(struct Stack *savedStateStack, struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList)
+{
+    printf("reset register states\n\n");
+}
+
 void findLifetimes(struct symbolTable *table)
 {
     struct LinkedList *lifetimes = LinkedList_new();
@@ -290,6 +346,7 @@ void findLifetimes(struct symbolTable *table)
     // iterate each TAC line
     TACIndex = 0;
     int currentLifetimeIndex = 0;
+    struct Stack *savedStateStack = Stack_new();
     for (struct TACLine *runner = table->codeBlock; runner != NULL; runner = runner->nextLine)
     {
         // printf("TAC INDEX %d\n", TACIndex);
@@ -401,6 +458,21 @@ void findLifetimes(struct symbolTable *table)
                 }
             }
             // printf("destination %%r%d\n", assignedRegister);
+            break;
+
+        case tt_pushstate:
+            printf("PUSH STATE\n");
+            Stack_push(savedStateStack, Stack_duplicate(activeList));
+            Stack_push(savedStateStack, Stack_duplicate(inactiveList));
+            Stack_push(savedStateStack, Stack_duplicate(spilledList));
+            break;
+
+        case tt_restorestate:
+            restoreRegisterStates(savedStateStack, activeList, inactiveList, spilledList);
+            break;
+
+        case tt_resetstate:
+            resetRegisterStates(savedStateStack, activeList, inactiveList, spilledList);
             break;
 
         default:
