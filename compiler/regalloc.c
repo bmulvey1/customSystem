@@ -136,7 +136,7 @@ void expireOldIntervals(struct Stack *activeList, struct Stack *inactiveList, st
     while (spilledList->size > 0 && ((struct SpilledRegister *)Stack_peek(spilledList))->occupied == 0)
     {
         printf("pop stack\n");
-        Stack_pop(spilledList);
+        free(Stack_pop(spilledList));
     }
 }
 
@@ -785,4 +785,6 @@ void findLifetimes(struct symbolTable *table, FILE *outFile)
         free(lifetimeIntervals[i]);
 
     free(lifetimeIntervals);
+
+    Stack_free(savedStateStack);
 }
