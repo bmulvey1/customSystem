@@ -244,6 +244,132 @@ void printTACLine(struct TACLine *it)
     //printf("\t%d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
 }
 
+char *sPrintTACLine(struct TACLine *it)
+{
+    char *operationStr;
+    char *tacString = malloc(128);
+    char fallingThrough = 0;
+    int width = 0;
+    switch (it->operation)
+    {
+    case tt_asm:
+        width += sprintf(tacString, "ASM:%s", it->operands[0]);
+        break;
+
+    case tt_add:
+        if (!fallingThrough)
+            operationStr = "+";
+        fallingThrough = 1;
+    case tt_subtract:
+        if (!fallingThrough)
+            operationStr = "-";
+        fallingThrough = 1;
+    case tt_mul:
+        if (!fallingThrough)
+            operationStr = "*";
+        fallingThrough = 1;
+    case tt_div:
+        if (!fallingThrough)
+            operationStr = "/";
+        fallingThrough = 1;
+
+        width += sprintf(tacString, "%s = %s %s %s", it->operands[0], it->operands[1], operationStr, it->operands[2]);
+        break;
+
+    case tt_dereference:
+        width += sprintf(tacString, "%s = *%s", it->operands[0], it->operands[1]);
+        break;
+
+    case tt_reference:
+        width += sprintf(tacString, "%s = &%s", it->operands[0], it->operands[1]);
+        break;
+
+    case tt_memw_1:
+        width += sprintf(tacString, "(%s) = %s", it->operands[0], it->operands[1]);
+        break;
+
+    case tt_memw_2:
+        width += sprintf(tacString, "%d(%s) = %s", (int)(long int)it->operands[0], it->operands[1], it->operands[2]);
+        break;
+
+    case tt_memw_3:
+        width += sprintf(tacString, "%s(%s, %d) = %s", it->operands[0], it->operands[1], (int)(long int)it->operands[2], it->operands[3]);
+        break;
+
+    case tt_memr_1:
+        width += sprintf(tacString, "%s = (%s)", it->operands[0], it->operands[1]);
+        break;
+
+    case tt_memr_2:
+        width += sprintf(tacString, "%s = %d(%s)", it->operands[0], (int)(long int)it->operands[1], it->operands[2]);
+        break;
+
+    case tt_memr_3:
+        width += sprintf(tacString, "%s = %s(%s, %d)", it->operands[0], it->operands[1], it->operands[2], (int)(long int)it->operands[3]);
+        break;
+
+    case tt_jg:
+    case tt_jge:
+    case tt_jl:
+    case tt_jle:
+    case tt_je:
+    case tt_jne:
+    case tt_jmp:
+        width += sprintf(tacString, "%s label %ld", getAsmOp(it->operation), (long int)it->operands[0]);
+        break;
+
+    case tt_cmp:
+        width += sprintf(tacString, "cmp %s %s", it->operands[1], it->operands[2]);
+        break;
+
+    case tt_assign:
+        width += sprintf(tacString, "%s = %s", it->operands[0], it->operands[1]);
+        break;
+
+    case tt_push:
+        width += sprintf(tacString, "push %s", it->operands[0]);
+        break;
+
+    case tt_call:
+        if (it->operands[0] == NULL)
+            width += sprintf(tacString, "call %s", it->operands[1]);
+        else
+            width += sprintf(tacString, "%s = call %s", it->operands[0], it->operands[1]);
+
+        break;
+
+    case tt_label:
+        width += sprintf(tacString, "~label %ld:", (long int)it->operands[0]);
+        break;
+
+    case tt_return:
+        width += sprintf(tacString, "ret %s", it->operands[0]);
+        break;
+
+    case tt_pushstate:
+        width += sprintf(tacString, "PUSHSTATE");
+        break;
+
+    case tt_restorestate:
+        width += sprintf(tacString, "RESTORESTATE");
+        break;
+
+    case tt_resetstate:
+        width += sprintf(tacString, "RESETSTATE");
+        break;
+
+    case tt_popstate:
+        width += sprintf(tacString, "POPSTATE");
+        break;
+
+    }
+
+    char *trimmedString = malloc(width + 1);
+    sprintf(trimmedString, "%s", tacString);
+    free(tacString);
+    return trimmedString;
+}
+
 void printTACBlock(struct TACLine *it, int indentLevel)
 {
     int lineIndex = 0;

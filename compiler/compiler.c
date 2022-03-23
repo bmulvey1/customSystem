@@ -1318,7 +1318,17 @@ int main(int argc, char **argv)
         if (theTable->entries[i]->type == e_function)
         {
             struct functionEntry *thisEntry = theTable->entries[i]->entry;
-            findLifetimes(thisEntry->table, outFile);
+            struct ASMblock *thisAsm = generateCode(thisEntry->table, outFile);
+            struct ASMline *runner = thisAsm->head;
+            while (runner != NULL)
+            {
+                struct ASMline *old = runner;
+                fprintf(outFile, "%s\n", runner->data);
+                runner = runner->next;
+                free(old->data);
+                free(old);
+            }
+            free(thisAsm);
         }
     }
 

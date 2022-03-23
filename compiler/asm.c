@@ -21,11 +21,10 @@ void ASMblock_free(struct ASMblock *it)
     free(it);
 }
 
-void ASMblock_prepend(struct ASMblock *block, char *data, int correspondingTACindex)
+void ASMblock_prepend(struct ASMblock *block, char *data)
 {
     struct ASMline *newLine = malloc(sizeof(struct ASMline));
     newLine->data = data;
-    newLine->correspondingTACindex = correspondingTACindex;
 
     if (block->head != NULL)
     {
@@ -39,12 +38,12 @@ void ASMblock_prepend(struct ASMblock *block, char *data, int correspondingTACin
     block->head = newLine;
 }
 
-void ASMblock_append(struct ASMblock *block, char *data, int correspondingTACindex)
+void ASMblock_append(struct ASMblock *block, char *data)
 {
+    printf("~~~~~append [%s]\n", data);
     struct ASMline *newLine = malloc(sizeof(struct ASMline));
     newLine->data = data;
     newLine->next = NULL;
-    newLine->correspondingTACindex = correspondingTACindex;
 
     if (block->tail != NULL)
     {

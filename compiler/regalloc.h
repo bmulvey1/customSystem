@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include "util.h"
 #include "symtab.h"
+#include "asm.h"
 
 struct Lifetime
 {
@@ -14,7 +15,9 @@ void freeLifetime(struct Lifetime *it);
 
 void updateOrInsertLifetime(struct LinkedList *ltList, char *variable, int newEnd);
 
-void findLifetimes(struct symbolTable *table, FILE *outFile);
+struct LinkedList *findLifetimes(struct symbolTable *table);
+
+struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile);
 
 struct Register
 {

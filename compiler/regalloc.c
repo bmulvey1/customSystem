@@ -1,5 +1,7 @@
 #include "regalloc.h"
 
+#define REGISTER_COUNT 3
+
 struct Lifetime *newLifetime(char *variable, int start)
 {
     struct Lifetime *wip = malloc(sizeof(struct Lifetime));
@@ -140,7 +142,7 @@ void expireOldIntervals(struct Stack *activeList, struct Stack *inactiveList, st
     }
 }
 
-void spillRegister(struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList)
+void spillRegister(struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, struct ASMblock *outputBlock)
 {
     // invert the order of the active list by pushing onto an intermediate stack
     struct Stack *intermediate = Stack_new();
@@ -162,7 +164,8 @@ void spillRegister(struct Stack *activeList, struct Stack *inactiveList, struct 
 
     Stack_free(intermediate);
 
-    printf("Spill [%s]", victim->lifetime->variable);
+    char *outputLine = malloc(20);
+    printf("Spill [%s]\n", victim->lifetime->variable);
     // printf("spill variable %s to stack (offset of %d)\n", victim->lifetime->variable, thisSpill->stackOffset);
 
     // examine the existing slots on the stack
@@ -177,7 +180,7 @@ void spillRegister(struct Stack *activeList, struct Stack *inactiveList, struct 
             checkedSlot->lifetime = victim->lifetime;
             checkedSlot->lastUsed = victim->lastUsed;
             checkedSlot->occupied = 1;
-            printf(" to existing slot\n");
+            sprintf(outputLine, "mov %d(%%sp), %%r%d", checkedSlot->stackOffset, victim->index);
             break;
         }
     }
@@ -185,14 +188,19 @@ void spillRegister(struct Stack *activeList, struct Stack *inactiveList, struct 
     // no unoccupied slot was found, push a new spill to the stack
     if (needNewSlot)
     {
-        struct SpilledRegister *thisSpill = malloc(sizeof(struct SpilledRegister));
-        thisSpill->lifetime = victim->lifetime;
-        thisSpill->lastUsed = victim->lastUsed;
-        thisSpill->stackOffset = (spilledList->size * -2) - 2;
-        thisSpill->occupied = 1;
-        Stack_push(spilledList, thisSpill);
-        printf(" to new slot\n");
+        struct SpilledRegister *newSpill = malloc(sizeof(struct SpilledRegister));
+        newSpill->lifetime = victim->lifetime;
+        newSpill->lastUsed = victim->lastUsed;
+        newSpill->stackOffset = (spilledList->size * -2) - 2;
+        newSpill->occupied = 1;
+        Stack_push(spilledList, newSpill);
+        sprintf(outputLine, "mov %d(%%sp), %%r%d", newSpill->stackOffset, victim->index);
     }
+
+    char *finalOutputLine = malloc(40);
+    sprintf(finalOutputLine, "%s;spill %12s", outputLine, victim->lifetime->variable);
+    free(outputLine);
+    ASMblock_append(outputBlock, finalOutputLine);
 
     // return the newly-spilled register to the inactive list
     Stack_push(inactiveList, victim);
@@ -216,11 +224,11 @@ int assignRegister(struct Stack *activeList, struct Stack *inactiveList, struct 
 }
 
 // unspill variable from stack to register, returning the register index the variable now lives in
-int unSpillVariable(struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, char *varName)
+int unSpillVariable(struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, char *varName, struct ASMblock *outputBlock)
 {
     if (inactiveList->size == 0)
     {
-        spillRegister(activeList, inactiveList, spilledList);
+        spillRegister(activeList, inactiveList, spilledList, outputBlock);
     }
     for (int i = 0; i < spilledList->size; i++)
     {
@@ -228,7 +236,9 @@ int unSpillVariable(struct Stack *activeList, struct Stack *inactiveList, struct
         if (!strcmp(examinedSpill->lifetime->variable, varName))
         {
             int destinationRegister = assignRegister(activeList, inactiveList, examinedSpill->lifetime);
-
+            char *outputStr = malloc(20);
+            sprintf(outputStr, "mov %%r%d, %d(%%sp)", destinationRegister, examinedSpill->stackOffset);
+            ASMblock_append(outputBlock, outputStr);
             printf("unspill variable %s from stack offset %d to %%r%d\n\n", varName, examinedSpill->stackOffset, destinationRegister);
             examinedSpill->occupied = 0;
             return i;
@@ -260,7 +270,7 @@ void printLifetimesGraph(struct LinkedList *lifetimeList)
     }
 }
 
-void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList)
+void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, struct ASMblock *output)
 {
     printf("restore register states\n");
     printf("%d live registers, %d free registers, %d vars on stack\n\n", activeList->size, inactiveList->size, spilledList->size);
@@ -350,7 +360,7 @@ void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeLi
     // for()
 
     printf("Current state:");
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < REGISTER_COUNT; i++)
     {
         printf("%%r%d: ", i);
         if (currentState[i]->lifetime == NULL)
@@ -363,7 +373,7 @@ void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeLi
         }
     }
     printf("\nDesired state:");
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < REGISTER_COUNT; i++)
     {
         printf("%%r%d: ", i);
         if (desiredState[i]->lifetime == NULL)
@@ -436,13 +446,13 @@ void resetRegisterStates(struct Stack *savedStateStack, struct Stack *activeList
 
 // find a variable which is to be assigned if in an active register
 // if the variable is spilled, unspill it
-int findOrPlaceAssignedVariable(struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, char *varName)
+int findOrPlaceAssignedVariable(struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, char *varName, struct ASMblock *outputBlock)
 {
     for (int i = 0; i < activeList->size; i++)
         if (!strcmp(((struct Register *)activeList->data[i])->lifetime->variable, varName))
             return ((struct Register *)activeList->data[i])->index;
 
-    return unSpillVariable(activeList, inactiveList, spilledList, varName);
+    return unSpillVariable(activeList, inactiveList, spilledList, varName, outputBlock);
 }
 
 // find which register a variable lives in, returning -1 if not currently active in a register
@@ -471,7 +481,7 @@ int findSpilledVariable(struct Stack *spilledLilst, char *varName)
     exit(1);
 }
 
-void findLifetimes(struct symbolTable *table, FILE *outFile)
+struct LinkedList *findLifetimes(struct symbolTable *table)
 {
     struct LinkedList *lifetimes = LinkedList_new();
     int TACIndex = 0;
@@ -499,12 +509,18 @@ void findLifetimes(struct symbolTable *table, FILE *outFile)
 
         TACIndex++;
     }
+    return lifetimes;
+}
 
+struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
+{
+    struct ASMblock *outputBlock = newASMblock();
+    struct LinkedList *lifetimes = findLifetimes(table);
     // convert the linked list of lifetimes to an array for easy indexing
-    struct Lifetime **lifetimeIntervals = malloc(lifetimes->size * sizeof(struct Lifetime *));
+    struct Lifetime **lifetimeArray = malloc(lifetimes->size * sizeof(struct Lifetime *));
     int lifetimeCount = 0;
     for (struct LinkedListNode *runner = lifetimes->head; runner != NULL; runner = runner->next)
-        lifetimeIntervals[lifetimeCount++] = runner->data;
+        lifetimeArray[lifetimeCount++] = runner->data;
 
     // print out the variable lifetimes as a horizontal graph
     printLifetimesGraph(lifetimes);
@@ -515,16 +531,16 @@ void findLifetimes(struct symbolTable *table, FILE *outFile)
     int maxSpillSpace = 0;
 
     // create all register instances, add to inactive list
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < REGISTER_COUNT; i++)
     {
         struct Register *wip = malloc(sizeof(struct Register));
         wip->lifetime = NULL;
-        wip->index = 3 - i;
+        wip->index = REGISTER_COUNT - 1 - i;
         Stack_push(inactiveList, wip);
     }
 
     // iterate each TAC line
-    TACIndex = 0;
+    int TACIndex = 0;
     int currentLifetimeIndex = 0;
     struct Stack *savedStateStack = Stack_new();
     for (struct TACLine *runner = table->codeBlock; runner != NULL; runner = runner->nextLine)
@@ -558,10 +574,10 @@ void findLifetimes(struct symbolTable *table, FILE *outFile)
         }
 
         // for all previously unseen lifetimes starting before or on this TAC index
-        while (currentLifetimeIndex < lifetimeCount && lifetimeIntervals[currentLifetimeIndex]->start <= TACIndex)
+        while (currentLifetimeIndex < lifetimeCount && lifetimeArray[currentLifetimeIndex]->start <= TACIndex)
         {
             // grab the lifetime
-            struct Lifetime *this = lifetimeIntervals[currentLifetimeIndex++];
+            struct Lifetime *this = lifetimeArray[currentLifetimeIndex++];
             // printf("INTRODUCING:\n");
             // printf("\t%s: %x-%x\n", this->variable, this->start, this->end);
 
@@ -569,7 +585,7 @@ void findLifetimes(struct symbolTable *table, FILE *outFile)
             if (inactiveList->size == 0)
             {
                 // printf("need to spill\n");
-                spillRegister(activeList, inactiveList, spilledList);
+                spillRegister(activeList, inactiveList, spilledList, outputBlock);
 
                 // Stack_push(spilledList, thisSpill);
                 if (spilledList->size * 2 > maxSpillSpace)
@@ -588,33 +604,47 @@ void findLifetimes(struct symbolTable *table, FILE *outFile)
         int destinationRegister;
         int firstSourceRegister;
         int secondSourceRegister;
+        char *outputLine;
+        char *finalOutputLine;
+        char *printedTAC;
         switch (runner->operation)
         {
         case tt_assign:
-            destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, runner->operands[0]);
+        {
+            outputLine = malloc(20);
+            finalOutputLine = malloc(64);
+            destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, runner->operands[0], outputBlock);
             if (runner->operandTypes[1] == vt_literal)
             {
-                fprintf(outFile, "mov %%r%d, %s", destinationRegister, runner->operands[1]);
+                sprintf(outputLine, "mov %%r%d, %s", destinationRegister, runner->operands[1]);
             }
             else
             {
                 firstSourceRegister = findActiveVariable(activeList, runner->operands[1]);
                 if (firstSourceRegister != -1)
                 {
-                    fprintf(outFile, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
+                    sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
                 }
                 else
                 {
-                    fprintf(outFile, "mov %%r%d, %d(%%rbp)", destinationRegister, findSpilledVariable(spilledList, runner->operands[1]));
+                    sprintf(outputLine, "mov %%r%d, %d(%%rbp)", destinationRegister, findSpilledVariable(spilledList, runner->operands[1]));
                 }
             }
-            fprintf(outFile, ";%s\n", runner->operands[0]);
-
-            break;
+            // ASMblock_append(outputBlock, outputLine);
+            printedTAC = sPrintTACLine(runner);
+            sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
+            free(outputLine);
+            free(printedTAC);
+            ASMblock_append(outputBlock, finalOutputLine);
+        }
+        break;
 
         case tt_add:
         case tt_subtract:
-            destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, runner->operands[0]);
+        {
+            outputLine = malloc(20);
+            finalOutputLine = malloc(64);
+            destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, runner->operands[0], outputBlock);
 
             if (strcmp(runner->operands[0], runner->operands[1]))
                 firstSourceRegister = findActiveVariable(activeList, runner->operands[1]);
@@ -634,17 +664,23 @@ void findLifetimes(struct symbolTable *table, FILE *outFile)
                 if (firstSourceRegister == secondSourceRegister)
                 {
                     if (firstSourceRegister == destinationRegister)
-                        fprintf(outFile, "%s %%r%d, %%r%d", getAsmOp(runner->operation), destinationRegister, destinationRegister);
+                    {
+                        sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(runner->operation), destinationRegister, destinationRegister);
+                    }
                     else
                     {
-                        fprintf(outFile, "mov %%r%d, %%r%d\n", destinationRegister, firstSourceRegister);
-                        fprintf(outFile, "%s %%r%d, %%r%d", getAsmOp(runner->operation), secondSourceRegister, secondSourceRegister);
+                        sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
+                        ASMblock_append(outputBlock, outputLine);
+                        outputLine = malloc(20);
+                        sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(runner->operation), secondSourceRegister, secondSourceRegister);
                     }
                 }
                 else
                 {
-                    fprintf(outFile, "mov %%r%d, %%r%d\n", destinationRegister, firstSourceRegister);
-                    fprintf(outFile, "%s %%r%d, %%r%d", getAsmOp(runner->operation), destinationRegister, secondSourceRegister);
+                    sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
+                    ASMblock_append(outputBlock, outputLine);
+                    outputLine = malloc(20);
+                    sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(runner->operation), destinationRegister, secondSourceRegister);
                 }
             }
             else
@@ -652,14 +688,16 @@ void findLifetimes(struct symbolTable *table, FILE *outFile)
                 // first source exists in register, second is spilled or a literal
                 if (firstSourceRegister != -1 && secondSourceRegister == -1)
                 {
-                    fprintf(outFile, "mov %%r%d, %%r%d\n", destinationRegister, firstSourceRegister);
+                    sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
+                    ASMblock_append(outputBlock, outputLine);
+                    outputLine = malloc(20);
                     if (runner->operandTypes[2] == vt_literal)
                     {
-                        fprintf(outFile, "%s %%r%d, %s", getAsmOp(runner->operation), destinationRegister, runner->operands[2]);
+                        sprintf(outputLine, "%s %%r%d, %s", getAsmOp(runner->operation), destinationRegister, runner->operands[2]);
                     }
                     else
                     {
-                        fprintf(outFile, "%s %%r%d, %d(%%rbp)", getAsmOp(runner->operation), destinationRegister, findSpilledVariable(spilledList, runner->operands[2]));
+                        sprintf(outputLine, "%s %%r%d, %d(%%rbp)", getAsmOp(runner->operation), destinationRegister, findSpilledVariable(spilledList, runner->operands[2]));
                     }
                 }
                 // second source exists in register, first is spilled
@@ -667,28 +705,38 @@ void findLifetimes(struct symbolTable *table, FILE *outFile)
                 {
                     if (runner->operandTypes[1] == vt_literal)
                     {
-                        fprintf(outFile, "mov %%r%d, %s\n", destinationRegister, runner->operands[1]);
+                        sprintf(outputLine, "mov %%r%d, %s", destinationRegister, runner->operands[1]);
+                        ASMblock_append(outputBlock, outputLine);
                     }
                     else
                     {
-                        fprintf(outFile, "mov %%r%d, %d(%%rbp)\n", destinationRegister, findSpilledVariable(spilledList, runner->operands[1]));
+                        sprintf(outputLine, "mov %%r%d, %d(%%rbp)", destinationRegister, findSpilledVariable(spilledList, runner->operands[1]));
+                        ASMblock_append(outputBlock, outputLine);
                     }
-
-                    fprintf(outFile, "%s %%r%d, %%r%d", getAsmOp(runner->operation), destinationRegister, secondSourceRegister);
+                    outputLine = malloc(20);
+                    sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(runner->operation), destinationRegister, secondSourceRegister);
                 }
                 // both sources are spilled - will break if both are literals but this should be checked earlier
                 else
                 {
-                    fprintf(outFile, "mov %%r%d, %d(%%rbp)\n", destinationRegister, findSpilledVariable(spilledList, runner->operands[1]));
-                    fprintf(outFile, "%s %%r%d, %d(%%rbp)", getAsmOp(runner->operation), destinationRegister, findSpilledVariable(spilledList, runner->operands[2]));
+                    sprintf(outputLine, "mov %%r%d, %d(%%rbp)", destinationRegister, findSpilledVariable(spilledList, runner->operands[1]));
+                    ASMblock_append(outputBlock, outputLine);
+                    outputLine = malloc(20);
+                    sprintf(outputLine, "%s %%r%d, %d(%%rbp)", getAsmOp(runner->operation), destinationRegister, findSpilledVariable(spilledList, runner->operands[2]));
                 }
             }
-            fprintf(outFile, ";%s\n", runner->operands[0]);
-            fflush(outFile);
+            printedTAC = sPrintTACLine(runner);
+            sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
+            free(outputLine);
+            free(printedTAC);
+            ASMblock_append(outputBlock, finalOutputLine);
+
             // printf("destination %%r%d\n", assignedRegister);
-            break;
+        }
+        break;
 
         case tt_pushstate:
+        {
             printf("PUSH STATE\n");
             // deep copy the states and push them to the state stack
             struct Stack *duplicatedStack = Stack_new();
@@ -708,11 +756,11 @@ void findLifetimes(struct symbolTable *table, FILE *outFile)
                 Stack_push(duplicatedStack, duplicateSpilledRegister(spilledList->data[i]));
 
             Stack_push(savedStateStack, duplicatedStack);
-
-            break;
+        }
+        break;
 
         case tt_restorestate:
-            restoreRegisterStates(savedStateStack, activeList, inactiveList, spilledList);
+            restoreRegisterStates(savedStateStack, activeList, inactiveList, spilledList, outputBlock);
             break;
 
         case tt_resetstate:
@@ -782,9 +830,11 @@ void findLifetimes(struct symbolTable *table, FILE *outFile)
     LinkedList_free(lifetimes, 0);
 
     for (int i = 0; i < lifetimeCount; i++)
-        free(lifetimeIntervals[i]);
+        free(lifetimeArray[i]);
 
-    free(lifetimeIntervals);
+    free(lifetimeArray);
 
     Stack_free(savedStateStack);
+
+    return outputBlock;
 }
