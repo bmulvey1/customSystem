@@ -84,8 +84,6 @@ void printSymTab(struct symbolTable *it, char printTAC);
 
 void freeSymTab(struct symbolTable *it);
 
-int findInStack(char *var, struct symbolTable *table);
-
 // AST walk functions
 void walkStatement(struct astNode *it, struct symbolTable *wip);
 

@@ -49,8 +49,6 @@ struct Stack *Stack_new();
 
 void Stack_free(struct Stack *s);
 
-struct Stack *Stack_duplicate(struct Stack *s);
-
 void Stack_push(struct Stack *s, void *data);
 
 void *Stack_pop(struct Stack *s);

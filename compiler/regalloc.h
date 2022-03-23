@@ -14,7 +14,7 @@ void freeLifetime(struct Lifetime *it);
 
 void updateOrInsertLifetime(struct LinkedList *ltList, char *variable, int newEnd);
 
-void findLifetimes(struct symbolTable *table);
+void findLifetimes(struct symbolTable *table, FILE *outFile);
 
 struct Register
 {

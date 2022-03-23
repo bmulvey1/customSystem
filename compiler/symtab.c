@@ -273,28 +273,6 @@ void freeSymTab(struct symbolTable *it)
     free(it);
 }
 
-// finds and returns the positive/negative offset of a variable
-// value is byte offset relative to base pointer of provided function
-int findInStack(char *var, struct symbolTable *table)
-{
-    struct symTabEntry *theEntry = symbolTableLookup(table, var);
-    if (theEntry == NULL)
-    {
-        fprintf(stderr, "UNABLE TO FIND VARIABLE %s IN SYMBOL TABLE\n", var);
-        exit(1);
-    }
-    switch (theEntry->type)
-    {
-    case e_variable:
-    case e_argument:
-        return ((struct variableEntry *)theEntry->entry)->stackOffset;
-
-    default:
-        fprintf(stderr, "Saw something illegal while trying to locate variable/argument %s on the stack\n", var);
-        exit(1);
-    }
-}
-
 /*
  * AST walk and symbol table generation functions
  */

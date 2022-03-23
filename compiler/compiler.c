@@ -1318,7 +1318,7 @@ int main(int argc, char **argv)
         if (theTable->entries[i]->type == e_function)
         {
             struct functionEntry *thisEntry = theTable->entries[i]->entry;
-            findLifetimes(thisEntry->table);
+            findLifetimes(thisEntry->table, outFile);
         }
     }
 

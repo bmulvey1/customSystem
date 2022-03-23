@@ -134,16 +134,6 @@ void Stack_free(struct Stack *s)
     free(s);
 }
 
-struct Stack *Stack_duplicate(struct Stack *s)
-{
-    struct Stack *wip = malloc(sizeof(struct Stack));
-    wip->allocated = s->allocated;
-    wip->size = s->size;
-    wip->data = malloc(s->allocated * sizeof(void *));
-    memcpy(wip->data, s->data, s->size * sizeof(void *));
-    return wip;
-}
-
 void Stack_push(struct Stack *s, void *data)
 {
     if (s->size >= s->allocated)
