@@ -525,6 +525,14 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
     // print out the variable lifetimes as a horizontal graph
     printLifetimesGraph(lifetimes);
 
+    int *registerLoads = malloc(REGISTER_COUNT * sizeof(int)); // count of TAC steps with different numbers of registers free
+    for (int i = 0; i < REGISTER_COUNT; i++)
+        registerLoads[i] = 0;
+
+    int *stackLoads = malloc(lifetimeCount * sizeof(int)); // count of TAC steps with different numbers of variables spilled
+    for (int i = 0; i < lifetimeCount; i++)
+        stackLoads[i] = 0;
+
     struct Stack *inactiveList = Stack_new(); // registers not currently in use
     struct Stack *activeList = Stack_new();   // registers containing variables
     struct Stack *spilledList = Stack_new();  // list of live variables which have been spilled to stack
@@ -770,11 +778,20 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         default:
         }
 
+        registerLoads[inactiveList->size]++;
+        int activeSpills = 0;
+        for (int i = 0; i < spilledList->size; i++)
+        {
+            struct SpilledRegister *examinedSpill = spilledList->data[i];
+            if (examinedSpill->occupied)
+                activeSpills++;
+        }
+        stackLoads[activeSpills]++;
+
         printf("\nFree registers after this step:");
         for (int i = 0; i < inactiveList->size; i++)
-        {
             printf("%%r%d, ", ((struct Register *)inactiveList->data[i])->index);
-        }
+
         printf("\n");
 
         /*
@@ -787,9 +804,8 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         */
         printf("Variables in registers after this step:");
         for (int i = 0; i < activeList->size; i++)
-        {
             printf("[%s], ", ((struct Register *)activeList->data[i])->lifetime->variable);
-        }
+
         printf("\n");
 
         printf("Spilled variables after this step:");
@@ -797,19 +813,61 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         {
             struct SpilledRegister *sr = spilledList->data[i];
             if (sr->occupied)
-            {
                 printf("[%s], ", sr->lifetime->variable);
-            }
             else
-            {
                 printf("[ ],");
-            }
         }
         printf("\n\n");
         printf("done\n\n");
 
         TACIndex++;
     }
+
+    int totalCodeSteps = 0;
+    for (int i = 0; i < REGISTER_COUNT; i++)
+    {
+        totalCodeSteps += registerLoads[i];
+    }
+
+    printf("Done generating code for %d TAC steps\n\tFree registers\n        ", totalCodeSteps);
+    for (int i = 0; i < REGISTER_COUNT; i++)
+        printf("%4d ", i);
+
+    printf("\n        ");
+    for (int i = 0; i < REGISTER_COUNT; i++)
+        printf("-----");
+
+    printf("\n# steps:");
+    for (int i = 0; i < REGISTER_COUNT; i++)
+        printf("%4d ", registerLoads[i]);
+
+    printf("\n %% time:");
+    for (int i = 0; i < REGISTER_COUNT; i++)
+        printf("%3d%% ", (registerLoads[i] * 100) / totalCodeSteps);
+
+    printf("\n\n");
+
+    printf("\tSpilled variables\n        ");
+    for (int i = 0; i <= maxSpillSpace / 2; i++)
+        printf("%4d ", i);
+
+    printf("\n        ");
+    for (int i = 0; i <= maxSpillSpace / 2; i++)
+        printf("-----");
+
+    printf("\n# steps:");
+    for (int i = 0; i <= maxSpillSpace / 2; i++)
+        printf("%4d ", stackLoads[i]);
+
+    printf("\n %% time:");
+    for (int i = 0; i <= maxSpillSpace / 2; i++)
+        printf("%3d%% ", (stackLoads[i] * 100) / totalCodeSteps);
+
+    printf("\n\n");
+
+    free(registerLoads);
+
+    free(stackLoads);
 
     // clean up active, inactive, and spilled lists
     while (activeList->size > 0)
