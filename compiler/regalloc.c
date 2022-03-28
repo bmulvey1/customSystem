@@ -492,7 +492,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
     // print out the variable lifetimes as a horizontal graph
     printLifetimesGraph(lifetimes);
 
-    int *registerLoads = malloc(REGISTER_COUNT * sizeof(int)); // count of TAC steps with different numbers of registers free
+    int *registerLoads = malloc((REGISTER_COUNT + 1) * sizeof(int)); // count of TAC steps with different numbers of registers free
     for (int i = 0; i < REGISTER_COUNT; i++)
         registerLoads[i] = 0;
 
@@ -743,9 +743,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                 // first source exists in register, second is spilled or a literal
                 if (firstSourceRegister != -1 && secondSourceRegister == -1)
                 {
-                    printf("THIS CASE\n");
-
-                    outputLine = malloc(20);
                     if (runner->operandTypes[2] == vt_literal)
                     {
                         sprintf(outputLine, "cmp %%r%d, %s", firstSourceRegister, runner->operands[2]);
