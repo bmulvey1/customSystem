@@ -2,18 +2,20 @@
 #include "util.h"
 #include "symtab.h"
 #include "asm.h"
+#include "tac.h"
 
 struct Lifetime
 {
     int start, end;
     char *variable;
+    enum variableTypes type;
 };
 
-struct Lifetime *newLifetime(char *variable, int start);
+struct Lifetime *newLifetime(char *variable, enum variableTypes type, int start);
 
 void freeLifetime(struct Lifetime *it);
 
-void updateOrInsertLifetime(struct LinkedList *ltList, char *variable, int newEnd);
+void updateOrInsertLifetime(struct LinkedList *ltList, char *variable, enum variableTypes type, int newEnd);
 
 struct LinkedList *findLifetimes(struct symbolTable *table);
 

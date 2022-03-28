@@ -643,6 +643,7 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
 
             struct TACLine *returnTac = newTACLine();
             returnTac->operands[0] = findLastTAC(sltac)->operands[0];
+            returnTac->operandTypes[0] = findLastTAC(sltac)->operandTypes[0];
             returnTac->operation = tt_return;
             sltac = appendTAC(sltac, returnTac);
             break;

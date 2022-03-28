@@ -1323,7 +1323,16 @@ int main(int argc, char **argv)
             while (runner != NULL)
             {
                 struct ASMline *old = runner;
-                fprintf(outFile, "%s\n", runner->data);
+                if (runner->data[0] != '.')
+                {
+                    fprintf(outFile, "\t%s\n", runner->data + 1);
+                }
+                else
+                {
+                    fprintf(outFile, "%s\n", runner->data);
+                }
+                fflush(outFile);
+
                 runner = runner->next;
                 free(old->data);
                 free(old);

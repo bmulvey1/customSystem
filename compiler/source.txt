@@ -8,21 +8,12 @@ asm
     hlt
 };
 
-
-fun test(var i){
-    var j = 3;
-    var k = 2;
-    var l = 1;
-    var m = j - k - l;
-    //var n = l - j - k - m;
-
-    j = j;
-    k = k;
-    l = l;
-    m = m;
-    //n = n;
-    i = i;
-
+fun fib(var i){
+    if(i < 2){
+        return i;
+    }else{
+        return fib(i - 1) + fib(i - 2);
+    }
 }
 
 /*

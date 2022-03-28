@@ -60,7 +60,7 @@ struct tempList *newTempList();
 
 void freeTempList(struct tempList *it);
 
-struct variableEntry *newVariableEntry(int indirectionLevel);
+struct variableEntry *newVariableEntry(int indirectionLevel, enum variableTypes type);
 
 struct functionEntry *newFunctionEntry(struct symbolTable *table);
 

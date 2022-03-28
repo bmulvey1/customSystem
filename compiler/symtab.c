@@ -59,12 +59,14 @@ struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
     return wip;
 }
 
-struct variableEntry *newVariableEntry(int indirectionLevel)
+struct variableEntry *newVariableEntry(int indirectionLevel, enum variableTypes type)
 {
     struct variableEntry *wip = malloc(sizeof(struct variableEntry));
     wip->isAssigned = 0;
     wip->global = 0;
+    wip->stackOffset = 0;
     wip->indirectionLevel = indirectionLevel;
+    wip->type = type;
     return wip;
 }
 
@@ -142,29 +144,19 @@ void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum sy
 
 void symTab_insertVariable(struct symbolTable *table, char *name, enum variableTypes type, int indirectionLevel)
 {
-    struct variableEntry *newVariable = newVariableEntry(indirectionLevel);
-    newVariable->stackOffset = (table->localStackSize * -1) - 2;
-    switch (type)
-    {
-    case vt_var:
-        table->localStackSize += 2;
-        break;
-
-    default:
-        break;
-    }
+    struct variableEntry *newVariable = newVariableEntry(indirectionLevel, type);
     symTabInsert(table, name, newVariable, e_variable);
 }
 
 void symTab_insertArgument(struct symbolTable *table, char *name, enum variableTypes type, int indirectionLevel)
 {
-    struct variableEntry *newArgument = newVariableEntry(indirectionLevel);
+    struct variableEntry *newArgument = newVariableEntry(indirectionLevel, type);
     newArgument->isAssigned = 1;
-    newArgument->stackOffset = table->argStackSize + 4;
     switch (type)
     {
     case vt_var:
         table->argStackSize += 2;
+        newArgument->stackOffset = (table->argStackSize + 2);
         break;
 
     default:
@@ -195,7 +187,7 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
         case e_argument:
         {
             struct variableEntry *theArgument = it->entries[i]->entry;
-            printf("> argument [%s] - stack offset %d\n", it->entries[i]->name, theArgument->stackOffset);
+            printf("> argument [%s] (type %d)\n", it->entries[i]->name, theArgument->type);
         }
         break;
 
@@ -215,7 +207,7 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
             {
                 printf("*");
             }
-            printf(" [%s] - stack offset %d\n", it->entries[i]->name, theVariable->stackOffset);
+            printf(" [%s] (type %d)\n", it->entries[i]->name, theVariable->type);
         }
         break;
 
@@ -499,11 +491,8 @@ struct symbolTable *walkAST(struct astNode *it)
 
             struct variableEntry *theGlobal = symbolTableLookup(wip, scraper->value)->entry;
             if (theGlobal->global == 0)
-            {
                 theGlobal->global = 1;
-                theGlobal->stackOffset = (wip->localStackSize * -1) - 2;
-                wip->localStackSize += 2;
-            }
+
             break;
 
         case t_fun:
