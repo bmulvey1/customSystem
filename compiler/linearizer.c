@@ -576,6 +576,26 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
     return assignment;
 }
 
+struct TACLine *linearizeDeclaration(struct astNode *it, enum token type)
+{
+    struct TACLine *declarationLine = newTACLine();
+    declarationLine->operation = tt_declare;
+    declarationLine->operands[0] = it->value;
+    enum variableTypes declaredType;
+    switch (type)
+    {
+    case t_var:
+        declaredType = vt_var;
+        break;
+
+    default:
+        perror("Unexpected type seen while linearizing declaration!");
+        exit(1);
+    }
+    declarationLine->operandTypes[0] = declaredType;
+    return declarationLine;
+}
+
 // given the AST for a function, generate TAC and return a pointer to the head of the generated block
 struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl)
 {
@@ -602,17 +622,18 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             case t_dereference:
                 struct astNode *dereferenceScraper = runner->child;
                 while (dereferenceScraper->type == t_dereference)
-                {
                     dereferenceScraper = dereferenceScraper->child;
-                }
+
                 if (dereferenceScraper->type == t_assign)
-                {
                     sltac = appendTAC(sltac, linearizeAssignment(dereferenceScraper, tempNum, tl));
-                }
+                else
+                    sltac = appendTAC(sltac, linearizeDeclaration(runner->child, dereferenceScraper->type));
+
                 break;
 
             // if just a declaration, do nothing
             case t_name:
+                sltac = appendTAC(sltac, linearizeDeclaration(runner->child, runner->type));
                 break;
 
             default:

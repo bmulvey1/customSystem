@@ -9,10 +9,11 @@ asm
 };
 
 fun fib(var i){
+    var result;
     if(i < 2){
-        return i;
+        result = i;
     }else{
-        return fib(i - 1) + fib(i - 2);
+        result = fib(i - 1) + fib(i - 2);
     }
 }
 

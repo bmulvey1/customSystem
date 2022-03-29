@@ -10,6 +10,9 @@ char *getAsmOp(enum TACType t)
     case tt_assign:
         return "";
 
+    case tt_declare:
+        return "";
+
     case tt_add:
         return "add";
 
@@ -93,7 +96,6 @@ char *getAsmOp(enum TACType t)
 
     case tt_popstate:
         return "POPSTATE";
-
     }
     return "";
 }
@@ -199,6 +201,10 @@ void printTACLine(struct TACLine *it)
         width += printf("%s = %s", it->operands[0], it->operands[1]);
         break;
 
+    case tt_declare:
+        width += printf("declare %s", it->operands[0]);
+        break;
+
     case tt_push:
         width += printf("push %s", it->operands[0]);
         break;
@@ -234,7 +240,6 @@ void printTACLine(struct TACLine *it)
     case tt_popstate:
         width += printf("POPSTATE");
         break;
-
     }
     width += printf("%s", it->reorderable ? " - Reorderable" : "");
     while (width++ < 24)
@@ -326,6 +331,10 @@ char *sPrintTACLine(struct TACLine *it)
         width += sprintf(tacString, "%s = %s", it->operands[0], it->operands[1]);
         break;
 
+    case tt_declare:
+        width += sprintf(tacString, "declare %s", it->operands[0]);
+        break;
+
     case tt_push:
         width += sprintf(tacString, "push %s", it->operands[0]);
         break;
@@ -361,7 +370,6 @@ char *sPrintTACLine(struct TACLine *it)
     case tt_popstate:
         width += sprintf(tacString, "POPSTATE");
         break;
-
     }
 
     char *trimmedString = malloc(width + 1);

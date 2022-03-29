@@ -394,7 +394,7 @@ void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeLi
     }
     printf("\n");
 
-    // exit(2);
+    exit(2);
 }
 
 void resetRegisterStates(struct Stack *savedStateStack, struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList)
