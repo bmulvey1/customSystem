@@ -1325,11 +1325,11 @@ int main(int argc, char **argv)
                 struct ASMline *old = runner;
                 if (runner->data[0] != '.')
                 {
-                    fprintf(outFile, "\t%s\n", runner->data + 1);
+                    fprintf(outFile, "\t%s\n", runner->data);
                 }
                 else
                 {
-                    fprintf(outFile, "%s\n", runner->data);
+                    fprintf(outFile, "%s\n", runner->data + 1);
                 }
                 fflush(outFile);
 
