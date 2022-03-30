@@ -1,17 +1,33 @@
-#include "CPU.asm"
-entry code
+Program:
+	#include "CPU.asm"
+	entry code
 code:
-mov %r1, $3;j
-mov %r2, $2;k
-mov %r3, $1;l
-mov %r1, %r2
-sub %r1, %r3;.t1
-mov %r2, -2(%bp)
-sub %r2, %r1;m
-mov %r0, %r1;j
-mov %r1, %r1;k
-mov %r3, %r3;l
-mov %r2, %r2;m
-mov %r0, %r0;i
-out %r2
-hlt
+	push $20
+	call fib
+	out %r0
+	hlt
+	ret 0
+fib:
+	sub %sp, $2
+	mov %r0, 4(%bp) ;place argument i
+fib_0:
+	cmp %r0, $2;cmp i 2
+	jge fib_1
+	mov %r1, %r0;result = i
+	jmp fib_2
+fib_1:
+	mov %r2, %r0
+	sub %r2, $2;.t4 = i - 2
+	mov -2(%bp), %r1;spill       result
+	mov %r1, %r0
+	sub %r1, $1;.t2 = i - 1
+	mov %r0, -2(%bp)
+	mov %r0, %r1
+	add %r0, %r2;result = .t1 + .t3
+	push %r0
+	pop %r1
+fib_2:
+	mov %r2, %r1;.RETVAL = result
+	mov %r0, %r2
+	add %sp, $2
+	ret 2

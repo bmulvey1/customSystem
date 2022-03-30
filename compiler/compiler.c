@@ -1313,6 +1313,29 @@ int main(int argc, char **argv)
 
     FILE *outFile = fopen(argv[2], "wb");
 
+    {
+        struct ASMblock *thisAsm = generateCode(theTable, outFile);
+        struct ASMline *runner = thisAsm->head;
+        while (runner != NULL)
+        {
+            struct ASMline *old = runner;
+            if (runner->data[0] != '.')
+            {
+                fprintf(outFile, "\t%s\n", runner->data);
+            }
+            else
+            {
+                fprintf(outFile, "%s\n", runner->data + 1);
+            }
+            fflush(outFile);
+
+            runner = runner->next;
+            free(old->data);
+            free(old);
+        }
+        free(thisAsm);
+    }
+
     for (int i = 0; i < theTable->size; i++)
     {
         if (theTable->entries[i]->type == e_function)

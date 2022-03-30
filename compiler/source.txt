@@ -2,9 +2,10 @@ asm
 {
     #include "CPU.asm"
     entry code
-    code:
+    .code:
     push $20
-    call test
+    call fib
+    out %r0
     hlt
 };
 
@@ -15,6 +16,7 @@ fun fib(var i){
     }else{
         result = fib(i - 1) + fib(i - 2);
     }
+    return result;
 }
 
 /*

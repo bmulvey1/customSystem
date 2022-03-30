@@ -305,7 +305,7 @@ void printLifetimesGraph(struct LinkedList *lifetimeList)
     }
 }
 
-void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, struct ASMblock *output, int currentTACIndex)
+void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, struct ASMblock *outputBlock, int currentTACIndex)
 {
     printf("restore register states\n");
     printf("%d live registers, %d free registers, %d vars on stack\n\n", activeList->size, inactiveList->size, spilledList->size);
@@ -427,6 +427,7 @@ void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeLi
     }
     printf("\n");
 
+    char *outputLine;
     // examine all registers
     for (int i = 0; i < REGISTER_COUNT; i++)
     {
@@ -437,7 +438,9 @@ void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeLi
             // contents of this register exist, but are wrong - store on stack for the mean time
             if (currentState[i]->lifetime != NULL)
             {
-                printf("push %%r%d\n", i);
+                outputLine = malloc(16);
+                sprintf(outputLine, "push %%r%d", i);
+                ASMblock_append(outputBlock, outputLine);
                 Stack_push(relocationStack, currentState[i]->lifetime);
                 currentState[i]->lifetime = NULL;
             }
@@ -446,8 +449,20 @@ void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeLi
 
     while (relocationStack->size > 0)
     {
-        printf("RELOCATE PROPERLY\n");
-        exit(2);
+        struct Lifetime *toPop = Stack_pop(relocationStack);
+        for (int i = 0; i < REGISTER_COUNT; i++)
+        {
+            if (desiredState[i]->lifetime == toPop)
+            {
+                outputLine = malloc(16);
+                sprintf(outputLine, "pop %%r%d", i);
+                ASMblock_append(outputBlock, outputLine);
+                currentState[i]->lifetime = toPop;
+            }
+        }
+
+        // printf("RELOCATE PROPERLY\n");
+        // exit(2);
     }
 
     for (int i = 0; i < REGISTER_COUNT; i++)
@@ -869,7 +884,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                 {
                     if (runner->operandTypes[2] == vt_literal)
                     {
-                        sprintf(outputLine, "cmp %%r%d, %s", firstSourceRegister, runner->operands[2]);
+                        sprintf(outputLine, "cmp %%r%d, $%s", firstSourceRegister, runner->operands[2]);
                     }
                     else
                     {
@@ -973,7 +988,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         case tt_jmp:
         {
             outputLine = malloc(64);
-            sprintf(outputLine, "%s .%s_%ld", getAsmOp(runner->operation), table->name, (long int)runner->operands[0]);
+            sprintf(outputLine, "%s %s_%ld", getAsmOp(runner->operation), table->name, (long int)runner->operands[0]);
             ASMblock_append(outputBlock, outputLine);
             break;
         }
@@ -983,6 +998,10 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
             outputLine = malloc(64);
             sprintf(outputLine, ".%s_%ld:", table->name, (long int)runner->operands[0]);
             ASMblock_append(outputBlock, outputLine);
+            break;
+
+        case tt_asm:
+            ASMblock_append(outputBlock, runner->operands[0]);
             break;
 
         default:
@@ -1065,41 +1084,44 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         totalCodeSteps += registerLoads[i];
     }
 
-    printf("Done generating code for %d TAC steps\n\tFree registers\n        ", totalCodeSteps);
-    for (int i = 0; i < REGISTER_COUNT; i++)
-        printf("%4d ", i);
+    if (totalCodeSteps > 0)
+    {
+        printf("Done generating code for %d TAC steps\n\tFree registers\n        ", totalCodeSteps);
+        for (int i = 0; i < REGISTER_COUNT; i++)
+            printf("%4d ", i);
 
-    printf("\n        ");
-    for (int i = 0; i < REGISTER_COUNT; i++)
-        printf("-----");
+        printf("\n        ");
+        for (int i = 0; i < REGISTER_COUNT; i++)
+            printf("-----");
 
-    printf("\n# steps:");
-    for (int i = 0; i < REGISTER_COUNT; i++)
-        printf("%4d ", registerLoads[i]);
+        printf("\n# steps:");
+        for (int i = 0; i < REGISTER_COUNT; i++)
+            printf("%4d ", registerLoads[i]);
 
-    printf("\n %% time:");
-    for (int i = 0; i < REGISTER_COUNT; i++)
-        printf("%3d%% ", (registerLoads[i] * 100) / totalCodeSteps);
+        printf("\n %% time:");
+        for (int i = 0; i < REGISTER_COUNT; i++)
+            printf("%3d%% ", (registerLoads[i] * 100) / totalCodeSteps);
 
-    printf("\n\n");
+        printf("\n\n");
 
-    printf("\tSpilled variables\n        ");
-    for (int i = 0; i <= maxSpillSpace / 2; i++)
-        printf("%4d ", i);
+        printf("\tSpilled variables\n        ");
+        for (int i = 0; i <= maxSpillSpace / 2; i++)
+            printf("%4d ", i);
 
-    printf("\n        ");
-    for (int i = 0; i <= maxSpillSpace / 2; i++)
-        printf("-----");
+        printf("\n        ");
+        for (int i = 0; i <= maxSpillSpace / 2; i++)
+            printf("-----");
 
-    printf("\n# steps:");
-    for (int i = 0; i <= maxSpillSpace / 2; i++)
-        printf("%4d ", stackLoads[i]);
+        printf("\n# steps:");
+        for (int i = 0; i <= maxSpillSpace / 2; i++)
+            printf("%4d ", stackLoads[i]);
 
-    printf("\n %% time:");
-    for (int i = 0; i <= maxSpillSpace / 2; i++)
-        printf("%3d%% ", (stackLoads[i] * 100) / totalCodeSteps);
+        printf("\n %% time:");
+        for (int i = 0; i <= maxSpillSpace / 2; i++)
+            printf("%3d%% ", (stackLoads[i] * 100) / totalCodeSteps);
 
-    printf("\n\n");
+        printf("\n\n");
+    }
 
     free(registerLoads);
 
