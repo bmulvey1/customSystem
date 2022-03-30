@@ -100,7 +100,7 @@ char *getAsmOp(enum TACType t)
     return "";
 }
 
-struct TACLine *newTACLine()
+struct TACLine *newTACLine(int index, enum TACType operation)
 {
     struct TACLine *wip = malloc(sizeof(struct TACLine));
     wip->operands[0] = NULL;
@@ -112,10 +112,10 @@ struct TACLine *newTACLine()
     wip->operandTypes[2] = vt_null;
     wip->operandTypes[3] = vt_null;
     // default type of a line of TAC is assignment
-    wip->operation = tt_assign;
+    wip->operation = operation;
     // by default operands are NOT reorderable
     wip->reorderable = 0;
-    wip->index = -1;
+    wip->index = index;
     return wip;
 }
 
@@ -123,7 +123,20 @@ void printTACLine(struct TACLine *it)
 {
     char *operationStr;
     char fallingThrough = 0;
-    int width = printf("%2x:", it->index);
+    int width;
+    switch(it->operation){
+        case tt_pushstate:
+        case tt_popstate:
+        case tt_restorestate:
+        case tt_resetstate:
+        case tt_declare:
+            width = printf(" ~  ");
+            break;
+
+        default:
+            width = printf("%2x: ", it->index);
+            break;
+    }
     switch (it->operation)
     {
     case tt_asm:
@@ -240,12 +253,13 @@ void printTACLine(struct TACLine *it)
         width += printf("POPSTATE");
         break;
     }
-    width += printf("%s", it->reorderable ? " - Reorderable" : "");
     while (width++ < 24)
     {
         printf(" ");
     }
-    printf("\t%d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
+    // printf("\t%d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
+    width += printf("%s", it->reorderable ? " - Reorderable" : "");
+
 }
 
 char *sPrintTACLine(struct TACLine *it)

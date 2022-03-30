@@ -65,7 +65,7 @@ void printTACLine(struct TACLine *it);
 char *sPrintTACLine(struct TACLine *it);
 
 
-struct TACLine *newTACLine();
+struct TACLine *newTACLine(int index, enum TACType operation);
 
 void freeTAC(struct TACLine *it);
 

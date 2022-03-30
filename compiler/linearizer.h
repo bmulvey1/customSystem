@@ -5,21 +5,20 @@
 
 #pragma once
 
-void linearizeASMBlock(struct BasicBlock *currentBlock, struct astNode *it);
+int linearizeASMBlock(int currentTACIndex, struct BasicBlock *currentBlock, struct astNode *it);
 
-void linearizeDereference(struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl);
+int linearizeDereference(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl);
 
-void linearizePointerArithmetic(struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl, int depth);
+int linearizePointerArithmetic(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl, int depth);
 
+int linearizeFunctionCall(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl);
 
-void linearizeFunctionCall(struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl);
+int linearizeExpression(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl);
 
-void linearizeExpression(struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl);
+int linearizeAssignment(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl);
 
-void linearizeAssignment(struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl);
+int linearizeDeclaration(int currentTACIndex, struct BasicBlock *currentBlock, struct astNode *it, enum token type);
 
-void linearizeDeclaration(struct BasicBlock *currentBlock, struct astNode *it, enum token type);
-
-void linearizeStatementList(struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int* tempNum, int* labelCount, struct tempList *tl);
+int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl);
 
 void linearizeProgram(struct astNode *it, struct symbolTable *table);

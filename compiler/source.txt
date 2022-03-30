@@ -14,7 +14,7 @@ fun fib(var i){
     if(i < 2){
         result = i;
     }else{
-        result = 1;
+        result = fib(i - 2) + fib(i - 1);
     }
     return result;
 }
