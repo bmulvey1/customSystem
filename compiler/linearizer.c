@@ -797,6 +797,10 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
                 // (*labelCount)++;
                 afterIfBlock = BasicBlock_new(*labelCount);
                 LinkedList_append(blockList, afterIfBlock);
+            }else
+            {
+                struct TACLine *endIfRestore = newTACLine(ifTACIndex, tt_popstate);
+                BasicBlock_append(currentBlock, endIfRestore);
             }
 
             if (ifTACIndex > elseTACIndex)
