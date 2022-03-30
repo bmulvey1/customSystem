@@ -189,7 +189,7 @@ void printTACLine(struct TACLine *it)
     case tt_je:
     case tt_jne:
     case tt_jmp:
-        width += printf("%s label %ld", getAsmOp(it->operation), (long int)it->operands[0]);
+        width += printf("%s basicblock %ld", getAsmOp(it->operation), (long int)it->operands[0]);
         break;
 
     case tt_cmp:
@@ -319,7 +319,7 @@ char *sPrintTACLine(struct TACLine *it)
     case tt_je:
     case tt_jne:
     case tt_jmp:
-        width += sprintf(tacString, "%s label %ld", getAsmOp(it->operation), (long int)it->operands[0]);
+        width += sprintf(tacString, "%s basicblock %ld", getAsmOp(it->operation), (long int)it->operands[0]);
         break;
 
     case tt_cmp:

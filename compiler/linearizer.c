@@ -288,8 +288,9 @@ void linearizeFunctionCall(struct LinkedList *blockList, struct BasicBlock *curr
             linearizeExpression(blockList, currentBlock, runner, tempNum, tl);
             BasicBlock_append(currentBlock, pushOperation);
         }
+        if (thisArgument != NULL)
+            BasicBlock_append(currentBlock, thisArgument);
 
-        BasicBlock_append(currentBlock, thisArgument);
         runner = runner->sibling;
     }
 
@@ -475,6 +476,8 @@ void linearizeAssignment(struct LinkedList *blockList, struct BasicBlock *curren
             printf("Error parsing simple assignment - unexpected type on RHS\n");
             exit(1);
         }
+
+        BasicBlock_append(currentBlock, assignment);
     }
 
     // otherwise there is some sort of expression, which will need to be broken down into multiple lines of TAC
@@ -565,8 +568,8 @@ void linearizeAssignment(struct LinkedList *blockList, struct BasicBlock *curren
         lastLine->operandTypes[0] = vt_var;
     }
 
-    if (assignment != NULL)
-        BasicBlock_append(currentBlock, assignment);
+    // if (assignment != NULL)
+    // BasicBlock_append(currentBlock, assignment);
 }
 
 void linearizeDeclaration(struct BasicBlock *currentBlock, struct astNode *it, enum token type)
@@ -710,15 +713,15 @@ void linearizeStatementList(struct LinkedList *blockList, struct BasicBlock *cur
                 noifJump->operation = tt_jne;
                 break;
             }
-            struct TACLine *noifLabel = newTACLine();
-            noifLabel->operation = tt_label;
             BasicBlock_append(currentBlock, noifJump);
 
             // bit hax (⌐▨_▨)
             // (store the label index using the char* for this TAC line)
             // (avoids having to use more fields in the struct)
-            noifLabel->operands[0] = (char *)((long int)++(*labelCount));
-            noifJump->operands[0] = noifLabel->operands[0];
+            (*labelCount)++;
+            struct BasicBlock *afterIfBlock = BasicBlock_new(*labelCount);
+            LinkedList_append(blockList, afterIfBlock);
+            noifJump->operands[0] = (char *)((long int)(*labelCount));
 
             linearizeStatementList(blockList, currentBlock, runner->child->sibling->child, tempNum, labelCount, tl);
 
@@ -731,41 +734,27 @@ void linearizeStatementList(struct LinkedList *blockList, struct BasicBlock *cur
                 BasicBlock_append(currentBlock, endIfRestore);
             }
 
-            struct BasicBlock *afterIfBlock = BasicBlock_new(*labelCount);
-            LinkedList_append(blockList, afterIfBlock);
-
             // if there's an else to fall through to
             if (runner->child->sibling->sibling != NULL)
             {
                 struct TACLine *ifBlockFinalTAC = currentBlock->TACList->tail->data;
 
-                // don't need this jump and label when the if statement ends in a return
-                struct TACLine *endIfLabel;
                 if (ifBlockFinalTAC->operation != tt_return)
                 {
                     // generate a label for the absolute end of the if/else block
-                    endIfLabel = newTACLine();
-                    endIfLabel->operation = tt_label;
-                    endIfLabel->operands[0] = (char *)((long int)++(*labelCount));
-
                     // jump to the end after the if part is done
                     struct TACLine *ifDoneJump = newTACLine();
                     ifDoneJump->operation = tt_jmp;
-                    ifDoneJump->operands[0] = endIfLabel->operands[0];
-                    BasicBlock_append(afterIfBlock, endIfLabel);
+                    ifDoneJump->operands[0] = (char *)((long int)++(*labelCount));
                     BasicBlock_append(currentBlock, ifDoneJump);
                 }
                 // make sure we are in a known state before the else statement
                 struct TACLine *beforeElseRestore = newTACLine();
                 beforeElseRestore->operation = tt_resetstate;
 
-                struct BasicBlock *elseBlock = BasicBlock_new(*labelCount);
-                LinkedList_append(blockList, elseBlock);
-                linearizeStatementList(blockList, elseBlock, runner->child->sibling->sibling->child->child, tempNum, labelCount, tl);
+                linearizeStatementList(blockList, afterIfBlock, runner->child->sibling->sibling->child->child, tempNum, labelCount, tl);
 
-
-                BasicBlock_prepend(elseBlock, noifLabel);
-                BasicBlock_prepend(elseBlock, beforeElseRestore);
+                BasicBlock_prepend(afterIfBlock, beforeElseRestore);
                 // if the if won't be executed, so execution from the noif label goes to the else block
                 // appendTAC(noifLabel, elseBody);
                 // appendTAC(sltac, noifLabel);
@@ -775,21 +764,23 @@ void linearizeStatementList(struct LinkedList *blockList, struct BasicBlock *cur
                 {
                     struct TACLine *endElseRestore = newTACLine();
                     endElseRestore->operation = tt_restorestate;
-                    BasicBlock_append(elseBlock, endElseRestore);
+                    BasicBlock_append(afterIfBlock, endElseRestore);
+                    struct TACLine *exitElseJump = newTACLine();
+                    exitElseJump->operation = tt_jmp;
+                    exitElseJump->operands[0] = ((struct TACLine *)currentBlock->TACList->tail->data)->operands[0];
+                    BasicBlock_append(afterIfBlock, exitElseJump);
                     // appendTAC(sltac, endElseRestore);
                     // appendTAC(sltac, endIfLabel);
                 }
-            }
-            else
-            {
-                BasicBlock_prepend(afterIfBlock, noifLabel);
-                // appendTAC(sltac, noifLabel);
+                // (*labelCount)++;
+                afterIfBlock = BasicBlock_new(*labelCount);
+                LinkedList_append(blockList, afterIfBlock);
             }
 
             // throw away the saved register states
             struct TACLine *popStateLine = newTACLine();
             popStateLine->operation = tt_popstate;
-            BasicBlock_prepend(afterIfBlock, popStateLine);
+            BasicBlock_append(afterIfBlock, popStateLine);
 
             currentBlock = afterIfBlock;
 
@@ -925,13 +916,8 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
             struct LinkedList *functionBlockList = LinkedList_new();
             theFunction->table->BasicBlockList = functionBlockList;
             struct BasicBlock *functionBlock = BasicBlock_new(funTempNum);
-            
+
             LinkedList_append(functionBlockList, functionBlock);
-            struct TACLine *functionLabel = newTACLine();
-            functionLabel->operation = tt_label;
-            functionLabel->operands[0] = 0;
-            BasicBlock_append(functionBlock, functionLabel);
-            
             linearizeStatementList(functionBlockList, functionBlock, runner->child->sibling, &funTempNum, &labelCount, table->tl);
             // theFunction->table->codeBlock = generatedTAC;
             break;

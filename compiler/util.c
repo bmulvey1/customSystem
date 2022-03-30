@@ -187,12 +187,13 @@ struct LinkedList *LinkedList_new()
     return wip;
 }
 
-void LinkedList_free(struct LinkedList *l,  void (*dataFreeFunction)())
+void LinkedList_free(struct LinkedList *l, void (*dataFreeFunction)())
 {
     struct LinkedListNode *runner = l->head;
     while (runner != NULL)
     {
-        if(dataFreeFunction != NULL){
+        if (dataFreeFunction != NULL)
+        {
             dataFreeFunction(runner->data);
         }
         struct LinkedListNode *old = runner;
@@ -204,6 +205,12 @@ void LinkedList_free(struct LinkedList *l,  void (*dataFreeFunction)())
 
 void LinkedList_append(struct LinkedList *l, void *element)
 {
+    if (element == NULL)
+    {
+        perror("Attempt to append data with null pointer into LinkedList!");
+        exit(1);
+    }
+
     struct LinkedListNode *newNode = malloc(sizeof(struct LinkedListNode));
     newNode->data = element;
     if (l->size == 0)
@@ -225,6 +232,12 @@ void LinkedList_append(struct LinkedList *l, void *element)
 
 void LinkedList_prepend(struct LinkedList *l, void *element)
 {
+    if (element == NULL)
+    {
+        perror("Attempt to prepend data with null pointer into LinkedList!");
+        exit(1);
+    }
+
     struct LinkedListNode *newNode = malloc(sizeof(struct LinkedListNode));
     newNode->data = element;
     if (l->size == 0)
