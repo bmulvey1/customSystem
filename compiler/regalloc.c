@@ -37,7 +37,7 @@ void updateOrInsertLifetime(struct LinkedList *ltList, char *variable, enum vari
     else
     {
         thisLt = newLifetime(variable, type, newEnd);
-        LinkedList_insert(ltList, thisLt);
+        LinkedList_append(ltList, thisLt);
     }
 }
 
@@ -582,7 +582,9 @@ int findSpilledVariable(struct Stack *spilledLilst, char *varName)
 
 struct LinkedList *findLifetimes(struct symbolTable *table)
 {
+    
     struct LinkedList *lifetimes = LinkedList_new();
+    /*
     int TACIndex = 0;
     for (int i = 0; i < table->size; i++)
     {
@@ -596,10 +598,7 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
     }
     for (struct TACLine *runner = table->codeBlock; runner != NULL; runner = runner->nextLine)
     {
-        /*
-        printTACLine(runner);
-        printf("\n");
-        */
+        
         for (int i = 0; i < 3; i++)
         {
             switch (runner->operandTypes[i])
@@ -615,6 +614,7 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
 
         TACIndex++;
     }
+    */
     return lifetimes;
 }
 
@@ -654,16 +654,13 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
     }
 
     // iterate each TAC line
-    int TACIndex = 0;
-    int currentLifetimeIndex = 0;
+    // int TACIndex = 0;
+    // int currentLifetimeIndex = 0;
     char *outputLine;
     struct Stack *savedStateStack = Stack_new();
+    /*
     for (struct TACLine *runner = table->codeBlock; runner != NULL; runner = runner->nextLine)
     {
-        /* printf("TAC INDEX %d\n", TACIndex);
-        printTACLine(runner);
-        printf("\n");
-        */
 
         expireOldIntervals(activeList, inactiveList, spilledList, TACIndex);
 
@@ -1017,44 +1014,9 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         }
         stackLoads[activeSpills]++;
 
-        /*
-        printf("\nFree registers after this step:");
-        for (int i = 0; i < inactiveList->size; i++)
-            printf("%%r%d, ", ((struct Register *)inactiveList->data[i])->index);
-
-        printf("\n");
-        */
-        /*
-        printf("Allocated registers after this step:");
-        for (int i = 0; i < activeList->size; i++)
-        {
-            printf("%%r%d, ", ((struct Register *)activeList->data[i])->index);
-        }
-        printf("\n");
-
-        printf("Variables in registers after this step:");
-        for (int i = 0; i < activeList->size; i++)
-            printf("[%s], ", ((struct Register *)activeList->data[i])->lifetime->variable);
-
-        printf("\n");
-        */
-
-        /*
-        printf("Spilled variables after this step:");
-        for (int i = 0; i < spilledList->size; i++)
-        {
-            struct SpilledRegister *sr = spilledList->data[i];
-            if (sr->occupied)
-                printf("[%s], ", sr->lifetime->variable);
-            else
-                printf("[ ],");
-        }
-        printf("\n\n");
-        printf("done\n\n");
-        */
-
         TACIndex++;
     }
+    */
 
     if (maxSpillSpace > 0)
     {

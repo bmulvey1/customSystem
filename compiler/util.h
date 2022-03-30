@@ -77,9 +77,11 @@ struct LinkedList
 
 struct LinkedList *LinkedList_new();
 
-void LinkedList_free(struct LinkedList *l, char freeData);
+void LinkedList_free(struct LinkedList *l,  void (*dataFreeFunction)());
 
-void LinkedList_insert(struct LinkedList *l, void *element);
+void LinkedList_append(struct LinkedList *l, void *element);
+
+void LinkedList_prepend(struct LinkedList *l, void *element);
 
 void *LinkedList_delete(struct LinkedList *l, char (*compareFunction)(), void *element);
 

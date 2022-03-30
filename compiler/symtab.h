@@ -51,7 +51,7 @@ struct symbolTable
     struct tempList *tl;
     int localStackSize;
     int argStackSize;
-    struct TACLine *codeBlock;
+    struct LinkedList *BasicBlockList;
 };
 
 char *getTempString(struct tempList *tempList, int tempNum);

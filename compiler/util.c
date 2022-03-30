@@ -187,14 +187,13 @@ struct LinkedList *LinkedList_new()
     return wip;
 }
 
-void LinkedList_free(struct LinkedList *l, char freeData)
+void LinkedList_free(struct LinkedList *l,  void (*dataFreeFunction)())
 {
     struct LinkedListNode *runner = l->head;
     while (runner != NULL)
     {
-        if (freeData)
-        {
-            free(runner->data);
+        if(dataFreeFunction != NULL){
+            dataFreeFunction(runner->data);
         }
         struct LinkedListNode *old = runner;
         runner = runner->next;
@@ -203,7 +202,7 @@ void LinkedList_free(struct LinkedList *l, char freeData)
     free(l);
 }
 
-void LinkedList_insert(struct LinkedList *l, void *element)
+void LinkedList_append(struct LinkedList *l, void *element)
 {
     struct LinkedListNode *newNode = malloc(sizeof(struct LinkedListNode));
     newNode->data = element;
@@ -220,6 +219,26 @@ void LinkedList_insert(struct LinkedList *l, void *element)
         newNode->prev = l->tail;
         newNode->next = NULL;
         l->tail = newNode;
+    }
+    l->size++;
+}
+
+void LinkedList_prepend(struct LinkedList *l, void *element)
+{
+    struct LinkedListNode *newNode = malloc(sizeof(struct LinkedListNode));
+    newNode->data = element;
+    if (l->size == 0)
+    {
+        newNode->next = NULL;
+        newNode->prev = NULL;
+        l->head = newNode;
+        l->tail = newNode;
+    }
+    else
+    {
+        l->head->prev = newNode;
+        newNode->next = l->head;
+        l->head = newNode;
     }
     l->size++;
 }

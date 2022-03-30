@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include "ast.h"
+#include "util.h"
 
 #pragma once
 
@@ -54,24 +55,32 @@ struct TACLine
     char *operands[4];                  // track all 3 operands
     enum variableTypes operandTypes[4]; // track whether the left hand side operands are literals
     enum TACType operation;
+    int index;
     char reorderable;
-    struct TACLine *nextLine;
-    struct TACLine *prevLine;
 };
-char* getAsmOp(enum TACType t);
+char *getAsmOp(enum TACType t);
 
 void printTACLine(struct TACLine *it);
 
 char *sPrintTACLine(struct TACLine *it);
 
-void printTACBlock(struct TACLine *it, int indentLevel);
 
 struct TACLine *newTACLine();
 
-struct TACLine *appendTAC(struct TACLine *before, struct TACLine *after);
+void freeTAC(struct TACLine *it);
 
-struct TACLine *prependTAC(struct TACLine *after, struct TACLine *before);
+struct BasicBlock
+{
+    struct LinkedList *TACList;
+    int labelNum;
+};
 
-struct TACLine *findLastTAC(struct TACLine *head);
+struct BasicBlock *BasicBlock_new(int labelNum);
 
-void freeTAC(struct TACLine* it);
+void BasicBlock_free(struct BasicBlock *b);
+
+void BasicBlock_append(struct BasicBlock *b, struct TACLine *l);
+
+void BasicBlock_prepend(struct BasicBlock *b, struct TACLine *l);
+
+void printBasicBlock(struct BasicBlock *b, int indentLevel);

@@ -4,26 +4,22 @@
  * These functions walk the AST and convert it to three-address code
  */
 
-struct TACLine *linearizeASMBlock(struct astNode *it)
+void linearizeASMBlock(struct BasicBlock *currentBlock, struct astNode *it)
 {
-    struct TACLine *asmBlock = NULL;
     struct astNode *asmRunner = it->child;
     while (asmRunner != NULL)
     {
         struct TACLine *asmLine = newTACLine();
         asmLine->operation = tt_asm;
         asmLine->operands[0] = asmRunner->value;
-        asmBlock = appendTAC(asmBlock, asmLine);
-
+        BasicBlock_append(currentBlock, asmLine);
         asmRunner = asmRunner->sibling;
     }
-    return asmBlock;
 }
 
-struct TACLine *linearizeDereference(struct astNode *it, int *tempNum, struct tempList *tl)
+void linearizeDereference(struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl)
 {
     struct TACLine *thisDereference = newTACLine();
-    struct TACLine *returnLine = thisDereference;
 
     thisDereference->operands[0] = getTempString(tl, *tempNum);
     thisDereference->operandTypes[0] = vt_temp;
@@ -42,7 +38,7 @@ struct TACLine *linearizeDereference(struct astNode *it, int *tempNum, struct te
     case t_dereference:
         thisDereference->operands[1] = getTempString(tl, *tempNum);
         thisDereference->operandTypes[1] = vt_temp;
-        returnLine = prependTAC(returnLine, linearizeDereference(it->child, tempNum, tl));
+        linearizeDereference(blockList, currentBlock, it->child, tempNum, tl);
         break;
 
         // handle pointer arithmetic to evalute the correct adddress to dereference
@@ -50,7 +46,7 @@ struct TACLine *linearizeDereference(struct astNode *it, int *tempNum, struct te
     case t_un_sub:
         thisDereference->operands[1] = getTempString(tl, *tempNum);
         thisDereference->operandTypes[1] = vt_temp;
-        returnLine = prependTAC(returnLine, linearizePointerArithmetic(it, tempNum, tl, 0));
+        linearizePointerArithmetic(blockList, currentBlock, it, tempNum, tl, 0);
         break;
 
     default:
@@ -61,7 +57,7 @@ struct TACLine *linearizeDereference(struct astNode *it, int *tempNum, struct te
     // printf("here's what we got:\n");
     // printTACBlock(returnLine, 0);
 
-    return returnLine;
+    BasicBlock_append(currentBlock, thisDereference);
 }
 
 /*
@@ -71,10 +67,10 @@ struct TACLine *linearizeDereference(struct astNode *it, int *tempNum, struct te
  * - similarly for assignment code, arithmetic results with type being assigned
  */
 
-struct TACLine *linearizePointerArithmetic(struct astNode *it, int *tempNum, struct tempList *tl, int depth)
+void linearizePointerArithmetic(struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl, int depth)
 {
     struct TACLine *thisOperation = newTACLine();
-    struct TACLine *returnOperation = thisOperation;
+    struct TACLine *scaleMultiplication = NULL;
 
     thisOperation->operands[0] = getTempString(tl, *tempNum);
     thisOperation->operandTypes[0] = vt_temp;
@@ -102,14 +98,14 @@ struct TACLine *linearizePointerArithmetic(struct astNode *it, int *tempNum, str
         case t_un_sub:
             thisOperation->operands[1] = getTempString(tl, *tempNum);
             thisOperation->operandTypes[1] = vt_temp;
-            returnOperation = prependTAC(thisOperation, linearizePointerArithmetic(it->child, tempNum, tl, depth));
+            linearizePointerArithmetic(blockList, currentBlock, it->child, tempNum, tl, depth);
             break;
 
         // handle dereferences explicitly
         case t_dereference:
             thisOperation->operands[1] = getTempString(tl, *tempNum);
             thisOperation->operandTypes[1] = vt_temp;
-            returnOperation = prependTAC(thisOperation, linearizeDereference(it->child->child, tempNum, tl));
+            linearizeDereference(blockList, currentBlock, it->child->child, tempNum, tl);
             break;
 
         // handle variables directly
@@ -146,7 +142,7 @@ struct TACLine *linearizePointerArithmetic(struct astNode *it, int *tempNum, str
             // scale iff depth 0
             if (depth == 0)
             {
-                struct TACLine *scaleMultiplication = newTACLine();
+                scaleMultiplication = newTACLine();
                 scaleMultiplication->operands[0] = getTempString(tl, *tempNum);
                 scaleMultiplication->operandTypes[0] = vt_temp;
 
@@ -162,15 +158,13 @@ struct TACLine *linearizePointerArithmetic(struct astNode *it, int *tempNum, str
                 scaleMultiplication->operandTypes[2] = vt_literal;
                 scaleMultiplication->operation = tt_mul;
 
-                returnOperation = prependTAC(returnOperation, scaleMultiplication);
-
-                returnOperation = prependTAC(returnOperation, linearizePointerArithmetic(it->child->sibling, tempNum, tl, depth + 1));
+                linearizePointerArithmetic(blockList, currentBlock, it->child->sibling, tempNum, tl, depth + 1);
             }
             else
             {
                 thisOperation->operands[2] = getTempString(tl, *tempNum);
                 thisOperation->operandTypes[2] = vt_temp;
-                returnOperation = prependTAC(returnOperation, linearizePointerArithmetic(it->child->sibling, tempNum, tl, depth + 1));
+                linearizePointerArithmetic(blockList, currentBlock, it->child->sibling, tempNum, tl, depth + 1);
             }
             break;
 
@@ -178,8 +172,7 @@ struct TACLine *linearizePointerArithmetic(struct astNode *it, int *tempNum, str
             thisOperation->operands[2] = getTempString(tl, *tempNum);
             thisOperation->operandTypes[2] = vt_temp;
             (*tempNum)++;
-
-            returnOperation = prependTAC(thisOperation, linearizeDereference(it->child->sibling->child, tempNum, tl));
+            linearizeDereference(blockList, currentBlock, it->child->sibling->child, tempNum, tl);
             break;
 
         case t_name:
@@ -187,7 +180,7 @@ struct TACLine *linearizePointerArithmetic(struct astNode *it, int *tempNum, str
             // scale iff depth 0
             if (depth == 0)
             {
-                struct TACLine *scaleMultiplication = newTACLine();
+                scaleMultiplication = newTACLine();
                 scaleMultiplication->operands[0] = getTempString(tl, *tempNum);
                 scaleMultiplication->operandTypes[0] = vt_temp;
 
@@ -202,8 +195,6 @@ struct TACLine *linearizePointerArithmetic(struct astNode *it, int *tempNum, str
                 scaleMultiplication->operandTypes[2] = vt_literal;
                 scaleMultiplication->operation = tt_mul;
                 (*tempNum)++;
-
-                returnOperation = prependTAC(returnOperation, scaleMultiplication);
             }
             else
             {
@@ -242,7 +233,7 @@ struct TACLine *linearizePointerArithmetic(struct astNode *it, int *tempNum, str
 
     case t_dereference:
         freeTAC(thisOperation);
-        returnOperation = linearizeDereference(it->child, tempNum, tl);
+        linearizeDereference(blockList, currentBlock, it->child, tempNum, tl);
         break;
 
     default:
@@ -250,11 +241,14 @@ struct TACLine *linearizePointerArithmetic(struct astNode *it, int *tempNum, str
         exit(1);
         break;
     }
-    return returnOperation;
+    if (scaleMultiplication != NULL)
+        BasicBlock_append(currentBlock, scaleMultiplication);
+
+    BasicBlock_append(currentBlock, thisOperation);
 }
 
 // given an AST node of a function call, generate TAC to evaluate and push the arguments, then call it
-struct TACLine *linearizeFunctionCall(struct astNode *it, int *tempNum, struct tempList *tl)
+void linearizeFunctionCall(struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl)
 {
     struct astNode *runner = it->child->child;
     struct TACLine *calltac = newTACLine();
@@ -291,22 +285,21 @@ struct TACLine *linearizeFunctionCall(struct astNode *it, int *tempNum, struct t
             pushOperation->operandTypes[0] = vt_temp;
             pushOperation->operation = tt_push;
 
-            thisArgument = linearizeExpression(runner, tempNum, tl);
-            appendTAC(thisArgument, pushOperation);
+            linearizeExpression(blockList, currentBlock, runner, tempNum, tl);
+            BasicBlock_append(currentBlock, pushOperation);
         }
 
-        calltac = prependTAC(calltac, thisArgument);
+        BasicBlock_append(currentBlock, thisArgument);
         runner = runner->sibling;
     }
 
-    return calltac;
+    BasicBlock_append(currentBlock, calltac);
 }
 
 // given an AST node of an expression, figure out how to break it down into multiple lines of three address code
-struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tempList *tl)
+void linearizeExpression(struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl)
 {
     struct TACLine *thisExpression = newTACLine();
-    struct TACLine *returnExpression = thisExpression;
 
     // since 'cmp' doesn't generate a result, it just sets flags, no need to consume a temp
     if (it->type != t_compOp)
@@ -333,9 +326,10 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
             thisExpression->operands[1] = getTempString(tl, *tempNum);
             thisExpression->operandTypes[1] = vt_temp;
 
-            returnExpression = prependTAC(thisExpression, linearizePointerArithmetic(it->child, tempNum, tl, 0));
+            linearizePointerArithmetic(blockList, currentBlock, it->child, tempNum, tl, 0);
         }
-        return returnExpression;
+        BasicBlock_append(currentBlock, thisExpression);
+        return;
     }
 
     /*
@@ -357,7 +351,7 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         thisExpression->operands[1] = getTempString(tl, *tempNum);
         thisExpression->operandTypes[1] = vt_temp;
 
-        returnExpression = prependTAC(returnExpression, linearizeFunctionCall(it->child, tempNum, tl));
+        linearizeFunctionCall(blockList, currentBlock, it->child, tempNum, tl);
         break;
 
     case t_compOp:
@@ -366,7 +360,7 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         thisExpression->operands[1] = getTempString(tl, *tempNum);
         thisExpression->operandTypes[1] = vt_temp;
 
-        returnExpression = prependTAC(returnExpression, linearizeExpression(it->child, tempNum, tl));
+        linearizeExpression(blockList, currentBlock, it->child, tempNum, tl);
         break;
 
     case t_name:
@@ -383,7 +377,7 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         thisExpression->operands[1] = getTempString(tl, *tempNum);
         thisExpression->operandTypes[1] = vt_temp;
 
-        returnExpression = prependTAC(returnExpression, linearizeDereference(it->child->child, tempNum, tl));
+        linearizeDereference(blockList, currentBlock, it->child->child, tempNum, tl);
         break;
 
     default:
@@ -418,7 +412,7 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         thisExpression->operands[2] = getTempString(tl, *tempNum);
         thisExpression->operandTypes[2] = vt_temp;
 
-        returnExpression = prependTAC(returnExpression, linearizeFunctionCall(it->child->sibling, tempNum, tl));
+        linearizeFunctionCall(blockList, currentBlock, it->child->sibling, tempNum, tl);
         break;
 
     case t_compOp:
@@ -426,9 +420,8 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
     case t_un_sub:
         thisExpression->operands[2] = getTempString(tl, *tempNum);
         thisExpression->operandTypes[2] = vt_temp;
-        // when recursing, we need to prepend this line so things happen in the correct order
         // figure out what to prepend to, then set the return expression TACLine to the head of the block
-        returnExpression = prependTAC(returnExpression, linearizeExpression(it->child->sibling, tempNum, tl));
+        linearizeExpression(blockList, currentBlock, it->child->sibling, tempNum, tl);
         break;
 
     case t_name:
@@ -445,7 +438,7 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         thisExpression->operands[2] = getTempString(tl, *tempNum);
         thisExpression->operandTypes[2] = vt_temp;
 
-        returnExpression = prependTAC(returnExpression, linearizeDereference(it->child->sibling->child, tempNum, tl));
+        linearizeDereference(blockList, currentBlock, it->child->sibling->child, tempNum, tl);
         break;
 
     default:
@@ -453,13 +446,13 @@ struct TACLine *linearizeExpression(struct astNode *it, int *tempNum, struct tem
         exit(1);
     }
 
-    return returnExpression;
+    BasicBlock_append(currentBlock, thisExpression);
 }
 
 // given an AST node of an assignment, return the TAC block necessary to generate the correct value
-struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tempList *tl)
+void linearizeAssignment(struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl)
 {
-    struct TACLine *assignment;
+    struct TACLine *assignment = NULL;
 
     // if this assignment is simply setting one thing to another
     if (it->child->sibling->child == NULL)
@@ -490,16 +483,16 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
         switch (it->child->sibling->type)
         {
         case t_dereference:
-            assignment = linearizeDereference(it->child->sibling->child, tempNum, tl);
+            linearizeDereference(blockList, currentBlock, it->child->sibling->child, tempNum, tl);
             break;
 
         case t_un_add:
         case t_un_sub:
-            assignment = linearizeExpression(it->child->sibling, tempNum, tl);
+            linearizeExpression(blockList, currentBlock, it->child->sibling, tempNum, tl);
             break;
 
         case t_call:
-            assignment = linearizeFunctionCall(it->child->sibling, tempNum, tl);
+            linearizeFunctionCall(blockList, currentBlock, it->child->sibling, tempNum, tl);
             break;
 
         default:
@@ -507,7 +500,7 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
             exit(1);
         }
     }
-    struct TACLine *lastLine = findLastTAC(assignment);
+    struct TACLine *lastLine = currentBlock->TACList->tail->data;
     if (it->child->type == t_dereference)
     {
         lastLine->operands[0] = getTempString(tl, *tempNum);
@@ -527,9 +520,8 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
             finalWrite->operands[0] = getTempString(tl, *tempNum);
             finalWrite->operandTypes[0] = vt_temp;
 
-            LHS = linearizeDereference(it->child->child->child, tempNum, tl);
-            LHS = appendTAC(LHS, finalWrite);
-
+            linearizeDereference(blockList, currentBlock, it->child->child->child, tempNum, tl);
+            BasicBlock_append(currentBlock, finalWrite);
             break;
 
         case t_un_add:
@@ -542,8 +534,8 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
             finalWrite->operands[0] = getTempString(tl, *tempNum);
             finalWrite->operandTypes[0] = vt_temp;
 
-            LHS = linearizePointerArithmetic(it->child->child, tempNum, tl, 0);
-            LHS = appendTAC(LHS, finalWrite);
+            linearizePointerArithmetic(blockList, currentBlock, it->child->child, tempNum, tl, 0);
+            BasicBlock_append(currentBlock, finalWrite);
             break;
 
         case t_name:
@@ -562,7 +554,7 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
         }
 
         // struct TACLine *LHS = linearizePointerArithmetic(it->child, tempNum, tl, 0);
-        assignment = appendTAC(assignment, LHS);
+        BasicBlock_append(currentBlock, LHS);
         // printf("linearized LHS - here's what we got\n");
         // printTACBlock(LHS, 0);
     }
@@ -573,10 +565,11 @@ struct TACLine *linearizeAssignment(struct astNode *it, int *tempNum, struct tem
         lastLine->operandTypes[0] = vt_var;
     }
 
-    return assignment;
+    if (assignment != NULL)
+        BasicBlock_append(currentBlock, assignment);
 }
 
-struct TACLine *linearizeDeclaration(struct astNode *it, enum token type)
+void linearizeDeclaration(struct BasicBlock *currentBlock, struct astNode *it, enum token type)
 {
     struct TACLine *declarationLine = newTACLine();
     declarationLine->operation = tt_declare;
@@ -593,21 +586,20 @@ struct TACLine *linearizeDeclaration(struct astNode *it, enum token type)
         exit(1);
     }
     declarationLine->operandTypes[0] = declaredType;
-    return declarationLine;
+    BasicBlock_append(currentBlock, declarationLine);
 }
 
 // given the AST for a function, generate TAC and return a pointer to the head of the generated block
-struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl)
+void linearizeStatementList(struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl)
 {
     // scrape along the function
     struct astNode *runner = it;
-    struct TACLine *sltac = NULL;
     while (runner != NULL)
     {
         switch (runner->type)
         {
         case t_asm:
-            sltac = appendTAC(sltac, linearizeASMBlock(runner));
+            linearizeASMBlock(currentBlock, runner);
             break;
 
         // if we see a variable being declared and then assigned
@@ -616,7 +608,7 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             switch (runner->child->type)
             {
             case t_assign:
-                sltac = appendTAC(sltac, linearizeAssignment(runner->child, tempNum, tl));
+                linearizeAssignment(blockList, currentBlock, runner->child, tempNum, tl);
                 break;
 
             case t_dereference:
@@ -625,15 +617,15 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
                     dereferenceScraper = dereferenceScraper->child;
 
                 if (dereferenceScraper->type == t_assign)
-                    sltac = appendTAC(sltac, linearizeAssignment(dereferenceScraper, tempNum, tl));
+                    linearizeAssignment(blockList, currentBlock, dereferenceScraper, tempNum, tl);
                 else
-                    sltac = appendTAC(sltac, linearizeDeclaration(runner->child, dereferenceScraper->type));
+                    linearizeDeclaration(currentBlock, runner->child, dereferenceScraper->type);
 
                 break;
 
             // if just a declaration, do nothing
             case t_name:
-                sltac = appendTAC(sltac, linearizeDeclaration(runner->child, runner->type));
+                linearizeDeclaration(currentBlock, runner->child, runner->type);
                 break;
 
             default:
@@ -646,37 +638,37 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
 
         // if we see an assignment, generate the code and stick it on to the end of the block
         case t_assign:
-            sltac = appendTAC(sltac, linearizeAssignment(runner, tempNum, tl));
+            linearizeAssignment(blockList, currentBlock, runner, tempNum, tl);
             break;
 
         case t_call:
             // for a raw call, return value is not used, null out that operand
-            struct TACLine *callTAC = linearizeFunctionCall(runner, tempNum, tl);
-            findLastTAC(callTAC)->operands[0] = NULL;
-            sltac = appendTAC(sltac, callTAC);
+            linearizeFunctionCall(blockList, currentBlock, runner, tempNum, tl);
+            struct TACLine *lastLine = currentBlock->TACList->tail->data;
+            lastLine->operands[0] = NULL;
             break;
 
         case t_return:
-            struct TACLine *returnAssignment = linearizeAssignment(runner->child, tempNum, tl);
+            linearizeAssignment(blockList, currentBlock, runner->child, tempNum, tl);
+            struct TACLine *returnLine = currentBlock->TACList->tail->data;
             // force the ".RETVAL" variable to a temp type since we don't care about its lifespan
-            findLastTAC(returnAssignment)->operandTypes[0] = vt_temp;
-            sltac = appendTAC(sltac, returnAssignment);
+            returnLine->operandTypes[0] = vt_temp;
 
             struct TACLine *returnTac = newTACLine();
-            returnTac->operands[0] = findLastTAC(sltac)->operands[0];
-            returnTac->operandTypes[0] = findLastTAC(sltac)->operandTypes[0];
+            returnTac->operands[0] = returnLine->operands[0];
+            returnTac->operandTypes[0] = returnLine->operandTypes[0];
             returnTac->operation = tt_return;
-            sltac = appendTAC(sltac, returnTac);
+            BasicBlock_append(currentBlock, returnTac);
             break;
 
         case t_if:
         {
             // linearize the expression we will test
-            sltac = appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
+            linearizeExpression(blockList, currentBlock, runner->child, tempNum, tl);
 
             struct TACLine *pushState = newTACLine();
             pushState->operation = tt_pushstate;
-            appendTAC(sltac, pushState);
+            BasicBlock_append(currentBlock, pushState);
 
             struct TACLine *noifJump = newTACLine();
 
@@ -720,31 +712,32 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
             }
             struct TACLine *noifLabel = newTACLine();
             noifLabel->operation = tt_label;
-            appendTAC(sltac, noifJump);
+            BasicBlock_append(currentBlock, noifJump);
 
             // bit hax (⌐▨_▨)
             // (store the label index using the char* for this TAC line)
             // (avoids having to use more fields in the struct)
             noifLabel->operands[0] = (char *)((long int)++(*labelCount));
-            noifJump->operands[0] = (char *)(long int)(*labelCount);
+            noifJump->operands[0] = noifLabel->operands[0];
 
-            struct TACLine *ifBody = linearizeStatementList(runner->child->sibling->child, tempNum, labelCount, tl);
-
-            appendTAC(sltac, ifBody);
+            linearizeStatementList(blockList, currentBlock, runner->child->sibling->child, tempNum, labelCount, tl);
 
             // if the if block ends in a return, no need to restore the state
             // since execution will jump directly to the end of the funciton from here
-            if (findLastTAC(ifBody)->operation != tt_return)
+            if (((struct TACLine *)currentBlock->TACList->tail->data)->operation != tt_return)
             {
                 struct TACLine *endIfRestore = newTACLine();
                 endIfRestore->operation = tt_restorestate;
-                appendTAC(sltac, endIfRestore);
+                BasicBlock_append(currentBlock, endIfRestore);
             }
+
+            struct BasicBlock *afterIfBlock = BasicBlock_new(*labelCount);
+            LinkedList_append(blockList, afterIfBlock);
 
             // if there's an else to fall through to
             if (runner->child->sibling->sibling != NULL)
             {
-                struct TACLine *ifBlockFinalTAC = findLastTAC(ifBody);
+                struct TACLine *ifBlockFinalTAC = currentBlock->TACList->tail->data;
 
                 // don't need this jump and label when the if statement ends in a return
                 struct TACLine *endIfLabel;
@@ -759,132 +752,145 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
                     struct TACLine *ifDoneJump = newTACLine();
                     ifDoneJump->operation = tt_jmp;
                     ifDoneJump->operands[0] = endIfLabel->operands[0];
-                    appendTAC(sltac, ifDoneJump);
+                    BasicBlock_append(afterIfBlock, endIfLabel);
+                    BasicBlock_append(currentBlock, ifDoneJump);
                 }
                 // make sure we are in a known state before the else statement
                 struct TACLine *beforeElseRestore = newTACLine();
                 beforeElseRestore->operation = tt_resetstate;
-                appendTAC(noifLabel, beforeElseRestore);
 
-                struct TACLine *elseBody = linearizeStatementList(runner->child->sibling->sibling->child->child, tempNum, labelCount, tl);
+                struct BasicBlock *elseBlock = BasicBlock_new(*labelCount);
+                LinkedList_append(blockList, elseBlock);
+                linearizeStatementList(blockList, elseBlock, runner->child->sibling->sibling->child->child, tempNum, labelCount, tl);
 
+
+                BasicBlock_prepend(elseBlock, noifLabel);
+                BasicBlock_prepend(elseBlock, beforeElseRestore);
                 // if the if won't be executed, so execution from the noif label goes to the else block
-                appendTAC(noifLabel, elseBody);
-                appendTAC(sltac, noifLabel);
+                // appendTAC(noifLabel, elseBody);
+                // appendTAC(sltac, noifLabel);
 
                 // only need to restore the state if execution will continue after the if/else
                 if (ifBlockFinalTAC->operation != tt_return)
                 {
                     struct TACLine *endElseRestore = newTACLine();
                     endElseRestore->operation = tt_restorestate;
-                    appendTAC(sltac, endElseRestore);
-                    appendTAC(sltac, endIfLabel);
+                    BasicBlock_append(elseBlock, endElseRestore);
+                    // appendTAC(sltac, endElseRestore);
+                    // appendTAC(sltac, endIfLabel);
                 }
             }
             else
             {
-                appendTAC(sltac, noifLabel);
+                BasicBlock_prepend(afterIfBlock, noifLabel);
+                // appendTAC(sltac, noifLabel);
             }
 
             // throw away the saved register states
             struct TACLine *popStateLine = newTACLine();
             popStateLine->operation = tt_popstate;
-            appendTAC(sltac, popStateLine);
+            BasicBlock_prepend(afterIfBlock, popStateLine);
+
+            currentBlock = afterIfBlock;
+
+            // appendTAC(sltac, popStateLine);
         }
         break;
 
         case t_while:
-        {
-            // push state before entering the loop
-            struct TACLine *pushState = newTACLine();
-            pushState->operation = tt_pushstate;
-            sltac = appendTAC(sltac, pushState);
-
-            // establish a block during which any live variable's lifetime will be extended
-            // since a variable could "die" during the while loop, then the loop could repeat
-            // we need to extend all the lifetimes within the loop or risk overwriting and losing some variables
-
-            // generate a label for the top of the while loop
-            struct TACLine *beginWhile = newTACLine();
-            beginWhile->operation = tt_label;
-            beginWhile->operands[0] = (char *)((long int)++(*labelCount));
-            appendTAC(sltac, beginWhile);
-
-            // linearize the expression we will test
-            appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
-
-            // generate a label and figure out condition to jump when the while loop isn't executed
-            struct TACLine *noWhileJump = newTACLine();
-            char *cmpOp = runner->child->value;
-            switch (cmpOp[0])
+            /*
             {
-            case '<':
-                switch (cmpOp[1])
+                // push state before entering the loop
+                struct TACLine *pushState = newTACLine();
+                pushState->operation = tt_pushstate;
+                sltac = appendTAC(sltac, pushState);
+
+                // establish a block during which any live variable's lifetime will be extended
+                // since a variable could "die" during the while loop, then the loop could repeat
+                // we need to extend all the lifetimes within the loop or risk overwriting and losing some variables
+
+                // generate a label for the top of the while loop
+                struct TACLine *beginWhile = newTACLine();
+                beginWhile->operation = tt_label;
+                beginWhile->operands[0] = (char *)((long int)++(*labelCount));
+                appendTAC(sltac, beginWhile);
+
+                // linearize the expression we will test
+                appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
+
+                // generate a label and figure out condition to jump when the while loop isn't executed
+                struct TACLine *noWhileJump = newTACLine();
+                char *cmpOp = runner->child->value;
+                switch (cmpOp[0])
                 {
-                case '=':
-                    noWhileJump->operation = tt_jg;
+                case '<':
+                    switch (cmpOp[1])
+                    {
+                    case '=':
+                        noWhileJump->operation = tt_jg;
+                        break;
+
+                    default:
+                        noWhileJump->operation = tt_jge;
+                        break;
+                    }
                     break;
 
-                default:
-                    noWhileJump->operation = tt_jge;
+                case '>':
+                    switch (cmpOp[1])
+                    {
+                    case '=':
+                        noWhileJump->operation = tt_jl;
+                        break;
+
+                    default:
+                        noWhileJump->operation = tt_jle;
+                        break;
+                    }
+                    break;
+
+                case '!':
+                    noWhileJump->operation = tt_je;
+                    break;
+
+                case '=':
+                    noWhileJump->operation = tt_jne;
                     break;
                 }
-                break;
+                appendTAC(sltac, noWhileJump);
 
-            case '>':
-                switch (cmpOp[1])
-                {
-                case '=':
-                    noWhileJump->operation = tt_jl;
-                    break;
+                struct TACLine *noWhileLabel = newTACLine();
+                noWhileLabel->operation = tt_label;
+                // bit hax (⌐▨_▨)
+                // (store the label index using the char* for this TAC line)
+                // (avoids having to use more fields in the struct)
+                noWhileLabel->operands[0] = (char *)((long int)++(*labelCount));
+                noWhileJump->operands[0] = (char *)(long int)(*labelCount);
 
-                default:
-                    noWhileJump->operation = tt_jle;
-                    break;
-                }
-                break;
+                // linearize the body of the loop
+                struct TACLine *whileBody = linearizeStatementList(runner->child->sibling->child, tempNum, labelCount, tl);
+                appendTAC(sltac, whileBody);
 
-            case '!':
-                noWhileJump->operation = tt_je;
-                break;
+                // restore the registers to a known state at the end of every loop
+                struct TACLine *restoreState = newTACLine();
+                restoreState->operation = tt_restorestate;
+                appendTAC(sltac, restoreState);
 
-            case '=':
-                noWhileJump->operation = tt_jne;
-                break;
+                // jump back to the condition test
+                struct TACLine *loopJump = newTACLine();
+                loopJump->operation = tt_jmp;
+                loopJump->operands[0] = beginWhile->operands[0];
+                appendTAC(sltac, loopJump);
+
+                // at the very end, add the label we jump to if the condition test fails
+                appendTAC(sltac, noWhileLabel);
+                // throw away the saved state when done with the loop
+                struct TACLine *endWhilePop = newTACLine();
+                endWhilePop->operation = tt_popstate;
+                appendTAC(sltac, endWhilePop);
             }
-            appendTAC(sltac, noWhileJump);
-
-            struct TACLine *noWhileLabel = newTACLine();
-            noWhileLabel->operation = tt_label;
-            // bit hax (⌐▨_▨)
-            // (store the label index using the char* for this TAC line)
-            // (avoids having to use more fields in the struct)
-            noWhileLabel->operands[0] = (char *)((long int)++(*labelCount));
-            noWhileJump->operands[0] = (char *)(long int)(*labelCount);
-
-            // linearize the body of the loop
-            struct TACLine *whileBody = linearizeStatementList(runner->child->sibling->child, tempNum, labelCount, tl);
-            appendTAC(sltac, whileBody);
-
-            // restore the registers to a known state at the end of every loop
-            struct TACLine *restoreState = newTACLine();
-            restoreState->operation = tt_restorestate;
-            appendTAC(sltac, restoreState);
-
-            // jump back to the condition test
-            struct TACLine *loopJump = newTACLine();
-            loopJump->operation = tt_jmp;
-            loopJump->operands[0] = beginWhile->operands[0];
-            appendTAC(sltac, loopJump);
-
-            // at the very end, add the label we jump to if the condition test fails
-            appendTAC(sltac, noWhileLabel);
-            // throw away the saved state when done with the loop
-            struct TACLine *endWhilePop = newTACLine();
-            endWhilePop->operation = tt_popstate;
-            appendTAC(sltac, endWhilePop);
-        }
-        break;
+            */
+            break;
 
         default:
             printf("Something broke :(\n");
@@ -892,13 +898,16 @@ struct TACLine *linearizeStatementList(struct astNode *it, int *tempNum, int *la
         }
         runner = runner->sibling;
     }
-    return sltac;
 }
 
 // given an AST and a populated symbol table, generate three address code for the function entries
 void linearizeProgram(struct astNode *it, struct symbolTable *table)
 {
+    struct LinkedList *globalBlockList = LinkedList_new();
+    struct BasicBlock *globalBlock = BasicBlock_new(0);
+    LinkedList_append(globalBlockList, globalBlock);
     // scrape along the top level of the AST
+    table->BasicBlockList = globalBlockList;
     struct astNode *runner = it;
     int tempNum = 0;
     while (runner != NULL)
@@ -913,18 +922,24 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
             int funTempNum = 0; // track the number of temporary variables used
             int labelCount = 0;
             struct functionEntry *theFunction = symbolTableLookup(table, runner->child->value)->entry;
-            struct TACLine *generatedTAC = newTACLine();
-
-            generatedTAC->operation = tt_label;
-            generatedTAC->operands[0] = 0;
-            appendTAC(generatedTAC, linearizeStatementList(runner->child->sibling, &funTempNum, &labelCount, table->tl));
-            theFunction->table->codeBlock = generatedTAC;
+            struct LinkedList *functionBlockList = LinkedList_new();
+            theFunction->table->BasicBlockList = functionBlockList;
+            struct BasicBlock *functionBlock = BasicBlock_new(funTempNum);
+            
+            LinkedList_append(functionBlockList, functionBlock);
+            struct TACLine *functionLabel = newTACLine();
+            functionLabel->operation = tt_label;
+            functionLabel->operands[0] = 0;
+            BasicBlock_append(functionBlock, functionLabel);
+            
+            linearizeStatementList(functionBlockList, functionBlock, runner->child->sibling, &funTempNum, &labelCount, table->tl);
+            // theFunction->table->codeBlock = generatedTAC;
             break;
         }
         break;
 
         case t_asm:
-            table->codeBlock = appendTAC(table->codeBlock, linearizeASMBlock(runner));
+            linearizeASMBlock(globalBlock, runner);
             break;
 
         case t_var:
@@ -936,12 +951,12 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
 
             declarationScraper = declarationScraper->child;
             if (declarationScraper->type == t_assign)
-                table->codeBlock = appendTAC(table->codeBlock, linearizeAssignment(declarationScraper, &tempNum, table->tl));
+                linearizeAssignment(globalBlockList, globalBlock, declarationScraper, &tempNum, table->tl);
 
             break;
 
         case t_assign:
-            table->codeBlock = appendTAC(table->codeBlock, linearizeAssignment(runner, &tempNum, table->tl));
+            linearizeAssignment(globalBlockList, globalBlock, runner, &tempNum, table->tl);
             break;
 
         // ignore everything else (for now) - no global vars, etc...

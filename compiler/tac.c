@@ -103,8 +103,6 @@ char *getAsmOp(enum TACType t)
 struct TACLine *newTACLine()
 {
     struct TACLine *wip = malloc(sizeof(struct TACLine));
-    wip->nextLine = NULL;
-    wip->prevLine = NULL;
     wip->operands[0] = NULL;
     wip->operands[1] = NULL;
     wip->operands[2] = NULL;
@@ -117,6 +115,7 @@ struct TACLine *newTACLine()
     wip->operation = tt_assign;
     // by default operands are NOT reorderable
     wip->reorderable = 0;
+    wip->index = -1;
     return wip;
 }
 
@@ -124,7 +123,7 @@ void printTACLine(struct TACLine *it)
 {
     char *operationStr;
     char fallingThrough = 0;
-    int width = 0;
+    int width = printf("%2x:", it->index);
     switch (it->operation)
     {
     case tt_asm:
@@ -254,7 +253,7 @@ char *sPrintTACLine(struct TACLine *it)
     char *operationStr;
     char *tacString = malloc(128);
     char fallingThrough = 0;
-    int width = 0;
+    int width = sprintf(tacString, "%2x:", it->index);
     switch (it->operation)
     {
     case tt_asm:
@@ -378,70 +377,51 @@ char *sPrintTACLine(struct TACLine *it)
     return trimmedString;
 }
 
-void printTACBlock(struct TACLine *it, int indentLevel)
+void freeTAC(struct TACLine *it)
 {
-    int lineIndex = 0;
-    while (it != NULL)
+    free(it);
+}
+
+struct BasicBlock *BasicBlock_new(int labelNum)
+{
+    struct BasicBlock *wip = malloc(sizeof(struct BasicBlock));
+    wip->TACList = LinkedList_new();
+    wip->labelNum = labelNum;
+    return wip;
+}
+
+void BasicBlock_free(struct BasicBlock *b)
+{
+    LinkedList_free(b->TACList, &freeTAC);
+    free(b);
+}
+
+void BasicBlock_append(struct BasicBlock *b, struct TACLine *l)
+{
+    LinkedList_append(b->TACList, l);
+}
+
+void BasicBlock_prepend(struct BasicBlock *b, struct TACLine *l)
+{
+    LinkedList_prepend(b->TACList, l);
+}
+
+void printBasicBlock(struct BasicBlock *b, int indentLevel)
+{
+    printf("BASIC BLOCK %d\n", b->labelNum);
+    for (struct LinkedListNode *runner = b->TACList->head; runner != NULL; runner = runner->next)
     {
+        struct TACLine *this = runner->data;
         for (int i = 0; i < indentLevel; i++)
         {
             printf("\t");
         }
-        if (it->operation != tt_label)
+
+        if (runner->data != NULL)
         {
-            printf("\t%2x:", lineIndex);
+            printTACLine(this);
+            printf("\n");
         }
-
-        printTACLine(it);
-        printf("\n");
-        lineIndex++;
-        it = it->nextLine;
     }
-}
-
-// stick the "after" block at the end of the "before" block, returning the head of the full block
-struct TACLine *appendTAC(struct TACLine *before, struct TACLine *after)
-{
-    if (before == NULL)
-        return after;
-
-    struct TACLine *runner = before;
-    while (runner->nextLine != NULL)
-        runner = runner->nextLine;
-
-    runner->nextLine = after;
-    after->prevLine = runner;
-
-    return before;
-}
-
-// stick the "before" block in front of the "after" block, returning the head of the full block
-struct TACLine *prependTAC(struct TACLine *after, struct TACLine *before)
-{
-    struct TACLine *runner = before;
-    while (runner->nextLine != NULL)
-        runner = runner->nextLine;
-
-    runner->nextLine = after;
-    after->prevLine = runner;
-    return before;
-}
-
-struct TACLine *findLastTAC(struct TACLine *head)
-{
-    while (head->nextLine != NULL)
-        head = head->nextLine;
-
-    return head;
-}
-
-void freeTAC(struct TACLine *it)
-{
-    while (it != NULL)
-    {
-        struct TACLine *old = it;
-
-        it = it->nextLine;
-        free(old);
-    }
+    printf("\n\n");
 }

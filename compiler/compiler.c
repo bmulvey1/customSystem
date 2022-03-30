@@ -9,7 +9,7 @@
 #include "linearizer.h"
 #include "state.h"
 #include "asm.h"
-#include "regalloc.h"
+// #include "regalloc.h"
 
 /*
 
@@ -1274,11 +1274,6 @@ struct ASMblock *generateCode(struct symbolTable *table, char *functionName, str
 
 */
 
-char compare_ints(int *element1, int *element2)
-{
-    return (*element1) == (*element2);
-}
-
 int main(int argc, char **argv)
 {
     if (argc < 2)
@@ -1313,54 +1308,20 @@ int main(int argc, char **argv)
 
     FILE *outFile = fopen(argv[2], "wb");
 
-    {
-        struct ASMblock *thisAsm = generateCode(theTable, outFile);
-        struct ASMline *runner = thisAsm->head;
-        while (runner != NULL)
-        {
-            struct ASMline *old = runner;
-            if (runner->data[0] != '.')
-            {
-                fprintf(outFile, "\t%s\n", runner->data);
-            }
-            else
-            {
-                fprintf(outFile, "%s\n", runner->data + 1);
-            }
-            fflush(outFile);
-
-            runner = runner->next;
-            free(old->data);
-            free(old);
-        }
-        free(thisAsm);
-    }
 
     for (int i = 0; i < theTable->size; i++)
     {
         if (theTable->entries[i]->type == e_function)
         {
             struct functionEntry *thisEntry = theTable->entries[i]->entry;
-            struct ASMblock *thisAsm = generateCode(thisEntry->table, outFile);
-            struct ASMline *runner = thisAsm->head;
-            while (runner != NULL)
-            {
-                struct ASMline *old = runner;
-                if (runner->data[0] != '.')
-                {
-                    fprintf(outFile, "\t%s\n", runner->data);
-                }
-                else
-                {
-                    fprintf(outFile, "%s\n", runner->data + 1);
-                }
-                fflush(outFile);
+            //generateCode(thisEntry->table, outFile);
+            for(struct LinkedListNode *runner = thisEntry->table->BasicBlockList->head; runner != NULL; runner = runner->next){
+                struct BasicBlock *thisBlock = runner->data;
+                printBasicBlock(thisBlock, 1);
+                //printf("%s\n", thisBlock->parentName);
 
-                runner = runner->next;
-                free(old->data);
-                free(old);
             }
-            free(thisAsm);
+
         }
     }
 

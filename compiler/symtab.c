@@ -83,7 +83,7 @@ struct symbolTable *newSymbolTable(char *name)
     wip->size = 0;
     wip->parentScope = NULL;
     wip->entries = NULL;
-    wip->codeBlock = NULL;
+    wip->BasicBlockList = NULL;
     wip->name = name;
     wip->localStackSize = 0;
     wip->argStackSize = 0;
@@ -223,8 +223,8 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
         break;
         }
     }
-    if (printTAC)
-        printTACBlock(it->codeBlock, depth * 2);
+    // if (printTAC)
+        // printBasicBlockList(it->BasicBlockList, depth * 2);
 
     printf("\n");
 }
@@ -254,7 +254,8 @@ void freeSymTab(struct symbolTable *it)
         // free(it->name);
         free(currentEntry);
     }
-    freeTAC(it->codeBlock);
+
+    LinkedList_free(it->BasicBlockList, &BasicBlock_free);
 
     if (it->tl != NULL)
     {
