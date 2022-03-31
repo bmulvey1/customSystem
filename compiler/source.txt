@@ -17,6 +17,7 @@ fun fib(var i){
         }else{
             result = 1;
         }
+        result = result;
     }else{
         result = fib(i - 2) + fib(i - 1);
     }

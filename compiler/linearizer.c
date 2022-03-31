@@ -616,6 +616,101 @@ int linearizeDeclaration(int currentTACIndex, struct BasicBlock *currentBlock, s
     return currentTACIndex;
 }
 
+struct Stack *linearizeIfStatement(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl)
+{
+    struct Stack *resultBlocks = Stack_new();
+
+    // linearize the expression we will test
+    currentTACIndex = linearizeExpression(currentTACIndex, blockList, currentBlock, it->child, tempNum, tl);
+
+    struct TACLine *pushState = newTACLine(currentTACIndex, tt_pushstate);
+    BasicBlock_append(currentBlock, pushState);
+
+    struct TACLine *noifJump;
+
+    // generate a label and figure out condition to jump when the if statement isn't executed
+    char *cmpOp = it->child->value;
+    switch (cmpOp[0])
+    {
+    case '<':
+        switch (cmpOp[1])
+        {
+        case '=':
+            noifJump = newTACLine(currentTACIndex++, tt_jg);
+            break;
+
+        default:
+            noifJump = newTACLine(currentTACIndex++, tt_jge);
+            break;
+        }
+        break;
+
+    case '>':
+        switch (cmpOp[1])
+        {
+        case '=':
+            noifJump = newTACLine(currentTACIndex++, tt_jl);
+            break;
+
+        default:
+            noifJump = newTACLine(currentTACIndex++, tt_jle);
+            break;
+        }
+        break;
+
+    case '!':
+        noifJump = newTACLine(currentTACIndex++, tt_je);
+        break;
+
+    case '=':
+        noifJump = newTACLine(currentTACIndex++, tt_jne);
+        break;
+    }
+    BasicBlock_append(currentBlock, noifJump);
+
+    // bit hax (⌐▨_▨)
+    // (store the label index using the char* for this TAC line)
+    // (avoids having to use more fields in the struct)
+
+    // struct TACLine *enterIfJump = newTACLine(currentTACIndex++, tt_jmp);
+    // enterIfJump->operands[0] = (char *)((long int)(ifBlock->labelNum));
+    // BasicBlock_append(currentBlock, enterIfJump);
+
+    int ifTACIndex = currentTACIndex;
+    int elseTACIndex = currentTACIndex;
+
+    ifTACIndex = linearizeStatementList(ifTACIndex, blockList, currentBlock, it->child->sibling->child, tempNum, labelCount, tl);
+
+    Stack_push(resultBlocks, currentBlock);
+
+    // if there is an else statement to the if
+    if (it->child->sibling->sibling != NULL)
+    {
+        struct BasicBlock *elseBlock = BasicBlock_new(++(*labelCount));
+        LinkedList_append(blockList, elseBlock);
+        Stack_push(resultBlocks, elseBlock);
+
+        noifJump->operands[0] = (char *)((long int)elseBlock->labelNum);
+
+        elseTACIndex = linearizeStatementList(elseTACIndex, blockList, elseBlock, it->child->sibling->sibling->child->child, tempNum, labelCount, tl);
+
+        struct BasicBlock *afterIfElseBlock = BasicBlock_new(++(*labelCount));
+        LinkedList_append(blockList, afterIfElseBlock);
+
+        currentBlock = afterIfElseBlock;
+    }
+    // no else statement
+    else
+    {
+        struct BasicBlock *noIfBlock = BasicBlock_new(++(*labelCount));
+        LinkedList_append(blockList, noIfBlock);
+        noifJump->operands[0] = (char *)((long int)noIfBlock->labelNum);
+        currentBlock = noIfBlock;
+    }
+
+    return resultBlocks;
+}
+
 // given the AST for a function, generate TAC and return a pointer to the head of the generated block
 int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl)
 {
@@ -687,134 +782,24 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
             BasicBlock_append(currentBlock, returnTac);
             break;
 
+        /* this needs to be broken out into an entirely separate function
+         * it is necessary to consider which basic block the branches will end up returning to
+         * handling this inline without being able to recursively handle nested if/else's results in too much label nastiness to be useful.
+         *
+         */
         case t_if:
         {
-            // linearize the expression we will test
-            currentTACIndex = linearizeExpression(currentTACIndex, blockList, currentBlock, runner->child, tempNum, tl);
-
-            struct TACLine *pushState = newTACLine(currentTACIndex, tt_pushstate);
-            BasicBlock_append(currentBlock, pushState);
-
-            struct TACLine *noifJump;
-
-            // generate a label and figure out condition to jump when the if statement isn't executed
-            char *cmpOp = runner->child->value;
-            switch (cmpOp[0])
+            struct Stack *resultBlocks = linearizeIfStatement(currentTACIndex, blockList, currentBlock, runner, tempNum, labelCount, tl);
+            currentBlock = BasicBlock_new(++(*labelCount));
+            LinkedList_append(blockList, currentBlock);
+            while (resultBlocks->size > 0)
             {
-            case '<':
-                switch (cmpOp[1])
-                {
-                case '=':
-                    noifJump = newTACLine(currentTACIndex++, tt_jg);
-                    break;
-
-                default:
-                    noifJump = newTACLine(currentTACIndex++, tt_jge);
-                    break;
-                }
-                break;
-
-            case '>':
-                switch (cmpOp[1])
-                {
-                case '=':
-                    noifJump = newTACLine(currentTACIndex++, tt_jl);
-                    break;
-
-                default:
-                    noifJump = newTACLine(currentTACIndex++, tt_jle);
-                    break;
-                }
-                break;
-
-            case '!':
-                noifJump = newTACLine(currentTACIndex++, tt_je);
-                break;
-
-            case '=':
-                noifJump = newTACLine(currentTACIndex++, tt_jne);
-                break;
+                struct BasicBlock *poppedBlock = Stack_pop(resultBlocks);
+                struct TACLine *exitJump = newTACLine(((struct TACLine *)poppedBlock->TACList->tail->data)->index + 1, tt_jmp);
+                exitJump->operands[0] = (char *)((long int)currentBlock->labelNum);
+                BasicBlock_append(poppedBlock, exitJump);
+                printBasicBlock(poppedBlock, 1);
             }
-            BasicBlock_append(currentBlock, noifJump);
-
-            (*labelCount)++;
-            struct BasicBlock *afterIfBlock = BasicBlock_new(*labelCount);
-            LinkedList_append(blockList, afterIfBlock);
-
-            // bit hax (⌐▨_▨)
-            // (store the label index using the char* for this TAC line)
-            // (avoids having to use more fields in the struct)
-            noifJump->operands[0] = (char *)((long int)(*labelCount));
-
-            int ifTACIndex = currentTACIndex;
-            int elseTACIndex = currentTACIndex;
-
-            ifTACIndex = linearizeStatementList(ifTACIndex, blockList, currentBlock, runner->child->sibling->child, tempNum, labelCount, tl);
-
-            // if the if block ends in a return, no need to restore the state
-            // since execution will jump directly to the end of the funciton from here
-            if (((struct TACLine *)currentBlock->TACList->tail->data)->operation != tt_return)
-            {
-                struct TACLine *endIfRestore = newTACLine(ifTACIndex, tt_restorestate);
-                BasicBlock_append(currentBlock, endIfRestore);
-            }
-
-            // if there's an else to fall through to
-            if (runner->child->sibling->sibling != NULL)
-            {
-                struct TACLine *ifBlockFinalTAC = currentBlock->TACList->tail->data;
-
-                if (ifBlockFinalTAC->operation != tt_return)
-                {
-                    // generate a label for the absolute end of the if/else block
-                    // jump to the end after the if part is done
-                    struct TACLine *ifDoneJump = newTACLine(ifTACIndex++, tt_jmp);
-                    ifDoneJump->operands[0] = (char *)((long int)++(*labelCount));
-                    BasicBlock_append(currentBlock, ifDoneJump);
-                }
-                // make sure we are in a known state before the else statement
-                struct TACLine *beforeElseRestore = newTACLine(elseTACIndex, tt_resetstate);
-
-                elseTACIndex = linearizeStatementList(elseTACIndex, blockList, afterIfBlock, runner->child->sibling->sibling->child->child, tempNum, labelCount, tl);
-
-                BasicBlock_prepend(afterIfBlock, beforeElseRestore);
-                // if the if won't be executed, so execution from the noif label goes to the else block
-                // appendTAC(noifLabel, elseBody);
-                // appendTAC(sltac, noifLabel);
-
-                // only need to restore the state if execution will continue after the if/else
-                // TODO: examine this and see if it needs to/can be moved
-                if (ifBlockFinalTAC->operation != tt_return)
-                {
-                    struct TACLine *endElseRestore = newTACLine(elseTACIndex, tt_restorestate);
-                    BasicBlock_append(afterIfBlock, endElseRestore);
-                    struct TACLine *exitElseJump = newTACLine(elseTACIndex++, tt_jmp);
-                    exitElseJump->operands[0] = ((struct TACLine *)currentBlock->TACList->tail->data)->operands[0];
-                    BasicBlock_append(afterIfBlock, exitElseJump);
-                    // appendTAC(sltac, endElseRestore);
-                    // appendTAC(sltac, endIfLabel);
-                }
-                // (*labelCount)++;
-                afterIfBlock = BasicBlock_new(*labelCount);
-                LinkedList_append(blockList, afterIfBlock);
-            }else
-            {
-                struct TACLine *endIfRestore = newTACLine(ifTACIndex, tt_popstate);
-                BasicBlock_append(currentBlock, endIfRestore);
-            }
-
-            if (ifTACIndex > elseTACIndex)
-                currentTACIndex = ifTACIndex;
-            else
-                currentTACIndex = elseTACIndex;
-
-            // throw away the saved register states
-            struct TACLine *popStateLine = newTACLine(currentTACIndex, tt_popstate);
-            BasicBlock_append(afterIfBlock, popStateLine);
-
-            currentBlock = afterIfBlock;
-
-            // appendTAC(sltac, popStateLine);
         }
         break;
 

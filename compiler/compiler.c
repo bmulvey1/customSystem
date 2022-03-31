@@ -1319,8 +1319,11 @@ int main(int argc, char **argv)
             {
                 struct BasicBlock *thisBlock = runner->data;
                 Stack_push(blockStack, thisBlock);
-                printBasicBlock(thisBlock, 1);
+                
                 // printf("%d\n", ((struct TACLine *)thisBlock->TACList->head->data)->index);
+            }
+            for(int i = 0; i < blockStack->size; i++){
+                printBasicBlock(blockStack->data[blockStack->size - i - 1], 1);
             }
             int blockCount = blockStack->size;
             struct LinkedListNode **printArray = malloc(blockCount * sizeof(struct BasicBlock *));
@@ -1334,8 +1337,10 @@ int main(int argc, char **argv)
                 oldBlockTitles[i] = NULL;
             }
             int TACIndex = 0;
+
             // printf("THERE ARE %d blocks\n", blockCount);
-            while (blockStack->size > 0 || printArraySize > 0)
+            //while (blockStack->size > 0 || printArraySize > 0)
+            while(0)
             {
                 // if it's time to bring in the next basic block
                 // printf("TACINDEX %d\n", TACIndex);
