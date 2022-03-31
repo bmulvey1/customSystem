@@ -616,7 +616,7 @@ int linearizeDeclaration(int currentTACIndex, struct BasicBlock *currentBlock, s
     return currentTACIndex;
 }
 
-struct Stack *linearizeIfStatement(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl)
+struct Stack *linearizeIfStatement(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct BasicBlock *afterIfBlock, struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl)
 {
     struct Stack *resultBlocks = Stack_new();
 
@@ -679,7 +679,7 @@ struct Stack *linearizeIfStatement(int currentTACIndex, struct LinkedList *block
     int ifTACIndex = currentTACIndex;
     int elseTACIndex = currentTACIndex;
 
-    ifTACIndex = linearizeStatementList(ifTACIndex, blockList, currentBlock, it->child->sibling->child, tempNum, labelCount, tl);
+    ifTACIndex = linearizeStatementList(ifTACIndex, blockList, currentBlock, afterIfBlock, it->child->sibling->child, tempNum, labelCount, tl);
 
     Stack_push(resultBlocks, currentBlock);
 
@@ -692,7 +692,7 @@ struct Stack *linearizeIfStatement(int currentTACIndex, struct LinkedList *block
 
         noifJump->operands[0] = (char *)((long int)elseBlock->labelNum);
 
-        elseTACIndex = linearizeStatementList(elseTACIndex, blockList, elseBlock, it->child->sibling->sibling->child->child, tempNum, labelCount, tl);
+        elseTACIndex = linearizeStatementList(elseTACIndex, blockList, elseBlock, afterIfBlock, it->child->sibling->sibling->child->child, tempNum, labelCount, tl);
 
         struct BasicBlock *afterIfElseBlock = BasicBlock_new(++(*labelCount));
         LinkedList_append(blockList, afterIfElseBlock);
@@ -712,7 +712,7 @@ struct Stack *linearizeIfStatement(int currentTACIndex, struct LinkedList *block
 }
 
 // given the AST for a function, generate TAC and return a pointer to the head of the generated block
-int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl)
+int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct BasicBlock *controlConvergesTo, struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl)
 {
     // scrape along the function
     struct astNode *runner = it;
@@ -789,15 +789,29 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
          */
         case t_if:
         {
-            struct Stack *resultBlocks = linearizeIfStatement(currentTACIndex, blockList, currentBlock, runner, tempNum, labelCount, tl);
-            currentBlock = BasicBlock_new(++(*labelCount));
-            LinkedList_append(blockList, currentBlock);
+            struct BasicBlock *afterIfBlock = BasicBlock_new(++(*labelCount));
+            struct Stack *resultBlocks = linearizeIfStatement(currentTACIndex, blockList, currentBlock, afterIfBlock, runner, tempNum, labelCount, tl);
+            LinkedList_append(blockList, afterIfBlock);
+
+            currentBlock = afterIfBlock;
             while (resultBlocks->size > 0)
             {
                 struct BasicBlock *poppedBlock = Stack_pop(resultBlocks);
-                struct TACLine *exitJump = newTACLine(((struct TACLine *)poppedBlock->TACList->tail->data)->index + 1, tt_jmp);
-                exitJump->operands[0] = (char *)((long int)currentBlock->labelNum);
-                BasicBlock_append(poppedBlock, exitJump);
+                struct TACLine *lastLine = poppedBlock->TACList->tail->data;
+                
+                // if the block won't be jumped away from, add a forced jump to the "after" block
+                if (lastLine->operation != tt_jmp)
+                {
+                    struct TACLine *exitJump = newTACLine(lastLine->index + 1, tt_jmp);
+                    exitJump->operands[0] = (char *)((long int)currentBlock->labelNum);
+                    BasicBlock_append(poppedBlock, exitJump);
+
+                    if(lastLine->index + 1 > currentTACIndex)
+                        currentTACIndex = lastLine->index + 2;
+                }else{
+                    if(lastLine->index > currentTACIndex)
+                        currentTACIndex = lastLine->index + 1;
+                }
                 printBasicBlock(poppedBlock, 1);
             }
         }
@@ -904,6 +918,13 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
         }
         runner = runner->sibling;
     }
+
+    if (controlConvergesTo != NULL)
+    {
+        struct TACLine *convergeControlJump = newTACLine(currentTACIndex++, tt_jmp);
+        convergeControlJump->operands[0] = (char *)((long int)controlConvergesTo->labelNum);
+        BasicBlock_append(currentBlock, convergeControlJump);
+    }
     return currentTACIndex;
 }
 
@@ -935,7 +956,7 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
             struct BasicBlock *functionBlock = BasicBlock_new(funTempNum);
 
             LinkedList_append(functionBlockList, functionBlock);
-            linearizeStatementList(0, functionBlockList, functionBlock, runner->child->sibling, &funTempNum, &labelCount, table->tl);
+            linearizeStatementList(0, functionBlockList, functionBlock, NULL, runner->child->sibling, &funTempNum, &labelCount, table->tl);
             // theFunction->table->codeBlock = generatedTAC;
             break;
         }

@@ -19,6 +19,5 @@ int linearizeAssignment(int currentTACIndex, struct LinkedList *blockList, struc
 
 int linearizeDeclaration(int currentTACIndex, struct BasicBlock *currentBlock, struct astNode *it, enum token type);
 
-int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl);
-
+int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct BasicBlock *controlConvergesTo, struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl);
 void linearizeProgram(struct astNode *it, struct symbolTable *table);
