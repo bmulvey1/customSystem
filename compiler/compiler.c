@@ -1274,6 +1274,11 @@ struct ASMblock *generateCode(struct symbolTable *table, char *functionName, str
 
 */
 
+int compareBasicBlockStartIndices(struct BasicBlock *a, struct BasicBlock *b)
+{
+    return ((struct TACLine *)a->TACList->head->data)->index < ((struct TACLine *)b->TACList->head->data)->index;
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2)
@@ -1318,11 +1323,15 @@ int main(int argc, char **argv)
             for (struct LinkedListNode *runner = thisEntry->table->BasicBlockList->tail; runner != NULL; runner = runner->prev)
             {
                 struct BasicBlock *thisBlock = runner->data;
-                Stack_push(blockStack, thisBlock);
-                
+                if (thisBlock->containsEffectiveCode)
+                {
+                    Stack_push(blockStack, thisBlock);
+                }
+
                 // printf("%d\n", ((struct TACLine *)thisBlock->TACList->head->data)->index);
             }
-            for(int i = 0; i < blockStack->size; i++){
+            for (int i = 0; i < blockStack->size; i++)
+            {
                 printBasicBlock(blockStack->data[blockStack->size - i - 1], 1);
             }
             int blockCount = blockStack->size;
@@ -1330,93 +1339,118 @@ int main(int argc, char **argv)
             int printArraySize = 0;
             char **blockTitles = malloc(blockCount * sizeof(char *));
             char **oldBlockTitles = malloc(blockCount * sizeof(char *));
-            for (int i = 0; i < blockStack->size; i++)
+            for (int i = 0; i < blockCount; i++)
             {
                 printArray[i] = NULL;
                 blockTitles[i] = NULL;
                 oldBlockTitles[i] = NULL;
             }
-            int TACIndex = 0;
+
+            for (int i = 0; i < blockStack->size; i++)
+            {
+                for (int j = 0; j < blockStack->size - i - 1; j++)
+                {
+                    if (compareBasicBlockStartIndices(blockStack->data[j], blockStack->data[j + 1]))
+                    {
+                        void *temp = blockStack->data[j];
+                        blockStack->data[j] = blockStack->data[j + 1];
+                        blockStack->data[j + 1] = temp;
+                    }
+                }
+            }
+
+            int TACIndex = -1;
 
             // printf("THERE ARE %d blocks\n", blockCount);
-            //while (blockStack->size > 0 || printArraySize > 0)
-            while(0)
+            while (blockStack->size > 0 || printArraySize > 0)
+            // while (1)
             {
                 // if it's time to bring in the next basic block
                 // printf("TACINDEX %d\n", TACIndex);
-                while (blockStack->size > 0 && ((struct TACLine *)((struct BasicBlock *)Stack_peek(blockStack))->TACList->head->data)->index <= TACIndex)
+
+                while (blockStack->size > 0)
                 {
-                    // printf("read startindex of %d\n", ((struct TACLine *)((struct BasicBlock *)Stack_peek(blockStack))->TACList->head->data)->index);
-                    for (int i = 0; i < 0xffffff; i++)
+
+                    struct BasicBlock *peekedBlock = Stack_peek(blockStack);
+
+                    if (peekedBlock->TACList->head == NULL)
                     {
+                        Stack_pop(blockStack);
+                        continue;
                     }
-                    int j = 0;
-                    for (int i = 0; i < blockCount; i++)
-                        if (printArray[i] == NULL)
-                        {
-                            struct BasicBlock *introducedBlock = Stack_pop(blockStack);
-                            blockTitles[i] = malloc(16);
-                            sprintf(blockTitles[i], "Block %d", introducedBlock->labelNum);
-                            printArray[i] = introducedBlock->TACList->head;
-                            while (++j < i)
-                                printf("                        ");
-
-                            printf("[BASIC BLOCK %d]\n", introducedBlock->labelNum);
-                            // printf("introduce block %d (start index of %d) to array index %d\n", introducedBlock->labelNum, ((struct TACLine *)printArray[i]->data)->index, i);
-
-                            if (i > printArraySize)
-                                printArraySize = i;
-
-                            break;
-                        }
-                }
-
-                for (int i = 0; i <= printArraySize; i++)
-                {
-                    if (printArray[i] == NULL)
+                    if (((struct TACLine *)peekedBlock->TACList->head->data)->index <= TACIndex + 1)
                     {
-                        printf("                        ");
+                        // printf("read startindex of %d\n", ((struct TACLine *)((struct BasicBlock *)Stack_peek(blockStack))->TACList->head->data)->index);
+                        for (int i = 0; i < 0xffffff; i++)
+                        {
+                        }
+                        // int j = 0;
+                        for (int i = 0; i < blockCount; i++)
+                            if (printArray[i] == NULL)
+                            {
+                                struct BasicBlock *introducedBlock = Stack_pop(blockStack);
+                                blockTitles[i] = malloc(16);
+                                sprintf(blockTitles[i], "Block %d", introducedBlock->labelNum);
+                                printArray[i] = introducedBlock->TACList->head;
+                                // while (j++ < i)
+                                // printf("                        ");
+
+                                // printf("[BASIC BLOCK %d]\n", introducedBlock->labelNum);
+                                // printf("introduce block %d (start index of %d) to array index %d\n", introducedBlock->labelNum, ((struct TACLine *)printArray[i]->data)->index, i);
+
+                                if (i > printArraySize)
+                                    printArraySize = i;
+
+                                break;
+                            }
                     }
                     else
                     {
-                        char skipping = 1;
-                        while (skipping)
-                        {
-                            switch (((struct TACLine *)printArray[i]->data)->operation)
-                            {
-                            case tt_pushstate:
-                            case tt_popstate:
-                            case tt_restorestate:
-                            case tt_resetstate:
-                            case tt_declare:
-                                printArray[i] = printArray[i]->next;
-                                break;
-
-                            default:
-                                skipping = 0;
-                                break;
-                            }
-
-                            if (printArray[i] == NULL)
-                                break;
-                        }
-
-                        if (printArray[i] != NULL)
-                        {
-                            if (((struct TACLine *)printArray[i]->data)->index == TACIndex)
-                            {
-                                printTACLine(printArray[i]->data);
-                                printArray[i] = printArray[i]->next;
-                            }
-                            else
-                            {
-                                printf("                        ");
-                            }
-                        }
+                        break;
                     }
                 }
+                for (int i = 0; i <= printArraySize; i++)
+                {
+                    if (printArray[i] == NULL && blockTitles[i] != NULL)
+                    {
+                        printf("                        |");
+                    }
+                    else
+                    {
+                        while (printArray[i] != NULL && !TACLine_isEffective(printArray[i]->data))
+                        {
+                            printArray[i] = printArray[i]->next;
+                        }
+                    }
+
+                    if (printArray[i] != NULL)
+                    {
+                        if (((struct TACLine *)printArray[i]->data)->index == TACIndex)
+                        {
+                            printTACLine(printArray[i]->data);
+                            printf("|");
+                            printArray[i] = printArray[i]->next;
+                        }
+                        else
+                        {
+                            if (blockTitles[i] != NULL)
+                            {
+                                printf("%16s        |", blockTitles[i]);
+                                free(blockTitles[i]);
+                                blockTitles[i] = NULL;
+                            }
+                            /*else
+                            {
+                                printf("                        ");
+                            }*/
+                        }
+                    }else{
+                        printf("------------------------|");
+                    }
+                }
+
                 printf("\n");
-                
+
                 printArraySize = 0;
                 for (int i = blockCount - 1; i >= 0; i--)
                 {

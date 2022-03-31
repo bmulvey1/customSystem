@@ -598,7 +598,7 @@ int linearizeAssignment(int currentTACIndex, struct LinkedList *blockList, struc
 
 int linearizeDeclaration(int currentTACIndex, struct BasicBlock *currentBlock, struct astNode *it, enum token type)
 {
-    struct TACLine *declarationLine = newTACLine(currentTACIndex++, tt_declare);
+    struct TACLine *declarationLine = newTACLine(currentTACIndex, tt_declare);
     declarationLine->operands[0] = it->value;
     enum variableTypes declaredType;
     switch (type)

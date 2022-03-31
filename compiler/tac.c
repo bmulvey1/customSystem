@@ -124,19 +124,15 @@ void printTACLine(struct TACLine *it)
     char *operationStr;
     char fallingThrough = 0;
     int width;
-    switch(it->operation){
-        case tt_pushstate:
-        case tt_popstate:
-        case tt_restorestate:
-        case tt_resetstate:
-        case tt_declare:
-            width = printf(" ~  ");
-            break;
-
-        default:
-            width = printf("%2x: ", it->index);
-            break;
+    if (TACLine_isEffective(it))
+    {
+        width = printf("%2x: ", it->index);
     }
+    else
+    {
+        width = printf(" ~  ");
+    }
+
     switch (it->operation)
     {
     case tt_asm:
@@ -258,8 +254,7 @@ void printTACLine(struct TACLine *it)
         printf(" ");
     }
     // printf("\t%d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
-    width += printf("%s", it->reorderable ? " - Reorderable" : "");
-
+    // width += printf("%s", it->reorderable ? " - Reorderable" : "");
 }
 
 char *sPrintTACLine(struct TACLine *it)
@@ -396,11 +391,30 @@ void freeTAC(struct TACLine *it)
     free(it);
 }
 
+char TACLine_isEffective(struct TACLine *it)
+{
+    switch (it->operation)
+    {
+    case tt_pushstate:
+    case tt_popstate:
+    case tt_restorestate:
+    case tt_resetstate:
+    case tt_declare:
+        return 0;
+        break;
+
+    default:
+        return 1;
+        break;
+    }
+}
+
 struct BasicBlock *BasicBlock_new(int labelNum)
 {
     struct BasicBlock *wip = malloc(sizeof(struct BasicBlock));
     wip->TACList = LinkedList_new();
     wip->labelNum = labelNum;
+    wip->containsEffectiveCode = 0;
     return wip;
 }
 
@@ -412,11 +426,13 @@ void BasicBlock_free(struct BasicBlock *b)
 
 void BasicBlock_append(struct BasicBlock *b, struct TACLine *l)
 {
+    b->containsEffectiveCode |= TACLine_isEffective(l);
     LinkedList_append(b->TACList, l);
 }
 
 void BasicBlock_prepend(struct BasicBlock *b, struct TACLine *l)
 {
+    b->containsEffectiveCode |= TACLine_isEffective(l);
     LinkedList_prepend(b->TACList, l);
 }
 

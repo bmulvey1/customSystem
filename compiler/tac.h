@@ -64,15 +64,19 @@ void printTACLine(struct TACLine *it);
 
 char *sPrintTACLine(struct TACLine *it);
 
-
 struct TACLine *newTACLine(int index, enum TACType operation);
 
 void freeTAC(struct TACLine *it);
+
+char TACLine_isEffective(struct TACLine *it);
 
 struct BasicBlock
 {
     struct LinkedList *TACList;
     int labelNum;
+
+    // only set when the block contains TAC lines containing operations other than code generator directives
+    char containsEffectiveCode;
 };
 
 struct BasicBlock *BasicBlock_new(int labelNum);
