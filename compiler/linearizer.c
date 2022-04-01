@@ -690,22 +690,16 @@ struct Stack *linearizeIfStatement(int currentTACIndex, struct LinkedList *block
         LinkedList_append(blockList, elseBlock);
         Stack_push(resultBlocks, elseBlock);
 
+        struct TACLine *resetLine = newTACLine(elseTACIndex, tt_resetstate);
+        BasicBlock_append(elseBlock, resetLine);
+
         noifJump->operands[0] = (char *)((long int)elseBlock->labelNum);
 
         elseTACIndex = linearizeStatementList(elseTACIndex, blockList, elseBlock, afterIfBlock, it->child->sibling->sibling->child->child, tempNum, labelCount, tl);
-
-        struct BasicBlock *afterIfElseBlock = BasicBlock_new(++(*labelCount));
-        LinkedList_append(blockList, afterIfElseBlock);
-
-        currentBlock = afterIfElseBlock;
     }
-    // no else statement
+    // no else statement attached to if
     else
     {
-        struct BasicBlock *noIfBlock = BasicBlock_new(++(*labelCount));
-        LinkedList_append(blockList, noIfBlock);
-        noifJump->operands[0] = (char *)((long int)noIfBlock->labelNum);
-        currentBlock = noIfBlock;
     }
 
     return resultBlocks;
@@ -727,6 +721,7 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
         // if we see a variable being declared and then assigned
         // generate the code and stick it on to the end of the block
         case t_var:
+        {
             switch (runner->child->type)
             {
             case t_assign:
@@ -755,7 +750,7 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
                 printf("Error linearizing statement - malformed parse tree under 'var' node\n");
                 exit(1);
             }
-
+        }
             break;
 
         // if we see an assignment, generate the code and stick it on to the end of the block
@@ -764,13 +759,16 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
             break;
 
         case t_call:
+        {
             // for a raw call, return value is not used, null out that operand
             currentTACIndex = linearizeFunctionCall(currentTACIndex, blockList, currentBlock, runner, tempNum, tl);
             struct TACLine *lastLine = currentBlock->TACList->tail->data;
             lastLine->operands[0] = NULL;
-            break;
+        }
+        break;
 
         case t_return:
+        {
             currentTACIndex = linearizeAssignment(currentTACIndex, blockList, currentBlock, runner->child, tempNum, tl);
             struct TACLine *returnLine = currentBlock->TACList->tail->data;
             // force the ".RETVAL" variable to a temp type since we don't care about its lifespan
@@ -780,7 +778,8 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
             returnTac->operands[0] = returnLine->operands[0];
             returnTac->operandTypes[0] = returnLine->operandTypes[0];
             BasicBlock_append(currentBlock, returnTac);
-            break;
+        }
+        break;
 
         /* this needs to be broken out into an entirely separate function
          * it is necessary to consider which basic block the branches will end up returning to
@@ -797,23 +796,33 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
             while (resultBlocks->size > 0)
             {
                 struct BasicBlock *poppedBlock = Stack_pop(resultBlocks);
-                struct TACLine *lastLine = poppedBlock->TACList->tail->data;
-                
+
+                // find last effective line, there will be state control
+                struct TACLine *lastLine = findLastEffectiveTAC(poppedBlock);
+
                 // if the block won't be jumped away from, add a forced jump to the "after" block
-                if (lastLine->operation != tt_jmp)
+                if (lastLine != NULL && lastLine->operation != tt_jmp)
                 {
                     struct TACLine *exitJump = newTACLine(lastLine->index + 1, tt_jmp);
                     exitJump->operands[0] = (char *)((long int)currentBlock->labelNum);
                     BasicBlock_append(poppedBlock, exitJump);
 
-                    if(lastLine->index + 1 > currentTACIndex)
+                    if (lastLine->index + 1 > currentTACIndex)
                         currentTACIndex = lastLine->index + 2;
-                }else{
-                    if(lastLine->index > currentTACIndex)
+                }
+                else
+                {
+                    if (lastLine->index > currentTACIndex)
                         currentTACIndex = lastLine->index + 1;
                 }
                 printBasicBlock(poppedBlock, 1);
             }
+
+            struct TACLine *endPop = newTACLine(currentTACIndex, tt_popstate);
+            BasicBlock_append(currentBlock, endPop);
+
+            // struct TACLine *popStateLine = newTACLine(currentTACIndex, tt_popstate);
+            // BasicBlock_append(currentBlock, popStateLine);
         }
         break;
 

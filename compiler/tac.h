@@ -87,4 +87,6 @@ void BasicBlock_append(struct BasicBlock *b, struct TACLine *l);
 
 void BasicBlock_prepend(struct BasicBlock *b, struct TACLine *l);
 
+struct TACLine *findLastEffectiveTAC(struct BasicBlock *b);
+
 void printBasicBlock(struct BasicBlock *b, int indentLevel);

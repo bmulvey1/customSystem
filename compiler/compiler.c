@@ -1330,10 +1330,12 @@ int main(int argc, char **argv)
 
                 // printf("%d\n", ((struct TACLine *)thisBlock->TACList->head->data)->index);
             }
-            for (int i = 0; i < blockStack->size; i++)
+
+            for (struct LinkedListNode *runner = thisEntry->table->BasicBlockList->head; runner != NULL; runner = runner->next)
             {
-                printBasicBlock(blockStack->data[blockStack->size - i - 1], 1);
+                printBasicBlock(runner->data, 0);
             }
+            
             int blockCount = blockStack->size;
             struct LinkedListNode **printArray = malloc(blockCount * sizeof(struct BasicBlock *));
             int printArraySize = 0;
