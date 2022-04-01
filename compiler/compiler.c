@@ -1382,11 +1382,6 @@ int main(int argc, char **argv)
                     }
                     if (((struct TACLine *)peekedBlock->TACList->head->data)->index <= TACIndex + 1)
                     {
-                        // printf("read startindex of %d\n", ((struct TACLine *)((struct BasicBlock *)Stack_peek(blockStack))->TACList->head->data)->index);
-                        for (int i = 0; i < 0xffffff; i++)
-                        {
-                        }
-                        // int j = 0;
                         for (int i = 0; i < blockCount; i++)
                             if (printArray[i] == NULL)
                             {
@@ -1394,8 +1389,6 @@ int main(int argc, char **argv)
                                 blockTitles[i] = malloc(16);
                                 sprintf(blockTitles[i], "Block %d", introducedBlock->labelNum);
                                 printArray[i] = introducedBlock->TACList->head;
-                                // while (j++ < i)
-                                // printf("                        ");
 
                                 // printf("[BASIC BLOCK %d]\n", introducedBlock->labelNum);
                                 // printf("introduce block %d (start index of %d) to array index %d\n", introducedBlock->labelNum, ((struct TACLine *)printArray[i]->data)->index, i);
@@ -1461,9 +1454,6 @@ int main(int argc, char **argv)
                         printArraySize = i + 1;
                         break;
                     }
-                }
-                for (int i = 0; i < 0xffffff; i++)
-                {
                 }
 
                 TACIndex++;
