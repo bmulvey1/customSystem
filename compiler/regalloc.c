@@ -582,10 +582,8 @@ int findSpilledVariable(struct Stack *spilledLilst, char *varName)
 
 struct LinkedList *findLifetimes(struct symbolTable *table)
 {
-    
     struct LinkedList *lifetimes = LinkedList_new();
-    /*
-    int TACIndex = 0;
+
     for (int i = 0; i < table->size; i++)
     {
         if (table->entries[i]->type == e_argument)
@@ -596,25 +594,33 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
             updateOrInsertLifetime(lifetimes, table->entries[i]->name, ((struct variableEntry *)table->entries[i]->entry)->type, 0);
         }
     }
-    for (struct TACLine *runner = table->codeBlock; runner != NULL; runner = runner->nextLine)
-    {
-        
-        for (int i = 0; i < 3; i++)
-        {
-            switch (runner->operandTypes[i])
-            {
-            case vt_var:
-            case vt_temp:
-                // printf("%s is %d\n", runner->operands[i], runner->operandTypes[i]);
-                updateOrInsertLifetime(lifetimes, runner->operands[i], runner->operandTypes[i], TACIndex);
-                break;
-            default:
-            }
-        }
 
-        TACIndex++;
+    struct LinkedListNode *blockRunner = table->BasicBlockList->head;
+    while (blockRunner != NULL)
+    {
+        struct BasicBlock *thisBlock = blockRunner->data;
+        struct LinkedListNode *TACRunner = thisBlock->TACList->head;
+        while (TACRunner != NULL)
+        {
+            struct TACLine *thisLine = TACRunner->data;
+            int TACIndex = thisLine->index;
+
+            for (int i = 0; i < 3; i++)
+            {
+                switch (thisLine->operandTypes[i])
+                {
+                case vt_var:
+                case vt_temp:
+                    // printf("%s is %d\n", runner->operands[i], runner->operandTypes[i]);
+                    updateOrInsertLifetime(lifetimes, thisLine->operands[i], thisLine->operandTypes[i], TACIndex);
+                    break;
+                default:
+                }
+            }
+            TACRunner = TACRunner->next;
+        }
+        blockRunner = blockRunner->next;
     }
-    */
     return lifetimes;
 }
 

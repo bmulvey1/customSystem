@@ -9,7 +9,7 @@
 #include "linearizer.h"
 #include "state.h"
 #include "asm.h"
-// #include "regalloc.h"
+#include "regalloc.h"
 
 /*
 
@@ -1279,40 +1279,8 @@ int compareBasicBlockStartIndices(struct BasicBlock *a, struct BasicBlock *b)
     return ((struct TACLine *)a->TACList->head->data)->index < ((struct TACLine *)b->TACList->head->data)->index;
 }
 
-int main(int argc, char **argv)
+void prettyPrintBasicBlocks(struct symbolTable *theTable)
 {
-    if (argc < 2)
-    {
-        printf("Error - please specify an input and output file!\n");
-        exit(1);
-    }
-    else if (argc < 3)
-    {
-        printf("Error - please specify an output file!\n");
-        exit(1);
-    }
-    printf("Parsing program from %s\n", argv[1]);
-
-    printf("Generating output to %s\n", argv[2]);
-    struct Dictionary *parseDict = newDictionary(10);
-    struct astNode *program = parseProgram(argv[1], parseDict);
-
-    printf("\n");
-
-    printAST(program, 0);
-    printf("Generating symbol table from AST");
-    struct symbolTable *theTable = walkAST(program);
-    printf("\n");
-
-    printf("Linearizing code to TAC");
-    linearizeProgram(program, theTable);
-    printf("\n");
-
-    printSymTab(theTable, 1);
-    printf("\n\n");
-
-    FILE *outFile = fopen(argv[2], "wb");
-
     for (int i = 0; i < theTable->size; i++)
     {
         if (theTable->entries[i]->type == e_function)
@@ -1335,7 +1303,7 @@ int main(int argc, char **argv)
             {
                 printBasicBlock(runner->data, 0);
             }
-            
+
             int blockCount = blockStack->size;
             struct LinkedListNode **printArray = malloc(blockCount * sizeof(struct BasicBlock *));
             int printArraySize = 0;
@@ -1439,7 +1407,9 @@ int main(int argc, char **argv)
                                 printf("                        ");
                             }*/
                         }
-                    }else{
+                    }
+                    else
+                    {
                         printf("------------------------|");
                     }
                 }
@@ -1460,33 +1430,64 @@ int main(int argc, char **argv)
             }
         }
     }
+}
 
-    /*
-    struct Lifetime *theseLifetimes = findLifetimes(theTable);
-    struct ASMblock *output = generateCode(theTable, theTable->name, theseLifetimes);
-    ASMblock_output(output, outFile);
-    ASMblock_free(output);
-    freeLifetime(theseLifetimes);
+int main(int argc, char **argv)
+{
+    if (argc < 2)
+    {
+        printf("Error - please specify an input and output file!\n");
+        exit(1);
+    }
+    else if (argc < 3)
+    {
+        printf("Error - please specify an output file!\n");
+        exit(1);
+    }
+    printf("Parsing program from %s\n", argv[1]);
+
+    printf("Generating output to %s\n", argv[2]);
+    struct Dictionary *parseDict = newDictionary(10);
+    struct astNode *program = parseProgram(argv[1], parseDict);
+
+    printf("\n");
+
+    printAST(program, 0);
+    printf("Generating symbol table from AST");
+    struct symbolTable *theTable = walkAST(program);
+    printf("\n");
+
+    printf("Linearizing code to TAC");
+    linearizeProgram(program, theTable);
+    printf("\n");
+
+    prettyPrintBasicBlocks(theTable);
+
+    printSymTab(theTable, 1);
+    printf("\n\n");
+
+    FILE *outFile = fopen(argv[2], "wb");
+
+    // struct Lifetime *theseLifetimes = findLifetimes(theTable);
+    struct ASMblock *output;
+
     for (int i = 0; i < theTable->size; i++)
     {
         if (theTable->entries[i]->type == e_function)
         {
             struct functionEntry *thisEntry = theTable->entries[i]->entry;
-            theseLifetimes = findLifetimes(thisEntry->table);
-
+            output = generateCode(thisEntry->table, outFile);
             // for (struct Lifetime *ltRunner = theseLifetimes; ltRunner != NULL; ltRunner = ltRunner->next)
             // {
             // printf("Var [%8s]: %2x - %2x\n", ltRunner->variable, ltRunner->start, ltRunner->end);
             // }
 
-            output = generateCode(thisEntry->table, theTable->entries[i]->name, theseLifetimes);
             // run along all the lines of asm output from this funtcion, printing and freeing as we go
             ASMblock_output(output, outFile);
             ASMblock_free(output);
-            freeLifetime(theseLifetimes);
         }
     }
-    */
+
     fclose(outFile);
     freeDictionary(parseDict);
     freeAST(program);
