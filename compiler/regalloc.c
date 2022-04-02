@@ -660,369 +660,376 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
     }
 
     // iterate each TAC line
-    // int TACIndex = 0;
-    // int currentLifetimeIndex = 0;
+    int TACIndex = 0;
+    int currentLifetimeIndex = 0;
     char *outputLine;
     struct Stack *savedStateStack = Stack_new();
-    /*
-    for (struct TACLine *runner = table->codeBlock; runner != NULL; runner = runner->nextLine)
+
+    struct LinkedListNode *blockRunner = table->BasicBlockList->head;
+    while (blockRunner != NULL)
     {
+        struct BasicBlock *thisBlock = blockRunner->data;
 
-        expireOldIntervals(activeList, inactiveList, spilledList, TACIndex);
-
-        // increment last used values of all active registers or reset if variable used in this step
-        for (int i = 0; i < activeList->size; i++)
+        struct LinkedListNode *TACRunner = thisBlock->TACList->head;
+        while (TACRunner != NULL)
         {
-            struct Register *thisReg = activeList->data[i];
-            thisReg->lastUsed++;
-            for (int i = 0; i < 3; i++)
+            struct TACLine *currentTAC = TACRunner->data;
+            TACIndex = currentTAC->index;
+            expireOldIntervals(activeList, inactiveList, spilledList, TACIndex);
+
+            // increment last used values of all active registers or reset if variable used in this step
+            for (int i = 0; i < activeList->size; i++)
             {
-                switch (runner->operandTypes[i])
+                struct Register *thisReg = activeList->data[i];
+                thisReg->lastUsed++;
+                for (int i = 0; i < 3; i++)
                 {
-                case vt_var:
-                case vt_temp:
-                    if (!strcmp(thisReg->lifetime->variable, runner->operands[i]))
-                        thisReg->lastUsed = 0;
+                    switch (currentTAC->operandTypes[i])
+                    {
+                    case vt_var:
+                    case vt_temp:
+                        if (!strcmp(thisReg->lifetime->variable, currentTAC->operands[i]))
+                            thisReg->lastUsed = 0;
 
-                    break;
+                        break;
 
-                default:
-                    break;
+                    default:
+                        break;
+                    }
                 }
             }
-        }
 
-        char *finalOutputLine;
-        char *printedTAC;
+            char *finalOutputLine;
+            char *printedTAC;
 
-        // for all previously unseen lifetimes starting before or on this TAC index
-        while (currentLifetimeIndex < lifetimeCount && lifetimeArray[currentLifetimeIndex]->start <= TACIndex)
-        {
-            // grab the lifetime
-            struct Lifetime *this = lifetimeArray[currentLifetimeIndex++];
-
-            // spill a register if one isn't available
-            if (inactiveList->size == 0)
+            // for all previously unseen lifetimes starting before or on this TAC index
+            while (currentLifetimeIndex < lifetimeCount && lifetimeArray[currentLifetimeIndex]->start <= TACIndex)
             {
-                // printf("need to spill\n");
-                spillRegister(activeList, inactiveList, spilledList, outputBlock, table);
+                // grab the lifetime
+                struct Lifetime *this = lifetimeArray[currentLifetimeIndex++];
 
-                // Stack_push(spilledList, thisSpill);
-                if (spilledList->size * 2 > maxSpillSpace)
-                    maxSpillSpace = spilledList->size * 2;
-            }
-
-            // assign this variable to the next free register
-            int destinationIndex = assignRegister(activeList, inactiveList, this);
-
-            // place the value into the register if this is an argument (value starts on the stack)
-            if (this->variable[0] != '.' && symbolTableLookup(table, this->variable)->type == e_argument)
-            {
-                printf("PLACE ARGUMENT %s AT REGISTER %d\n", this->variable, destinationIndex);
-                outputLine = malloc(20);
-                struct variableEntry *theArgument = symbolTableLookup(table, this->variable)->entry;
-                sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationIndex, theArgument->stackOffset);
-                finalOutputLine = malloc(128);
-                sprintf(finalOutputLine, "%s ;place argument %s", outputLine, this->variable);
-                free(outputLine);
-                ASMblock_append(outputBlock, finalOutputLine);
-                printf("need to place argument [%s] in newly assigned register %d\n", this->variable, destinationIndex);
-            }
-        }
-        int destinationRegister;
-        int firstSourceRegister;
-        int secondSourceRegister;
-        switch (runner->operation)
-        {
-        case tt_assign:
-        {
-            outputLine = malloc(20);
-            finalOutputLine = malloc(64);
-            destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, runner->operands[0], outputBlock, table);
-            if (runner->operandTypes[1] == vt_literal)
-            {
-                sprintf(outputLine, "mov %%r%d, $%s", destinationRegister, runner->operands[1]);
-            }
-            else
-            {
-                firstSourceRegister = findActiveVariable(activeList, runner->operands[1]);
-                if (firstSourceRegister != -1)
+                // spill a register if one isn't available
+                if (inactiveList->size == 0)
                 {
-                    sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
+                    // printf("need to spill\n");
+                    spillRegister(activeList, inactiveList, spilledList, outputBlock, table);
+
+                    // Stack_push(spilledList, thisSpill);
+                    if (spilledList->size * 2 > maxSpillSpace)
+                        maxSpillSpace = spilledList->size * 2;
+                }
+
+                // assign this variable to the next free register
+                int destinationIndex = assignRegister(activeList, inactiveList, this);
+
+                // place the value into the register if this is an argument (value starts on the stack)
+                if (this->variable[0] != '.' && symbolTableLookup(table, this->variable)->type == e_argument)
+                {
+                    printf("PLACE ARGUMENT %s AT REGISTER %d\n", this->variable, destinationIndex);
+                    outputLine = malloc(20);
+                    struct variableEntry *theArgument = symbolTableLookup(table, this->variable)->entry;
+                    sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationIndex, theArgument->stackOffset);
+                    finalOutputLine = malloc(128);
+                    sprintf(finalOutputLine, "%s ;place argument %s", outputLine, this->variable);
+                    free(outputLine);
+                    ASMblock_append(outputBlock, finalOutputLine);
+                    printf("need to place argument [%s] in newly assigned register %d\n", this->variable, destinationIndex);
+                }
+            }
+            int destinationRegister;
+            int firstSourceRegister;
+            int secondSourceRegister;
+            switch (currentTAC->operation)
+            {
+            case tt_assign:
+            {
+                outputLine = malloc(20);
+                finalOutputLine = malloc(64);
+                destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+                if (currentTAC->operandTypes[1] == vt_literal)
+                {
+                    sprintf(outputLine, "mov %%r%d, $%s", destinationRegister, currentTAC->operands[1]);
                 }
                 else
                 {
-                    sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationRegister, findSpilledVariable(spilledList, runner->operands[1]));
-                }
-            }
-            // ASMblock_append(outputBlock, outputLine);
-            printedTAC = sPrintTACLine(runner);
-            sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
-            free(outputLine);
-            free(printedTAC);
-            ASMblock_append(outputBlock, finalOutputLine);
-        }
-        break;
-
-        case tt_add:
-        case tt_subtract:
-        {
-            outputLine = malloc(20);
-            finalOutputLine = malloc(64);
-            destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, runner->operands[0], outputBlock, table);
-
-            if (strcmp(runner->operands[0], runner->operands[1]))
-                firstSourceRegister = findActiveVariable(activeList, runner->operands[1]);
-            else
-                firstSourceRegister = destinationRegister;
-
-            if (strcmp(runner->operands[0], runner->operands[2]))
-                secondSourceRegister = findActiveVariable(activeList, runner->operands[2]);
-            else
-                secondSourceRegister = destinationRegister;
-
-            // printf("OPERAND INDICES ARE %d %d %d\n", destinationRegister, firstSourceRegister, secondSourceRegister);
-
-            // both source operands are variables in registers
-            if (firstSourceRegister != -1 && secondSourceRegister != -1)
-            {
-                if (firstSourceRegister == secondSourceRegister)
-                {
-                    if (firstSourceRegister == destinationRegister)
+                    firstSourceRegister = findActiveVariable(activeList, currentTAC->operands[1]);
+                    if (firstSourceRegister != -1)
                     {
-                        sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(runner->operation), destinationRegister, destinationRegister);
+                        sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
+                    }
+                    else
+                    {
+                        sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationRegister, findSpilledVariable(spilledList, currentTAC->operands[1]));
+                    }
+                }
+                // ASMblock_append(outputBlock, outputLine);
+                printedTAC = sPrintTACLine(currentTAC);
+                sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
+                free(outputLine);
+                free(printedTAC);
+                ASMblock_append(outputBlock, finalOutputLine);
+            }
+            break;
+
+            case tt_add:
+            case tt_subtract:
+            {
+                outputLine = malloc(20);
+                finalOutputLine = malloc(64);
+                destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+
+                if (strcmp(currentTAC->operands[0], currentTAC->operands[1]))
+                    firstSourceRegister = findActiveVariable(activeList, currentTAC->operands[1]);
+                else
+                    firstSourceRegister = destinationRegister;
+
+                if (strcmp(currentTAC->operands[0], currentTAC->operands[2]))
+                    secondSourceRegister = findActiveVariable(activeList, currentTAC->operands[2]);
+                else
+                    secondSourceRegister = destinationRegister;
+
+                // printf("OPERAND INDICES ARE %d %d %d\n", destinationRegister, firstSourceRegister, secondSourceRegister);
+
+                // both source operands are variables in registers
+                if (firstSourceRegister != -1 && secondSourceRegister != -1)
+                {
+                    if (firstSourceRegister == secondSourceRegister)
+                    {
+                        if (firstSourceRegister == destinationRegister)
+                        {
+                            sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(currentTAC->operation), destinationRegister, destinationRegister);
+                        }
+                        else
+                        {
+                            sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
+                            ASMblock_append(outputBlock, outputLine);
+                            outputLine = malloc(20);
+                            sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(currentTAC->operation), secondSourceRegister, secondSourceRegister);
+                        }
                     }
                     else
                     {
                         sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
                         ASMblock_append(outputBlock, outputLine);
                         outputLine = malloc(20);
-                        sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(runner->operation), secondSourceRegister, secondSourceRegister);
+                        sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(currentTAC->operation), destinationRegister, secondSourceRegister);
                     }
                 }
                 else
                 {
-                    sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
-                    ASMblock_append(outputBlock, outputLine);
-                    outputLine = malloc(20);
-                    sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(runner->operation), destinationRegister, secondSourceRegister);
-                }
-            }
-            else
-            {
-                // first source exists in register, second is spilled or a literal
-                if (firstSourceRegister != -1 && secondSourceRegister == -1)
-                {
-                    sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
-                    ASMblock_append(outputBlock, outputLine);
-                    outputLine = malloc(20);
-                    if (runner->operandTypes[2] == vt_literal)
+                    // first source exists in register, second is spilled or a literal
+                    if (firstSourceRegister != -1 && secondSourceRegister == -1)
                     {
-                        sprintf(outputLine, "%s %%r%d, $%s", getAsmOp(runner->operation), destinationRegister, runner->operands[2]);
-                    }
-                    else
-                    {
-                        sprintf(outputLine, "%s %%r%d, %d(%%bp)", getAsmOp(runner->operation), destinationRegister, findSpilledVariable(spilledList, runner->operands[2]));
-                    }
-                }
-                // second source exists in register, first is spilled
-                else if (firstSourceRegister == -1 && secondSourceRegister != -1)
-                {
-                    if (runner->operandTypes[1] == vt_literal)
-                    {
-                        sprintf(outputLine, "mov %%r%d, $%s", destinationRegister, runner->operands[1]);
+                        sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
                         ASMblock_append(outputBlock, outputLine);
+                        outputLine = malloc(20);
+                        if (currentTAC->operandTypes[2] == vt_literal)
+                        {
+                            sprintf(outputLine, "%s %%r%d, $%s", getAsmOp(currentTAC->operation), destinationRegister, currentTAC->operands[2]);
+                        }
+                        else
+                        {
+                            sprintf(outputLine, "%s %%r%d, %d(%%bp)", getAsmOp(currentTAC->operation), destinationRegister, findSpilledVariable(spilledList, currentTAC->operands[2]));
+                        }
                     }
+                    // second source exists in register, first is spilled
+                    else if (firstSourceRegister == -1 && secondSourceRegister != -1)
+                    {
+                        if (currentTAC->operandTypes[1] == vt_literal)
+                        {
+                            sprintf(outputLine, "mov %%r%d, $%s", destinationRegister, currentTAC->operands[1]);
+                            ASMblock_append(outputBlock, outputLine);
+                        }
+                        else
+                        {
+                            sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationRegister, findSpilledVariable(spilledList, currentTAC->operands[1]));
+                            ASMblock_append(outputBlock, outputLine);
+                        }
+                        outputLine = malloc(20);
+                        sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(currentTAC->operation), destinationRegister, secondSourceRegister);
+                    }
+                    // both sources are spilled - will break if both are literals but this should be checked earlier
                     else
                     {
-                        sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationRegister, findSpilledVariable(spilledList, runner->operands[1]));
+                        sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationRegister, findSpilledVariable(spilledList, currentTAC->operands[1]));
                         ASMblock_append(outputBlock, outputLine);
-                    }
-                    outputLine = malloc(20);
-                    sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(runner->operation), destinationRegister, secondSourceRegister);
-                }
-                // both sources are spilled - will break if both are literals but this should be checked earlier
-                else
-                {
-                    sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationRegister, findSpilledVariable(spilledList, runner->operands[1]));
-                    ASMblock_append(outputBlock, outputLine);
-                    outputLine = malloc(20);
-                    sprintf(outputLine, "%s %%r%d, %d(%%bp)", getAsmOp(runner->operation), destinationRegister, findSpilledVariable(spilledList, runner->operands[2]));
-                }
-            }
-            printedTAC = sPrintTACLine(runner);
-            sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
-            free(outputLine);
-            free(printedTAC);
-            ASMblock_append(outputBlock, finalOutputLine);
-        }
-        break;
-
-        case tt_cmp:
-        {
-            outputLine = malloc(20);
-            finalOutputLine = malloc(64);
-            firstSourceRegister = findActiveVariable(activeList, runner->operands[1]);
-
-            secondSourceRegister = findActiveVariable(activeList, runner->operands[2]);
-
-            // printf("OPERAND INDICES ARE %d %d %d\n", destinationRegister, firstSourceRegister, secondSourceRegister);
-
-            // both source operands are variables in registers
-            if (firstSourceRegister != -1 && secondSourceRegister != -1)
-            {
-                if (firstSourceRegister == secondSourceRegister)
-                {
-                    sprintf(outputLine, "cmp %%r%d, %%r%d", firstSourceRegister, firstSourceRegister);
-                }
-                else
-                {
-                    sprintf(outputLine, "cmp %%r%d, %%r%d", firstSourceRegister, secondSourceRegister);
-                }
-            }
-            else
-            {
-                // first source exists in register, second is spilled or a literal
-                if (firstSourceRegister != -1 && secondSourceRegister == -1)
-                {
-                    if (runner->operandTypes[2] == vt_literal)
-                    {
-                        sprintf(outputLine, "cmp %%r%d, $%s", firstSourceRegister, runner->operands[2]);
-                    }
-                    else
-                    {
-                        sprintf(outputLine, "cmp %%r%d, %d(%%bp)", firstSourceRegister, findSpilledVariable(spilledList, runner->operands[2]));
+                        outputLine = malloc(20);
+                        sprintf(outputLine, "%s %%r%d, %d(%%bp)", getAsmOp(currentTAC->operation), destinationRegister, findSpilledVariable(spilledList, currentTAC->operands[2]));
                     }
                 }
-                // second source exists in register, first is spilled
-                else if (firstSourceRegister == -1 && secondSourceRegister != -1)
-                {
-                    firstSourceRegister = unSpillVariable(activeList, inactiveList, spilledList, runner->operands[0], outputBlock, table);
-
-                    sprintf(outputLine, "cmp %%r%d, %%r%d", firstSourceRegister, secondSourceRegister);
-                }
-
-                // both sources are spilled - will break if both are literals but this should be checked earlier
-                else
-                {
-                    firstSourceRegister = unSpillVariable(activeList, inactiveList, spilledList, runner->operands[0], outputBlock, table);
-                    sprintf(outputLine, "cmp %%r%d, %d(%%bp)", firstSourceRegister, findSpilledVariable(spilledList, runner->operands[2]));
-                }
+                printedTAC = sPrintTACLine(currentTAC);
+                sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
+                free(outputLine);
+                free(printedTAC);
+                ASMblock_append(outputBlock, finalOutputLine);
             }
-            printedTAC = sPrintTACLine(runner);
-            sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
-            free(outputLine);
-            free(printedTAC);
-            ASMblock_append(outputBlock, finalOutputLine);
-        }
-        break;
-
-        case tt_pushstate:
-        {
-            printf("PUSH STATE\n");
-            // deep copy the states and push them to the state stack
-            struct Stack *duplicatedStack = Stack_new();
-            for (int i = 0; i < activeList->size; i++)
-                Stack_push(duplicatedStack, duplicateRegister(activeList->data[i]));
-
-            Stack_push(savedStateStack, duplicatedStack);
-
-            duplicatedStack = Stack_new();
-            for (int i = 0; i < inactiveList->size; i++)
-                Stack_push(duplicatedStack, duplicateRegister(inactiveList->data[i]));
-
-            Stack_push(savedStateStack, duplicatedStack);
-
-            duplicatedStack = Stack_new();
-            for (int i = 0; i < spilledList->size; i++)
-                Stack_push(duplicatedStack, duplicateSpilledRegister(spilledList->data[i]));
-
-            Stack_push(savedStateStack, duplicatedStack);
-        }
-        break;
-
-        case tt_restorestate:
-            restoreRegisterStates(savedStateStack, activeList, inactiveList, spilledList, outputBlock, TACIndex);
             break;
 
-        case tt_resetstate:
-            resetRegisterStates(savedStateStack, activeList, inactiveList, spilledList);
+            case tt_cmp:
+            {
+                outputLine = malloc(20);
+                finalOutputLine = malloc(64);
+                firstSourceRegister = findActiveVariable(activeList, currentTAC->operands[1]);
+
+                secondSourceRegister = findActiveVariable(activeList, currentTAC->operands[2]);
+
+                // printf("OPERAND INDICES ARE %d %d %d\n", destinationRegister, firstSourceRegister, secondSourceRegister);
+
+                // both source operands are variables in registers
+                if (firstSourceRegister != -1 && secondSourceRegister != -1)
+                {
+                    if (firstSourceRegister == secondSourceRegister)
+                    {
+                        sprintf(outputLine, "cmp %%r%d, %%r%d", firstSourceRegister, firstSourceRegister);
+                    }
+                    else
+                    {
+                        sprintf(outputLine, "cmp %%r%d, %%r%d", firstSourceRegister, secondSourceRegister);
+                    }
+                }
+                else
+                {
+                    // first source exists in register, second is spilled or a literal
+                    if (firstSourceRegister != -1 && secondSourceRegister == -1)
+                    {
+                        if (currentTAC->operandTypes[2] == vt_literal)
+                        {
+                            sprintf(outputLine, "cmp %%r%d, $%s", firstSourceRegister, currentTAC->operands[2]);
+                        }
+                        else
+                        {
+                            sprintf(outputLine, "cmp %%r%d, %d(%%bp)", firstSourceRegister, findSpilledVariable(spilledList, currentTAC->operands[2]));
+                        }
+                    }
+                    // second source exists in register, first is spilled
+                    else if (firstSourceRegister == -1 && secondSourceRegister != -1)
+                    {
+                        firstSourceRegister = unSpillVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+
+                        sprintf(outputLine, "cmp %%r%d, %%r%d", firstSourceRegister, secondSourceRegister);
+                    }
+
+                    // both sources are spilled - will break if both are literals but this should be checked earlier
+                    else
+                    {
+                        firstSourceRegister = unSpillVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+                        sprintf(outputLine, "cmp %%r%d, %d(%%bp)", firstSourceRegister, findSpilledVariable(spilledList, currentTAC->operands[2]));
+                    }
+                }
+                printedTAC = sPrintTACLine(currentTAC);
+                sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
+                free(outputLine);
+                free(printedTAC);
+                ASMblock_append(outputBlock, finalOutputLine);
+            }
             break;
 
-        case tt_popstate:
-        {
-            for (int i = 0; i < 3; i++)
+            case tt_pushstate:
             {
-                struct Stack *poppedStack = Stack_pop(savedStateStack);
-                while (poppedStack->size > 0)
-                    free(Stack_pop(poppedStack));
+                printf("PUSH STATE\n");
+                // deep copy the states and push them to the state stack
+                struct Stack *duplicatedStack = Stack_new();
+                for (int i = 0; i < activeList->size; i++)
+                    Stack_push(duplicatedStack, duplicateRegister(activeList->data[i]));
 
-                Stack_free(poppedStack);
+                Stack_push(savedStateStack, duplicatedStack);
+
+                duplicatedStack = Stack_new();
+                for (int i = 0; i < inactiveList->size; i++)
+                    Stack_push(duplicatedStack, duplicateRegister(inactiveList->data[i]));
+
+                Stack_push(savedStateStack, duplicatedStack);
+
+                duplicatedStack = Stack_new();
+                for (int i = 0; i < spilledList->size; i++)
+                    Stack_push(duplicatedStack, duplicateSpilledRegister(spilledList->data[i]));
+
+                Stack_push(savedStateStack, duplicatedStack);
             }
-        }
-        break;
+            break;
 
-        case tt_return:
-        {
-            // find where the return value is (it must be active in a register because it was just assigned!)
-            int retValIndex = findActiveVariable(activeList, runner->operands[0]);
-            if (retValIndex == -1)
+            case tt_restorestate:
+                restoreRegisterStates(savedStateStack, activeList, inactiveList, spilledList, outputBlock, TACIndex);
+                break;
+
+            case tt_resetstate:
+                resetRegisterStates(savedStateStack, activeList, inactiveList, spilledList);
+                break;
+
+            case tt_popstate:
             {
-                printf("RETURN VALUE %s NOT FOUND ACTIVE IN REGISTER!", runner->operands[0]);
-                exit(1);
+                for (int i = 0; i < 3; i++)
+                {
+                    struct Stack *poppedStack = Stack_pop(savedStateStack);
+                    while (poppedStack->size > 0)
+                        free(Stack_pop(poppedStack));
+
+                    Stack_free(poppedStack);
+                }
+            }
+            break;
+
+            case tt_return:
+            {
+                // find where the return value is (it must be active in a register because it was just assigned!)
+                int retValIndex = findActiveVariable(activeList, currentTAC->operands[0]);
+                if (retValIndex == -1)
+                {
+                    printf("RETURN VALUE %s NOT FOUND ACTIVE IN REGISTER!", currentTAC->operands[0]);
+                    exit(1);
+                }
+
+                // if it's not in register 0, move it there
+                if (retValIndex != 0)
+                {
+                    outputLine = malloc(64);
+                    sprintf(outputLine, "mov %%r0, %%r%d", retValIndex);
+                    ASMblock_append(outputBlock, outputLine);
+                }
+                break;
             }
 
-            // if it's not in register 0, move it there
-            if (retValIndex != 0)
+            case tt_jg:
+            case tt_jge:
+            case tt_jl:
+            case tt_jle:
+            case tt_je:
+            case tt_jne:
+            case tt_jmp:
             {
                 outputLine = malloc(64);
-                sprintf(outputLine, "mov %%r0, %%r%d", retValIndex);
+                sprintf(outputLine, "%s %s_%ld", getAsmOp(currentTAC->operation), table->name, (long int)currentTAC->operands[0]);
                 ASMblock_append(outputBlock, outputLine);
+                break;
             }
             break;
+
+            case tt_label:
+                outputLine = malloc(64);
+                sprintf(outputLine, ".%s_%ld:", table->name, (long int)currentTAC->operands[0]);
+                ASMblock_append(outputBlock, outputLine);
+                break;
+
+            case tt_asm:
+                ASMblock_append(outputBlock, currentTAC->operands[0]);
+                break;
+
+            default:
+            }
+
+            registerLoads[inactiveList->size]++;
+            int activeSpills = 0;
+            for (int i = 0; i < spilledList->size; i++)
+            {
+                struct SpilledRegister *examinedSpill = spilledList->data[i];
+                if (examinedSpill->occupied)
+                    activeSpills++;
+            }
+            stackLoads[activeSpills]++;
+
+            TACRunner = TACRunner->next;
         }
-
-        case tt_jg:
-        case tt_jge:
-        case tt_jl:
-        case tt_jle:
-        case tt_je:
-        case tt_jne:
-        case tt_jmp:
-        {
-            outputLine = malloc(64);
-            sprintf(outputLine, "%s %s_%ld", getAsmOp(runner->operation), table->name, (long int)runner->operands[0]);
-            ASMblock_append(outputBlock, outputLine);
-            break;
-        }
-        break;
-
-        case tt_label:
-            outputLine = malloc(64);
-            sprintf(outputLine, ".%s_%ld:", table->name, (long int)runner->operands[0]);
-            ASMblock_append(outputBlock, outputLine);
-            break;
-
-        case tt_asm:
-            ASMblock_append(outputBlock, runner->operands[0]);
-            break;
-
-        default:
-        }
-
-        registerLoads[inactiveList->size]++;
-        int activeSpills = 0;
-        for (int i = 0; i < spilledList->size; i++)
-        {
-            struct SpilledRegister *examinedSpill = spilledList->data[i];
-            if (examinedSpill->occupied)
-                activeSpills++;
-        }
-        stackLoads[activeSpills]++;
-
-        TACIndex++;
     }
-    */
 
     if (maxSpillSpace > 0)
     {

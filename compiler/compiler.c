@@ -7,7 +7,6 @@
 #include "symtab.h"
 #include "util.h"
 #include "linearizer.h"
-#include "state.h"
 #include "asm.h"
 #include "regalloc.h"
 
