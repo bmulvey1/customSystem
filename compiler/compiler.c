@@ -1280,6 +1280,7 @@ int compareBasicBlockStartIndices(struct BasicBlock *a, struct BasicBlock *b)
 
 void prettyPrintBasicBlocks(struct symbolTable *theTable)
 {
+    printf("Basic Blocks for %s\n", theTable->name);
     for (int i = 0; i < theTable->size; i++)
     {
         if (theTable->entries[i]->type == e_function)
@@ -1339,7 +1340,6 @@ void prettyPrintBasicBlocks(struct symbolTable *theTable)
 
                 while (blockStack->size > 0)
                 {
-
                     struct BasicBlock *peekedBlock = Stack_peek(blockStack);
 
                     if (peekedBlock->TACList->head == NULL)
@@ -1429,6 +1429,7 @@ void prettyPrintBasicBlocks(struct symbolTable *theTable)
             }
         }
     }
+    printf("\n\n");
 }
 
 int main(int argc, char **argv)

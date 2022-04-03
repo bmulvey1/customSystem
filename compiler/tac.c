@@ -96,6 +96,9 @@ char *getAsmOp(enum TACType t)
 
     case tt_popstate:
         return "POPSTATE";
+
+    case tt_expireatinterval:
+        return "EXPIRE AT INTERVAL";
     }
     return "";
 }
@@ -248,6 +251,10 @@ void printTACLine(struct TACLine *it)
     case tt_popstate:
         width += printf("POPSTATE");
         break;
+
+    case tt_expireatinterval:
+        width += printf("EXPIREAT %2lx", (long int)it->operands[0]);
+        break;
     }
     while (width++ < 24)
     {
@@ -378,6 +385,10 @@ char *sPrintTACLine(struct TACLine *it)
     case tt_popstate:
         width += sprintf(tacString, "POPSTATE");
         break;
+
+    case tt_expireatinterval:
+        width += sprintf(tacString, "EXPIREAT %2lx", (long int)it->operands[0]);
+        break;
     }
 
     char *trimmedString = malloc(width + 1);
@@ -400,6 +411,7 @@ char TACLine_isEffective(struct TACLine *it)
     case tt_restorestate:
     case tt_resetstate:
     case tt_declare:
+    case tt_expireatinterval:
         return 0;
         break;
 
@@ -439,10 +451,12 @@ void BasicBlock_prepend(struct BasicBlock *b, struct TACLine *l)
 struct TACLine *findLastEffectiveTAC(struct BasicBlock *b)
 {
     struct LinkedListNode *runner = b->TACList->tail;
-    while(runner != NULL && !TACLine_isEffective(runner->data)){
+    while (runner != NULL && !TACLine_isEffective(runner->data))
+    {
         runner = runner->prev;
     }
-    if(runner == NULL){
+    if (runner == NULL)
+    {
         return NULL;
     }
     return runner->data;
