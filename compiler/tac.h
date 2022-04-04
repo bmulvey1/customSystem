@@ -48,7 +48,6 @@ enum TACType
     tt_restorestate,
     tt_resetstate,
     tt_popstate,
-    tt_expireatinterval
 };
 
 struct TACLine

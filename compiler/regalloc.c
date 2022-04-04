@@ -1,6 +1,6 @@
 #include "regalloc.h"
 
-#define REGISTER_COUNT 3
+#define REGISTER_COUNT 2
 
 struct Lifetime *newLifetime(char *variable, enum variableTypes type, int start)
 {
@@ -284,6 +284,34 @@ int unSpillVariable(struct Stack *activeList, struct Stack *inactiveList, struct
     exit(1);
 }
 
+// find which register a variable lives in, returning -1 if not currently active in a register
+int findActiveVariable(struct Stack *activeList, char *varName)
+{
+    for (int i = 0; i < activeList->size; i++)
+    {
+        if (!strcmp(((struct Register *)activeList->data[i])->lifetime->variable, varName))
+            return ((struct Register *)activeList->data[i])->index;
+    }
+
+    return -1;
+}
+
+// return the stack offset of a variable which has been spilled to stack
+int findSpilledVariable(struct Stack *spilledLilst, char *varName)
+{
+    for (int i = 0; i < spilledLilst->size; i++)
+    {
+        struct SpilledRegister *examinedSpill = spilledLilst->data[i];
+        if (examinedSpill->occupied && !strcmp(examinedSpill->lifetime->variable, varName))
+        {
+            return examinedSpill->stackOffset;
+        }
+    }
+
+    printf("Error - unable to find inactive variable [%s] - not on stack!\n", varName);
+    exit(1);
+}
+
 void printLifetimesGraph(struct LinkedList *lifetimeList)
 {
     for (struct LinkedListNode *runner = lifetimeList->head; runner != NULL; runner = runner->next)
@@ -329,14 +357,12 @@ struct SavedState *duplicateCurrentState(struct Stack *activeList, struct Stack 
     wip->spilledList = duplicatedStack;
 
     wip->currentLifetimeIndex = currentLifetimeIndex;
-    printf("DUPLICATE STATES TO\n");
-    printCurrentState(wip->activeList, wip->inactiveList, wip->spilledList);
     return wip;
 }
 
 void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, int *currentLifetimeIndex, int TACIndex, struct ASMblock *outputBlock)
 {
-    printf("restore register states\n");
+    printf("restore register states at TAC index %d\n", TACIndex);
     printf("%d live registers, %d free registers, %d vars on stack\n\n", activeList->size, inactiveList->size, spilledList->size);
 
     // pull the saved states off the stack
@@ -349,137 +375,58 @@ void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeLi
     *currentLifetimeIndex = editableState->currentLifetimeIndex;
 
     // expire anything that is no longer living at the TAC index of the restore
+    expireOldIntervals(activeList, inactiveList, spilledList, TACIndex);
     expireOldIntervals(savedActiveList, savedInactiveList, savedSpilledList, TACIndex);
-
-    struct Stack *relocationStack = Stack_new();
 
     // variables which have literally been pushed to the stack to free their registers
     // struct Stack *relocationStack = Stack_new();
 
-    struct Register **currentState = malloc(12 * sizeof(struct Register *));
-    struct Register **desiredState = malloc(12 * sizeof(struct Register *));
     sortByRegisterNumber((struct Register **)activeList->data, activeList->size);
     sortByRegisterNumber((struct Register **)inactiveList->data, inactiveList->size);
 
-    int p = 0;
-    while (activeList->size > 0 || inactiveList->size > 0)
-    {
-        if (activeList->size > 0)
-        {
-            if (((struct Register *)Stack_peek(activeList))->index == p)
-            {
-                currentState[p++] = Stack_pop(activeList);
-            }
-            else
-            {
-                currentState[p] = Stack_pop(inactiveList);
-                currentState[p]->lifetime = NULL;
-                p++;
-            }
-        }
-        else
-        {
-            currentState[p] = Stack_pop(inactiveList);
-            currentState[p]->lifetime = NULL;
-            p++;
-        }
-    }
-
-    sortByRegisterNumber((struct Register **)savedActiveList->data, savedActiveList->size);
-    sortByRegisterNumber((struct Register **)savedInactiveList->data, savedInactiveList->size);
-    p = 0;
-    while (savedActiveList->size > 0 || savedInactiveList->size > 0)
-    {
-        if (savedActiveList->size > 0)
-        {
-            if (((struct Register *)Stack_peek(savedActiveList))->index == p)
-            {
-                desiredState[p++] = Stack_pop(savedActiveList);
-            }
-            else
-            {
-                desiredState[p] = Stack_pop(savedInactiveList);
-                desiredState[p]->lifetime = NULL;
-                p++;
-            }
-        }
-        else
-        {
-            desiredState[p] = Stack_pop(savedInactiveList);
-            desiredState[p]->lifetime = NULL;
-            p++;
-        }
-    }
-
-    // for()
     printf("Current state:\n");
     printCurrentState(activeList, inactiveList, spilledList);
 
     printf("Desired state:\n");
     printCurrentState(savedActiveList, savedInactiveList, savedSpilledList);
 
-    for (int i = savedSpilledList->size - 1; i >= 0; i--)
-    {
-        printf("%s, ", ((struct SpilledRegister *)savedSpilledList->data[i])->lifetime->variable);
-    }
-    printf("\n");
+    sortByRegisterNumber((struct Register **)savedActiveList->data, savedActiveList->size);
+    sortByRegisterNumber((struct Register **)savedInactiveList->data, savedInactiveList->size);
 
     char *outputLine;
+    struct Stack *correctPlaceVariables = Stack_new();
+    struct Stack *relocationStack = Stack_new();
     // examine all registers
-    for (int i = 0; i < REGISTER_COUNT; i++)
+    while (activeList->size > 0)
     {
-        // if the current and desired lifetimes are different
-        // (can directly compare pointers because lifetimes are only instantiated once, never copied!)
-        if (currentState[i]->lifetime != desiredState[i]->lifetime)
+        struct Register *examinedRegister = Stack_pop(activeList);
+        char needRelocate = 1;
+        for (int i = 0; i < savedActiveList->size; i++)
         {
-            // contents of this register exist, but are wrong - store on stack for the mean time
-            if (currentState[i]->lifetime != NULL)
+            struct Register *desiredRegister = savedActiveList->data[i];
+            if (desiredRegister->index == examinedRegister->index && desiredRegister->lifetime == examinedRegister->lifetime)
             {
-                outputLine = malloc(16);
-                sprintf(outputLine, "push %%r%d", i);
-                ASMblock_append(outputBlock, outputLine);
-                Stack_push(relocationStack, currentState[i]->lifetime);
-                currentState[i]->lifetime = NULL;
+                needRelocate = 0;
+                break;
             }
         }
-    }
-
-    while (relocationStack->size > 0)
-    {
-        struct Lifetime *toPop = Stack_pop(relocationStack);
-        for (int i = 0; i < REGISTER_COUNT; i++)
-        {
-            if (desiredState[i]->lifetime == toPop)
-            {
-                outputLine = malloc(16);
-                sprintf(outputLine, "pop %%r%d", i);
-                ASMblock_append(outputBlock, outputLine);
-                currentState[i]->lifetime = toPop;
-            }
+        if(needRelocate){
+            outputLine = malloc(64);
+            sprintf(outputLine, "push %%r%d;temp store %s", examinedRegister->index, examinedRegister->lifetime->variable);
+            ASMblock_append(outputBlock, outputLine);
+            examinedRegister->lifetime = NULL;
+            Stack_push(inactiveList, examinedRegister);
+        }else{
+            Stack_push(correctPlaceVariables, examinedRegister);
         }
-
-        // printf("RELOCATE PROPERLY\n");
-        // exit(2);
     }
-
-    for (int i = 0; i < REGISTER_COUNT; i++)
-        if (currentState[i]->lifetime != NULL)
-            Stack_push(activeList, currentState[i]);
-        else
-            Stack_push(inactiveList, currentState[i]);
-
+    exit(2);
     Stack_free(savedActiveList);
     Stack_free(savedInactiveList);
     Stack_free(savedSpilledList);
-    free(currentState);
     free(editableState);
-    for (int i = 0; i < REGISTER_COUNT; i++)
-    {
-        free(desiredState[i]);
-    }
-    free(desiredState);
-
     Stack_free(relocationStack);
+    printf("done restoring register states\n");
 }
 
 void resetRegisterStates(struct Stack *savedStateStack, struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, int *currentLifetimeIndex)
@@ -491,6 +438,8 @@ void resetRegisterStates(struct Stack *savedStateStack, struct Stack *activeList
     struct Stack *savedActiveList = editableState->activeList;
     struct Stack *savedInactiveList = editableState->inactiveList;
     struct Stack *savedSpilledList = editableState->spilledList;
+
+    *currentLifetimeIndex = editableState->currentLifetimeIndex;
 
     while (activeList->size > 0)
         free(Stack_pop(activeList));
@@ -529,34 +478,6 @@ int findOrPlaceAssignedVariable(struct Stack *activeList, struct Stack *inactive
             return ((struct Register *)activeList->data[i])->index;
 
     return unSpillVariable(activeList, inactiveList, spilledList, varName, outputBlock, table);
-}
-
-// find which register a variable lives in, returning -1 if not currently active in a register
-int findActiveVariable(struct Stack *activeList, char *varName)
-{
-    for (int i = 0; i < activeList->size; i++)
-    {
-        if (!strcmp(((struct Register *)activeList->data[i])->lifetime->variable, varName))
-            return ((struct Register *)activeList->data[i])->index;
-    }
-
-    return -1;
-}
-
-// return the stack offset of a variable which has been spilled to stack
-int findSpilledVariable(struct Stack *spilledLilst, char *varName)
-{
-    for (int i = 0; i < spilledLilst->size; i++)
-    {
-        struct SpilledRegister *examinedSpill = spilledLilst->data[i];
-        if (examinedSpill->occupied && !strcmp(examinedSpill->lifetime->variable, varName))
-        {
-            return examinedSpill->stackOffset;
-        }
-    }
-
-    printf("Error - unable to find inactive variable [%s] - not on stack!\n", varName);
-    exit(1);
 }
 
 struct LinkedList *findLifetimes(struct symbolTable *table)
@@ -648,11 +569,16 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
     while (blockRunner != NULL)
     {
         struct BasicBlock *thisBlock = blockRunner->data;
-
+        printf("GENERATE CODE FOR BASIC BLOCK %d\n", thisBlock->labelNum);
+        outputLine = malloc(64);
+        sprintf(outputLine, "%s_%d:", table->name, thisBlock->labelNum);
+        ASMblock_append(outputBlock, outputLine);
         struct LinkedListNode *TACRunner = thisBlock->TACList->head;
         while (TACRunner != NULL)
         {
             struct TACLine *currentTAC = TACRunner->data;
+            printTACLine(currentTAC);
+            printf("\n");
             TACIndex = currentTAC->index;
             expireOldIntervals(activeList, inactiveList, spilledList, TACIndex);
 
@@ -681,6 +607,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
             char *finalOutputLine;
             char *printedTAC;
 
+            printf("canintroduce\n");
             // for all previously unseen lifetimes starting before or on this TAC index
             while (currentLifetimeIndex < lifetimeCount && lifetimeArray[currentLifetimeIndex]->start <= TACIndex)
             {
@@ -712,9 +639,9 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                     sprintf(finalOutputLine, "%s ;place argument %s", outputLine, this->variable);
                     free(outputLine);
                     ASMblock_append(outputBlock, finalOutputLine);
-                    printf("need to place argument [%s] in newly assigned register %d\n", this->variable, destinationIndex);
                 }
             }
+
             int destinationRegister;
             int firstSourceRegister;
             int secondSourceRegister;
@@ -920,7 +847,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
             break;
 
             case tt_restorestate:
-                restoreRegisterStates(savedStateStack, activeList, inactiveList, spilledList, &currentLifetimeIndex, TACIndex, outputBlock);
+                restoreRegisterStates(savedStateStack, activeList, inactiveList, spilledList, &currentLifetimeIndex, (long int)currentTAC->operands[0], outputBlock);
                 break;
 
             case tt_resetstate:
@@ -1007,9 +934,14 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                     activeSpills++;
             }
             stackLoads[activeSpills]++;
-
+            // printCurrentState(activeList, inactiveList, spilledList);
+            printf("\n\n");
             TACRunner = TACRunner->next;
         }
+        printf("done generating code for basic block %d\n", thisBlock->labelNum);
+        printCurrentState(activeList, inactiveList, spilledList);
+        printf("\n\n");
+        blockRunner = blockRunner->next;
     }
 
     if (maxSpillSpace > 0)

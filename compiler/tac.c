@@ -97,8 +97,6 @@ char *getAsmOp(enum TACType t)
     case tt_popstate:
         return "POPSTATE";
 
-    case tt_expireatinterval:
-        return "EXPIRE AT INTERVAL";
     }
     return "";
 }
@@ -241,7 +239,7 @@ void printTACLine(struct TACLine *it)
         break;
 
     case tt_restorestate:
-        width += printf("RESTORESTATE");
+        width += printf("RESTORESTATE (interval %ld)", (long int)it->operands[0]);
         break;
 
     case tt_resetstate:
@@ -252,9 +250,6 @@ void printTACLine(struct TACLine *it)
         width += printf("POPSTATE");
         break;
 
-    case tt_expireatinterval:
-        width += printf("EXPIREAT %2lx", (long int)it->operands[0]);
-        break;
     }
     while (width++ < 24)
     {
@@ -375,7 +370,7 @@ char *sPrintTACLine(struct TACLine *it)
         break;
 
     case tt_restorestate:
-        width += sprintf(tacString, "RESTORESTATE");
+        width += sprintf(tacString, "RESTORESTATE (interval %ld)", (long int)it->operands[0]);
         break;
 
     case tt_resetstate:
@@ -386,9 +381,6 @@ char *sPrintTACLine(struct TACLine *it)
         width += sprintf(tacString, "POPSTATE");
         break;
 
-    case tt_expireatinterval:
-        width += sprintf(tacString, "EXPIREAT %2lx", (long int)it->operands[0]);
-        break;
     }
 
     char *trimmedString = malloc(width + 1);
@@ -411,7 +403,6 @@ char TACLine_isEffective(struct TACLine *it)
     case tt_restorestate:
     case tt_resetstate:
     case tt_declare:
-    case tt_expireatinterval:
         return 0;
         break;
 
