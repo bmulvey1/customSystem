@@ -410,17 +410,115 @@ void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeLi
                 break;
             }
         }
-        if(needRelocate){
+        if (needRelocate)
+        {
             outputLine = malloc(64);
             sprintf(outputLine, "push %%r%d;temp store %s", examinedRegister->index, examinedRegister->lifetime->variable);
             ASMblock_append(outputBlock, outputLine);
+            Stack_push(relocationStack, examinedRegister->lifetime);
             examinedRegister->lifetime = NULL;
             Stack_push(inactiveList, examinedRegister);
-        }else{
+        }
+        else
+        {
             Stack_push(correctPlaceVariables, examinedRegister);
         }
     }
-    exit(2);
+
+    struct Register *scratchRegister;
+    if (inactiveList->size > 0)
+    {
+        scratchRegister = Stack_pop(inactiveList);
+    }
+    else
+    {
+        scratchRegister = Stack_pop(correctPlaceVariables);
+        outputLine = malloc(64);
+        sprintf(outputLine, "push %%r%d;temp store %s", scratchRegister->index, scratchRegister->lifetime->variable);
+        ASMblock_append(outputBlock, outputLine);
+        Stack_push(relocationStack, scratchRegister->lifetime);
+        scratchRegister->lifetime = NULL;
+    }
+
+    while (spilledList->size > 0)
+    {
+        struct SpilledRegister *examinedSpill = Stack_pop(spilledList);
+        if (examinedSpill->occupied)
+        {
+            outputLine = malloc(64);
+            sprintf(outputLine, "mov %%r%d, %d(%%bp);unspill %s", scratchRegister->index, examinedSpill->stackOffset, examinedSpill->lifetime->variable);
+            ASMblock_append(outputBlock, outputLine);
+            outputLine = malloc(64);
+            sprintf(outputLine, "push %%r%d;temp store %s", scratchRegister->index, examinedSpill->lifetime->variable);
+            ASMblock_append(outputBlock, outputLine);
+            Stack_push(relocationStack, examinedSpill->lifetime);
+        }
+        free(examinedSpill);
+    }
+
+    while (relocationStack->size > 0)
+    {
+        struct Lifetime *relocatedLifetime = Stack_pop(relocationStack);
+        int destinationRegister = -1;
+        for (int i = 0; i < savedActiveList->size; i++)
+        {
+            struct Register *desiredDestination = savedActiveList->data[i];
+            if (desiredDestination->lifetime == relocatedLifetime)
+            {
+                destinationRegister = i;
+                break;
+            }
+        }
+
+        if (destinationRegister != -1)
+        {
+            struct Stack *inactiveSearchStack = Stack_new();
+            while (inactiveList->size > 0)
+            {
+                struct Register *examinedRegister = Stack_pop(inactiveList);
+                if (examinedRegister->index == destinationRegister)
+                {
+                    outputLine = malloc(64);
+                    sprintf(outputLine, "pop %%r%d;place %s", examinedRegister->index, relocatedLifetime->variable);
+                    ASMblock_append(outputBlock, outputLine);
+                    examinedRegister->lifetime = relocatedLifetime;
+                    Stack_push(activeList, examinedRegister);
+                    break;
+                }
+                else
+                {
+                    Stack_push(inactiveSearchStack, examinedRegister);
+                }
+            }
+
+            while (inactiveSearchStack->size > 0)
+            {
+                Stack_push(inactiveList, Stack_pop(inactiveSearchStack));
+            }
+
+            Stack_free(inactiveSearchStack);
+        }
+        else
+        {
+
+            int stackOffset = findSpilledVariable(savedSpilledList, relocatedLifetime->variable);
+            if (stackOffset != -1)
+            {
+                outputLine = malloc(64);
+                sprintf(outputLine, "pop %%r%d;retrieve %s", scratchRegister->index, relocatedLifetime->variable);
+                ASMblock_append(outputBlock, outputLine);
+                outputLine = malloc(64);
+                sprintf(outputLine, "mov %d(%%bp) %%r%d;place %s", stackOffset, scratchRegister->index, relocatedLifetime->variable);
+                ASMblock_append(outputBlock, outputLine);
+                // printf("pop and put on stack offset %d\n", stackOffset);
+            }
+            else
+            {
+                printf("yowch - couldn't find destination register or stack offset for variable %s\n", relocatedLifetime->variable);
+                exit(1);
+            }
+        }
+    }
     Stack_free(savedActiveList);
     Stack_free(savedInactiveList);
     Stack_free(savedSpilledList);
