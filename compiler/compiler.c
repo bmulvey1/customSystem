@@ -1308,12 +1308,10 @@ void prettyPrintBasicBlocks(struct symbolTable *theTable)
             struct LinkedListNode **printArray = malloc(blockCount * sizeof(struct BasicBlock *));
             int printArraySize = 0;
             char **blockTitles = malloc(blockCount * sizeof(char *));
-            char **oldBlockTitles = malloc(blockCount * sizeof(char *));
             for (int i = 0; i < blockCount; i++)
             {
                 printArray[i] = NULL;
                 blockTitles[i] = NULL;
-                oldBlockTitles[i] = NULL;
             }
 
             for (int i = 0; i < blockStack->size; i++)
@@ -1427,6 +1425,10 @@ void prettyPrintBasicBlocks(struct symbolTable *theTable)
 
                 TACIndex++;
             }
+        
+            free(printArray);
+            free(blockTitles);
+            Stack_free(blockStack);
         }
     }
     printf("\n\n");

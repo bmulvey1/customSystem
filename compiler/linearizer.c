@@ -812,11 +812,15 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
                 printBasicBlock(poppedBlock, 1);
             }
 
+            Stack_free(resultBlocks);
+
             while (beforeConvergeExpirations->size > 0)
             {
                 struct TACLine *expireLine = Stack_pop(beforeConvergeExpirations);
                 expireLine->operands[0] = (char *)((long int)currentTACIndex);
             }
+
+            Stack_free(beforeConvergeExpirations);
 
             // we are now linearizing code into the block which the branches converge to
             currentBlock = afterIfBlock;

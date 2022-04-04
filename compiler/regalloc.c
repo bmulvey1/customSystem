@@ -305,37 +305,51 @@ void printLifetimesGraph(struct LinkedList *lifetimeList)
     }
 }
 
-void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, struct ASMblock *outputBlock, int currentTACIndex)
+/*
+ * state duplication/reading
+ *
+ *
+ */
+struct SavedState *duplicateCurrentState(struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, int currentLifetimeIndex)
+{
+    struct SavedState *wip = malloc(sizeof(struct SavedState));
+    struct Stack *duplicatedStack = Stack_new();
+    for (int i = 0; i < activeList->size; i++)
+        Stack_push(duplicatedStack, duplicateRegister(activeList->data[i]));
+    wip->activeList = duplicatedStack;
+
+    duplicatedStack = Stack_new();
+    for (int i = 0; i < inactiveList->size; i++)
+        Stack_push(duplicatedStack, duplicateRegister(inactiveList->data[i]));
+    wip->inactiveList = duplicatedStack;
+
+    duplicatedStack = Stack_new();
+    for (int i = 0; i < spilledList->size; i++)
+        Stack_push(duplicatedStack, duplicateSpilledRegister(spilledList->data[i]));
+    wip->spilledList = duplicatedStack;
+
+    wip->currentLifetimeIndex = currentLifetimeIndex;
+    printf("DUPLICATE STATES TO\n");
+    printCurrentState(wip->activeList, wip->inactiveList, wip->spilledList);
+    return wip;
+}
+
+void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, int *currentLifetimeIndex, int TACIndex, struct ASMblock *outputBlock)
 {
     printf("restore register states\n");
     printf("%d live registers, %d free registers, %d vars on stack\n\n", activeList->size, inactiveList->size, spilledList->size);
 
     // pull the saved states off the stack
-    struct Stack *savedSpilledList = Stack_pop(savedStateStack);
-    struct Stack *savedInactiveList = Stack_pop(savedStateStack);
-    struct Stack *savedActiveList = Stack_pop(savedStateStack);
+    struct SavedState *restoreTo = Stack_peek(savedStateStack);
+    struct SavedState *editableState = duplicateCurrentState(restoreTo->activeList, restoreTo->inactiveList, restoreTo->spilledList, restoreTo->currentLifetimeIndex);
+    struct Stack *savedActiveList = editableState->activeList;
+    struct Stack *savedInactiveList = editableState->inactiveList;
+    struct Stack *savedSpilledList = editableState->spilledList;
 
-    // deep copy the state snapshots and put them back on the state stack
-    struct Stack *duplicatedStack = Stack_new();
-    for (int i = 0; i < savedActiveList->size; i++)
-        Stack_push(duplicatedStack, duplicateRegister(savedActiveList->data[i]));
-
-    Stack_push(savedStateStack, duplicatedStack);
-
-    duplicatedStack = Stack_new();
-    for (int i = 0; i < savedInactiveList->size; i++)
-        Stack_push(duplicatedStack, duplicateRegister(savedInactiveList->data[i]));
-
-    Stack_push(savedStateStack, duplicatedStack);
-
-    duplicatedStack = Stack_new();
-    for (int i = 0; i < savedSpilledList->size; i++)
-        Stack_push(duplicatedStack, duplicateSpilledRegister(savedSpilledList->data[i]));
-
-    Stack_push(savedStateStack, duplicatedStack);
+    *currentLifetimeIndex = editableState->currentLifetimeIndex;
 
     // expire anything that is no longer living at the TAC index of the restore
-    expireOldIntervals(savedActiveList, savedInactiveList, savedSpilledList, currentTACIndex);
+    expireOldIntervals(savedActiveList, savedInactiveList, savedSpilledList, TACIndex);
 
     struct Stack *relocationStack = Stack_new();
 
@@ -398,32 +412,15 @@ void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeLi
     }
 
     // for()
+    printf("Current state:\n");
+    printCurrentState(activeList, inactiveList, spilledList);
 
-    printf("Current state:");
-    for (int i = 0; i < REGISTER_COUNT; i++)
+    printf("Desired state:\n");
+    printCurrentState(savedActiveList, savedInactiveList, savedSpilledList);
+
+    for (int i = savedSpilledList->size - 1; i >= 0; i--)
     {
-        printf("%%r%d: ", i);
-        if (currentState[i]->lifetime == NULL)
-        {
-            printf("[ ], ");
-        }
-        else
-        {
-            printf("[%s], ", currentState[i]->lifetime->variable);
-        }
-    }
-    printf("\nDesired state:");
-    for (int i = 0; i < REGISTER_COUNT; i++)
-    {
-        printf("%%r%d: ", i);
-        if (desiredState[i]->lifetime == NULL)
-        {
-            printf("[ ], ");
-        }
-        else
-        {
-            printf("[%s], ", desiredState[i]->lifetime->variable);
-        }
+        printf("%s, ", ((struct SpilledRegister *)savedSpilledList->data[i])->lifetime->variable);
     }
     printf("\n");
 
@@ -475,6 +472,7 @@ void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeLi
     Stack_free(savedInactiveList);
     Stack_free(savedSpilledList);
     free(currentState);
+    free(editableState);
     for (int i = 0; i < REGISTER_COUNT; i++)
     {
         free(desiredState[i]);
@@ -484,34 +482,15 @@ void restoreRegisterStates(struct Stack *savedStateStack, struct Stack *activeLi
     Stack_free(relocationStack);
 }
 
-void resetRegisterStates(struct Stack *savedStateStack, struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList)
+void resetRegisterStates(struct Stack *savedStateStack, struct Stack *activeList, struct Stack *inactiveList, struct Stack *spilledList, int *currentLifetimeIndex)
 {
-    // pull the saved states off the stack
-    struct Stack *savedSpilledList = Stack_pop(savedStateStack);
-    struct Stack *savedInactiveList = Stack_pop(savedStateStack);
-    struct Stack *savedActiveList = Stack_pop(savedStateStack);
-
-    // deep copy the state snapshots and put them back on the state stack
-    struct Stack *duplicatedStack = Stack_new();
-    for (int i = 0; i < savedActiveList->size; i++)
-        Stack_push(duplicatedStack, duplicateRegister(savedActiveList->data[i]));
-
-    Stack_push(savedStateStack, duplicatedStack);
-
-    duplicatedStack = Stack_new();
-    for (int i = 0; i < savedInactiveList->size; i++)
-        Stack_push(duplicatedStack, duplicateRegister(savedInactiveList->data[i]));
-
-    Stack_push(savedStateStack, duplicatedStack);
-
-    duplicatedStack = Stack_new();
-    for (int i = 0; i < savedSpilledList->size; i++)
-        Stack_push(duplicatedStack, duplicateSpilledRegister(savedSpilledList->data[i]));
-
-    Stack_push(savedStateStack, duplicatedStack);
-
+    struct SavedState *resetTo = Stack_peek(savedStateStack);
     printf("RESET REGISTER STATES FROM:\n");
     printCurrentState(activeList, inactiveList, spilledList);
+    struct SavedState *editableState = duplicateCurrentState(resetTo->activeList, resetTo->activeList, resetTo->spilledList, resetTo->currentLifetimeIndex);
+    struct Stack *savedActiveList = editableState->activeList;
+    struct Stack *savedInactiveList = editableState->inactiveList;
+    struct Stack *savedSpilledList = editableState->spilledList;
 
     while (activeList->size > 0)
         free(Stack_pop(activeList));
@@ -904,7 +883,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                     // second source exists in register, first is spilled
                     else if (firstSourceRegister == -1 && secondSourceRegister != -1)
                     {
-                        firstSourceRegister = unSpillVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+                        firstSourceRegister = unSpillVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 
                         sprintf(outputLine, "cmp %%r%d, %%r%d", firstSourceRegister, secondSourceRegister);
                     }
@@ -912,8 +891,16 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                     // both sources are spilled - will break if both are literals but this should be checked earlier
                     else
                     {
-                        firstSourceRegister = unSpillVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
-                        sprintf(outputLine, "cmp %%r%d, %d(%%bp)", firstSourceRegister, findSpilledVariable(spilledList, currentTAC->operands[2]));
+                        firstSourceRegister = unSpillVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
+
+                        if (currentTAC->operandTypes[2] == vt_literal)
+                        {
+                            sprintf(outputLine, "cmp %%r%d, %s", firstSourceRegister, currentTAC->operands[0]);
+                        }
+                        else
+                        {
+                            sprintf(outputLine, "cmp %%r%d, %d(%%bp)", firstSourceRegister, findSpilledVariable(spilledList, currentTAC->operands[2]));
+                        }
                     }
                 }
                 printedTAC = sPrintTACLine(currentTAC);
@@ -928,44 +915,38 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
             {
                 printf("PUSH STATE\n");
                 // deep copy the states and push them to the state stack
-                struct Stack *duplicatedStack = Stack_new();
-                for (int i = 0; i < activeList->size; i++)
-                    Stack_push(duplicatedStack, duplicateRegister(activeList->data[i]));
-
-                Stack_push(savedStateStack, duplicatedStack);
-
-                duplicatedStack = Stack_new();
-                for (int i = 0; i < inactiveList->size; i++)
-                    Stack_push(duplicatedStack, duplicateRegister(inactiveList->data[i]));
-
-                Stack_push(savedStateStack, duplicatedStack);
-
-                duplicatedStack = Stack_new();
-                for (int i = 0; i < spilledList->size; i++)
-                    Stack_push(duplicatedStack, duplicateSpilledRegister(spilledList->data[i]));
-
-                Stack_push(savedStateStack, duplicatedStack);
+                Stack_push(savedStateStack, duplicateCurrentState(activeList, inactiveList, spilledList, currentLifetimeIndex));
             }
             break;
 
             case tt_restorestate:
-                restoreRegisterStates(savedStateStack, activeList, inactiveList, spilledList, outputBlock, TACIndex);
+                restoreRegisterStates(savedStateStack, activeList, inactiveList, spilledList, &currentLifetimeIndex, TACIndex, outputBlock);
                 break;
 
             case tt_resetstate:
-                resetRegisterStates(savedStateStack, activeList, inactiveList, spilledList);
+                resetRegisterStates(savedStateStack, activeList, inactiveList, spilledList, &currentLifetimeIndex);
                 break;
 
             case tt_popstate:
             {
-                for (int i = 0; i < 3; i++)
+                struct SavedState *poppedState = Stack_pop(savedStateStack);
+                while (poppedState->activeList->size > 0)
                 {
-                    struct Stack *poppedStack = Stack_pop(savedStateStack);
-                    while (poppedStack->size > 0)
-                        free(Stack_pop(poppedStack));
-
-                    Stack_free(poppedStack);
+                    free(Stack_pop(poppedState->activeList));
                 }
+                Stack_free(poppedState->activeList);
+
+                while (poppedState->inactiveList->size > 0)
+                {
+                    free(Stack_pop(poppedState->inactiveList));
+                }
+                Stack_free(poppedState->inactiveList);
+
+                while (poppedState->spilledList->size > 0)
+                {
+                    free(Stack_pop(poppedState->spilledList));
+                }
+                Stack_free(poppedState->spilledList);
             }
             break;
 

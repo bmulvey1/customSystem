@@ -35,3 +35,11 @@ struct SpilledRegister
     int stackOffset;
     char occupied;
 };
+
+struct SavedState
+{
+    struct Stack *activeList;
+    struct Stack *inactiveList;
+    struct Stack *spilledList;
+    int currentLifetimeIndex;
+};
