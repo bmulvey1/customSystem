@@ -1278,6 +1278,8 @@ int compareBasicBlockStartIndices(struct BasicBlock *a, struct BasicBlock *b)
     return ((struct TACLine *)a->TACList->head->data)->index < ((struct TACLine *)b->TACList->head->data)->index;
 }
 
+// this thing causes constant problems
+// probably makes sense to do this externally to the compiler
 void prettyPrintBasicBlocks(struct symbolTable *theTable)
 {
     printf("Basic Blocks for %s\n", theTable->name);
@@ -1425,13 +1427,42 @@ void prettyPrintBasicBlocks(struct symbolTable *theTable)
 
                 TACIndex++;
             }
-        
+
             free(printArray);
             free(blockTitles);
             Stack_free(blockStack);
         }
     }
     printf("\n\n");
+}
+
+void printBasicBlocks(struct symbolTable *theTable)
+{
+    printf("Basic Blocks for %s\n", theTable->name);
+    for (int i = 0; i < theTable->size; i++)
+    {
+        if (theTable->entries[i]->type == e_function)
+        {
+            struct functionEntry *thisEntry = theTable->entries[i]->entry;
+            // generateCode(thisEntry->table, outFile);
+            struct Stack *blockStack = Stack_new();
+            for (struct LinkedListNode *runner = thisEntry->table->BasicBlockList->tail; runner != NULL; runner = runner->prev)
+            {
+                struct BasicBlock *thisBlock = runner->data;
+                if (thisBlock->containsEffectiveCode)
+                {
+                    Stack_push(blockStack, thisBlock);
+                }
+
+                // printf("%d\n", ((struct TACLine *)thisBlock->TACList->head->data)->index);
+            }
+
+            for (struct LinkedListNode *runner = thisEntry->table->BasicBlockList->head; runner != NULL; runner = runner->next)
+            {
+                printBasicBlock(runner->data, 0);
+            }
+        }
+    }
 }
 
 int main(int argc, char **argv)
@@ -1463,7 +1494,8 @@ int main(int argc, char **argv)
     linearizeProgram(program, theTable);
     printf("\n");
 
-    prettyPrintBasicBlocks(theTable);
+    // prettyPrintBasicBlocks(theTable);
+    printBasicBlocks(theTable);
 
     printSymTab(theTable, 1);
     printf("\n\n");

@@ -63,6 +63,10 @@ void sortByEndPoint(struct Register **list, int size);
 
 void sortByRegisterNumber(struct Register **list, int size);
 
+struct Register *findAndRemoveLiveVariable(struct Stack *activeList, char *name);
+
+struct SpilledRegister *findAndRemoveSpilledVariable(struct Stack *spilledList, char *name);
+
 struct SpilledRegister *duplicateSpilledRegister(struct Register *r);
 
 void expireOldIntervals(struct Stack *activeList,

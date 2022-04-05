@@ -41,12 +41,17 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
     char *outputLine;
     char *finalOutputLine;
     struct Stack *savedStateStack = Stack_new();
+    char touchedRegisters[REGISTER_COUNT];
+    for (int i = 0; i < REGISTER_COUNT; i++)
+    {
+        touchedRegisters[i] = 0;
+    }
 
     struct LinkedListNode *blockRunner = table->BasicBlockList->head;
     while (blockRunner != NULL)
     {
         struct BasicBlock *thisBlock = blockRunner->data;
-        printf("GENERATE CODE FOR BASIC BLOCK %d\n", thisBlock->labelNum);
+        printf("\n\n\nGENERATE CODE FOR BASIC BLOCK %d\n", thisBlock->labelNum);
         outputLine = malloc(64);
         sprintf(outputLine, "%s_%d:", table->name, thisBlock->labelNum);
         ASMblock_append(outputBlock, outputLine);
@@ -72,13 +77,14 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
             // assign this variable to the next free register
             int destinationIndex = assignRegister(activeList, inactiveList, this);
+            touchedRegisters[destinationIndex] = 1;
             outputLine = malloc(32);
             sprintf(outputLine, "\t;introduce var %s to %%r%d", this->variable, destinationIndex);
             ASMblock_append(outputBlock, outputLine);
             // place the value into the register if this is an argument (value starts on the stack)
             if (this->variable[0] != '.' && symbolTableLookup(table, this->variable)->type == e_argument)
             {
-                printf("PLACE ARGUMENT %s AT REGISTER %d\n", this->variable, destinationIndex);
+                // printf("PLACE ARGUMENT %s AT REGISTER %d\n", this->variable, destinationIndex);
                 outputLine = malloc(20);
                 struct variableEntry *theArgument = symbolTableLookup(table, this->variable)->entry;
                 sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationIndex, theArgument->stackOffset);
@@ -94,8 +100,8 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         while (TACRunner != NULL)
         {
             struct TACLine *currentTAC = TACRunner->data;
-            printTACLine(currentTAC);
-            printf("\n");
+            // printTACLine(currentTAC);
+            // printf("\n");
             TACIndex = currentTAC->index;
             expireOldIntervals(activeList, inactiveList, spilledList, TACIndex);
 
@@ -178,51 +184,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
             default:
                 break;
-
-                /*
-                // for all previously unseen lifetimes starting before or on this TAC index
-                while (currentLifetimeIndex < lifetimeCount && lifetimeArray[currentLifetimeIndex]->start == TACIndex)
-                {
-
-                    // grab the lifetime
-                    struct Lifetime *this = lifetimeArray[currentLifetimeIndex++];
-                    printf("current->operands[0] %s\n", currentTAC->operands[0]);
-                    printf("this->variable %s\n", this->variable);
-                    // only introduce variables if they are function arguments or actually used in this TAC address
-                    if (!strcmp(currentTAC->operands[0], this->variable) ||
-                        (this->variable[0] != '.' && symbolTableLookup(table, this->variable)->type == e_argument))
-                    {
-                        // spill a register if one isn't available
-                        if (inactiveList->size == 0)
-                        {
-                            // printf("need to spill\n");
-                            spillRegister(activeList, inactiveList, spilledList, outputBlock, table);
-
-                            // Stack_push(spilledList, thisSpill);
-                            if (spilledList->size * 2 > maxSpillSpace)
-                                maxSpillSpace = spilledList->size * 2;
-                        }
-
-                        // assign this variable to the next free register
-                        int destinationIndex = assignRegister(activeList, inactiveList, this);
-                        outputLine = malloc(32);
-                        sprintf(outputLine, "\t;introduce var %s to %%r%d", this->variable, destinationIndex);
-                        ASMblock_append(outputBlock, outputLine);
-                        // place the value into the register if this is an argument (value starts on the stack)
-                        if (this->variable[0] != '.' && symbolTableLookup(table, this->variable)->type == e_argument)
-                        {
-                            printf("PLACE ARGUMENT %s AT REGISTER %d\n", this->variable, destinationIndex);
-                            outputLine = malloc(20);
-                            struct variableEntry *theArgument = symbolTableLookup(table, this->variable)->entry;
-                            sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationIndex, theArgument->stackOffset);
-                            finalOutputLine = malloc(128);
-                            sprintf(finalOutputLine, "%s ;place argument %s", outputLine, this->variable);
-                            free(outputLine);
-                            ASMblock_append(outputBlock, finalOutputLine);
-                        }
-                    }
-                }
-                */
             }
 
             int destinationRegister;
@@ -369,13 +330,30 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
             case tt_call:
             {
-                // the call returns a value
-                if (currentTAC->operands[0] != NULL)
-                {
-                }
                 outputLine = malloc(32);
                 sprintf(outputLine, "call %s", currentTAC->operands[1]);
                 ASMblock_append(outputBlock, outputLine);
+
+                // the call returns a value
+                if (currentTAC->operands[0] != NULL)
+                {
+                    outputLine = malloc(32);
+                    int destinationRegister = findActiveVariable(activeList, currentTAC->operands[0]);
+                    if (destinationRegister != -1)
+                    {
+                        sprintf(outputLine, "mov %%r%d, %%rr", destinationRegister);
+                    }
+                    else
+                    {
+                        int destinationOffset = findSpilledVariable(spilledList, currentTAC->operands[0]);
+                        sprintf(outputLine, "mov %d(%%sp), %%rr", destinationOffset);
+                    }
+                    finalOutputLine = malloc(64);
+                    printedTAC = sPrintTACLine(currentTAC);
+                    sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
+                    free(outputLine);
+                    ASMblock_append(outputBlock, finalOutputLine);
+                }
             }
             break;
 
@@ -450,7 +428,12 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
             {
                 printf("PUSH STATE\n");
                 // deep copy the states and push them to the state stack
-                Stack_push(savedStateStack, duplicateCurrentState(activeList, inactiveList, spilledList, currentLifetimeIndex));
+                struct SavedState *duplicatedState = duplicateCurrentState(activeList, inactiveList, spilledList, currentLifetimeIndex);
+                printCurrentState(duplicatedState->activeList, duplicatedState->inactiveList, duplicatedState->spilledList);
+                printCurrentState(activeList, inactiveList, spilledList);
+                
+                Stack_push(savedStateStack, duplicatedState);
+                printf("\n\n");
             }
             break;
 
@@ -482,6 +465,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                     free(Stack_pop(poppedState->spilledList));
                 }
                 Stack_free(poppedState->spilledList);
+                free(poppedState);
             }
             break;
 
@@ -495,13 +479,10 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                     exit(1);
                 }
 
-                // if it's not in register 0, move it there
-                if (retValIndex != 0)
-                {
-                    outputLine = malloc(64);
-                    sprintf(outputLine, "mov %%r0, %%r%d", retValIndex);
-                    ASMblock_append(outputBlock, outputLine);
-                }
+                outputLine = malloc(64);
+                sprintf(outputLine, "mov %%rr, %%r%d;%s", retValIndex, sPrintTACLine(currentTAC));
+                ASMblock_append(outputBlock, outputLine);
+
                 break;
             }
 
@@ -548,11 +529,34 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
             sortByEndPoint((struct Register **)activeList->data, activeList->size);
             sortByRegisterNumber((struct Register **)inactiveList->data, inactiveList->size);
+
+            // printCurrentState(activeList, inactiveList, spilledList);
+            // printf("\n");
         }
         printf("done generating code for basic block %d\n", thisBlock->labelNum);
         printCurrentState(activeList, inactiveList, spilledList);
         printf("\n\n");
         blockRunner = blockRunner->next;
+    }
+
+    while (activeList->size > 0)
+    {
+        Stack_push(inactiveList, Stack_pop(activeList));
+    }
+
+    sortByRegisterNumber((struct Register **)inactiveList->data, inactiveList->size);
+
+    for (int i = 0; i < REGISTER_COUNT; i++)
+    {
+        if(touchedRegisters[i])
+        {
+            outputLine = malloc(16);
+            sprintf(outputLine, "push %%r%d", i);
+            ASMblock_prepend(outputBlock, outputLine);
+            outputLine = malloc(16);
+            sprintf(outputLine, "pop %%r%d", i);
+            ASMblock_append(outputBlock, outputLine);
+        }
     }
 
     if (maxSpillSpace > 0)
