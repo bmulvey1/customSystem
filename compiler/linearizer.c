@@ -572,6 +572,8 @@ int linearizeAssignment(int currentTACIndex, struct LinkedList *blockList, struc
 
             LHS->operands[1] = lastLine->operands[0];
             LHS->operandTypes[1] = lastLine->operandTypes[0];
+            BasicBlock_append(currentBlock, LHS);
+
             break;
 
         default:
@@ -580,7 +582,6 @@ int linearizeAssignment(int currentTACIndex, struct LinkedList *blockList, struc
         }
 
         // struct TACLine *LHS = linearizePointerArithmetic(it->child, tempNum, tl, 0);
-        BasicBlock_append(currentBlock, LHS);
         // printf("linearized LHS - here's what we got\n");
         // printTACBlock(LHS, 0);
     }

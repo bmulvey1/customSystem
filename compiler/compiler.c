@@ -8,7 +8,7 @@
 #include "util.h"
 #include "linearizer.h"
 #include "asm.h"
-#include "regalloc.h"
+#include "codegen.h"
 
 /*
 
