@@ -404,11 +404,9 @@ char TACLine_isEffective(struct TACLine *it)
     case tt_resetstate:
     case tt_declare:
         return 0;
-        break;
 
     default:
         return 1;
-        break;
     }
 }
 
