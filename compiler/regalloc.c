@@ -228,7 +228,7 @@ void expireOldIntervals(struct Stack *activeList,
         // if the spill slot is occupied and the variable in that slot is expired
         if (checkedSpill->occupied && checkedSpill->lifetime->end < TACIndex)
         {
-            printf("Expire %s (spilled on stack)\n", checkedSpill->lifetime->variable);
+            // printf("Expire %s (spilled on stack)\n", checkedSpill->lifetime->variable);
             // free the slot
             checkedSpill->occupied = 0;
         }
@@ -444,8 +444,8 @@ void restoreRegisterStates(struct Stack *savedStateStack,
                            int TACIndex,
                            struct ASMblock *outputBlock)
 {
-    printf("restore register states at TAC index %d\n", TACIndex);
-    printf("%d live registers, %d free registers, %d vars on stack\n\n", activeList->size, inactiveList->size, spilledList->size);
+    // printf("restore register states at TAC index %d\n", TACIndex);
+    // printf("%d live registers, %d free registers, %d vars on stack\n\n", activeList->size, inactiveList->size, spilledList->size);
 
     // pull the saved states off the stack
     struct SavedState *restoreTo = Stack_peek(savedStateStack);
@@ -466,11 +466,11 @@ void restoreRegisterStates(struct Stack *savedStateStack,
     sortByRegisterNumber((struct Register **)activeList->data, activeList->size);
     sortByRegisterNumber((struct Register **)inactiveList->data, inactiveList->size);
 
-    printf("Current state:\n");
-    printCurrentState(activeList, inactiveList, spilledList);
+    // printf("Current state:\n");
+    // printCurrentState(activeList, inactiveList, spilledList);
 
-    printf("Desired state:\n");
-    printCurrentState(savedActiveList, savedInactiveList, savedSpilledList);
+    // printf("Desired state:\n");
+    // printCurrentState(savedActiveList, savedInactiveList, savedSpilledList);
 
     sortByRegisterNumber((struct Register **)savedActiveList->data, savedActiveList->size);
     sortByRegisterNumber((struct Register **)savedInactiveList->data, savedInactiveList->size);
@@ -620,9 +620,9 @@ void restoreRegisterStates(struct Stack *savedStateStack,
 
     }
 
-    printf("done restoring register states\n");
+    // printf("done restoring register states\n");
 
-    printCurrentState(activeList, inactiveList, spilledList);
+    // printCurrentState(activeList, inactiveList, spilledList);
 
     while (savedActiveList->size > 0)
         free(Stack_pop(savedActiveList));
@@ -640,7 +640,7 @@ void restoreRegisterStates(struct Stack *savedStateStack,
     Stack_free(savedSpilledList);
     free(editableState);
     Stack_free(relocationStack);
-    printf("\n");
+    // printf("\n");
 }
 
 void resetRegisterStates(struct Stack *savedStateStack,
@@ -651,10 +651,10 @@ void resetRegisterStates(struct Stack *savedStateStack,
 {
     
     struct SavedState *resetTo = Stack_peek(savedStateStack);
-    printf("\nRESET REGISTER STATES FROM:\n");
-    printCurrentState(activeList, inactiveList, spilledList);
-    printf("TO:\n");
-   printCurrentState(resetTo->activeList, resetTo->inactiveList, resetTo->spilledList);
+    // printf("\nRESET REGISTER STATES FROM:\n");
+    // printCurrentState(activeList, inactiveList, spilledList);
+    // printf("TO:\n");
+    // printCurrentState(resetTo->activeList, resetTo->inactiveList, resetTo->spilledList);
     
     
     // *currentLifetimeIndex = editableState->currentLifetimeIndex;
@@ -677,10 +677,10 @@ void resetRegisterStates(struct Stack *savedStateStack,
     for (int i = 0; i < resetTo->spilledList->size; i++)
         Stack_push(inactiveList, duplicateSpilledRegister(resetTo->spilledList->data[i]));
 
-    printf("DONE:\n");
-    printCurrentState(activeList, inactiveList, spilledList);
+    // printf("DONE:\n");
+    // printCurrentState(activeList, inactiveList, spilledList);
 
-    printf("\n\n\n~\n~\n~\n~\n");
+    // printf("\n\n\n~\n~\n~\n~\n");
 
 }
 

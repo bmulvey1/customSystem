@@ -77,7 +77,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
             // assign this variable to the next free register
             int destinationIndex = assignRegister(activeList, inactiveList, this);
-            touchedRegisters[destinationIndex] = 1;
             outputLine = malloc(32);
             sprintf(outputLine, "\t;introduce var %s to %%r%d", this->variable, destinationIndex);
             ASMblock_append(outputBlock, outputLine);
@@ -431,7 +430,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                 struct SavedState *duplicatedState = duplicateCurrentState(activeList, inactiveList, spilledList, currentLifetimeIndex);
                 printCurrentState(duplicatedState->activeList, duplicatedState->inactiveList, duplicatedState->spilledList);
                 printCurrentState(activeList, inactiveList, spilledList);
-                
+
                 Stack_push(savedStateStack, duplicatedState);
                 printf("\n\n");
             }
@@ -523,13 +522,17 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                     activeSpills++;
             }
             stackLoads[activeSpills]++;
-            // printCurrentState(activeList, inactiveList, spilledList);
+            printCurrentState(activeList, inactiveList, spilledList);
             // printf("\n\n");
             TACRunner = TACRunner->next;
 
             sortByEndPoint((struct Register **)activeList->data, activeList->size);
             sortByRegisterNumber((struct Register **)inactiveList->data, inactiveList->size);
-
+            for (int i = 0; i < activeList->size; i++)
+            {
+                struct Register *activeRegister = activeList->data[i];
+                touchedRegisters[activeRegister->index] = 1;
+            }
             // printCurrentState(activeList, inactiveList, spilledList);
             // printf("\n");
         }
@@ -548,7 +551,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
     for (int i = 0; i < REGISTER_COUNT; i++)
     {
-        if(touchedRegisters[i])
+        if (touchedRegisters[i])
         {
             outputLine = malloc(16);
             sprintf(outputLine, "push %%r%d", i);

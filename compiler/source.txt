@@ -12,20 +12,14 @@ asm
 fun fib(var i){
     var result;
 
-    if(i < 2){
-        result = i;
-    }else{
-        result = 3;
-    }
-    return result;
-    /*
+    
     if(i < 2){
         result = i;
     }else{
         result = fib(i - 2) + fib(i - 1);
     }
     return result;
-    */
+    
     
 }
 
