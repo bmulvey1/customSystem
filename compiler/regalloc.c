@@ -390,12 +390,12 @@ int unSpillVariable(struct Stack *activeList,
         if (!strcmp(examinedSpill->lifetime->variable, varName))
         {
             int destinationRegister = assignRegister(activeList, inactiveList, examinedSpill->lifetime);
-            char *outputStr = malloc(20);
-            sprintf(outputStr, "mov %%r%d, %d(%%bp)", destinationRegister, examinedSpill->stackOffset);
+            char *outputStr = malloc(48);
+            sprintf(outputStr, "mov %%r%d, %d(%%bp);unspill %8s", destinationRegister, examinedSpill->stackOffset, varName);
             ASMblock_append(outputBlock, outputStr);
             // printf("unspill variable %s from stack offset %d to %%r%d\n\n", varName, examinedSpill->stackOffset, destinationRegister);
             examinedSpill->occupied = 0;
-            return i;
+            return destinationRegister;
         }
     }
 

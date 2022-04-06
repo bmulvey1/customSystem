@@ -4,7 +4,7 @@
 #include "asm.h"
 #include "tac.h"
 
-#define REGISTER_COUNT 3
+#define REGISTER_COUNT 4
 
 struct Lifetime
 {
