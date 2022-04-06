@@ -793,7 +793,6 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
             while (resultBlocks->size > 0)
             {
                 struct BasicBlock *poppedBlock = Stack_pop(resultBlocks);
-                printf("Popped basic block %d\n", poppedBlock->labelNum);
                 // find last effective line, there will be state control
                 struct TACLine *lastLine = poppedBlock->TACList->tail->data;
 
@@ -810,7 +809,6 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
 
                 if (lastLine->index > currentTACIndex)
                     currentTACIndex = lastLine->index + 1;
-                printBasicBlock(poppedBlock, 1);
             }
 
             Stack_free(resultBlocks);
