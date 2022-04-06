@@ -11,13 +11,22 @@ asm
 
 fun fib(var i){
     var result;
-
+    var x = 1;
+    var y = 2;
+    var z = 3;
     
     if(i < 2){
-        result = i;
+        if(i < 1){
+            result = 0;
+        }else{
+            result = 1;
+        }
     }else{
         result = fib(i - 2) + fib(i - 1);
     }
+    x = x;
+    y = y;
+    z = z;
     return result;
     
     

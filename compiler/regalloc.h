@@ -4,7 +4,7 @@
 #include "asm.h"
 #include "tac.h"
 
-#define REGISTER_COUNT 4
+#define REGISTER_COUNT 3
 
 struct Lifetime
 {
@@ -63,9 +63,13 @@ void sortByEndPoint(struct Register **list, int size);
 
 void sortByRegisterNumber(struct Register **list, int size);
 
+void sortByStackOffset(struct SpilledRegister **list, int size);
+
 struct Register *findAndRemoveLiveVariable(struct Stack *activeList, char *name);
 
 struct SpilledRegister *findAndRemoveSpilledVariable(struct Stack *spilledList, char *name);
+
+struct Register *findAndRemoveInactiveRegisterByIndex(struct Stack *inactiveList, int index);
 
 struct SpilledRegister *duplicateSpilledRegister(struct Register *r);
 

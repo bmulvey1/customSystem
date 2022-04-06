@@ -522,7 +522,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                     activeSpills++;
             }
             stackLoads[activeSpills]++;
-            printCurrentState(activeList, inactiveList, spilledList);
+            // printCurrentState(activeList, inactiveList, spilledList);
             // printf("\n\n");
             TACRunner = TACRunner->next;
 
