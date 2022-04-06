@@ -331,8 +331,9 @@ struct astNode *parseProgram(char *inFileName, struct Dictionary *dict)
     curLine = 1;
     curCol = 1;
     inFile = fopen(inFileName, "rb");
-    return parseTLDList(dict);
+    struct astNode *program = parseTLDList(dict);
     fclose(inFile);
+    return program;
 }
 
 struct astNode *parseTLDList(struct Dictionary *dict)

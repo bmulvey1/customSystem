@@ -482,8 +482,6 @@ struct SavedState *duplicateCurrentState(struct Stack *activeList,
     return wip;
 }
 
-void rrs_done(){}
-
 void restoreRegisterStates(struct Stack *savedStateStack,
                            struct Stack *activeList,
                            struct Stack *inactiveList,
@@ -602,6 +600,7 @@ void restoreRegisterStates(struct Stack *savedStateStack,
                     Stack_push(correctPlaceVariables, examinedSpill);
                     needRelocate = 0;
                 }
+                free(desiredSpill);
             }
             else // couldn't find this variable spilled in the saved state - it must be in a register
             {
@@ -626,6 +625,8 @@ void restoreRegisterStates(struct Stack *savedStateStack,
                     needRelocate = 0;
                     // destinationRegister->lastUsed = 0; // does it make sense to do this?
                 }
+                free(desiredRegister);
+                free(examinedSpill);
             }
 
             if (needRelocate)
@@ -641,6 +642,10 @@ void restoreRegisterStates(struct Stack *savedStateStack,
                 Stack_push(relocationStack, examinedSpill->lifetime);
                 free(examinedSpill);
             }
+        }
+        else
+        {
+            free(examinedSpill);
         }
     }
 
@@ -690,9 +695,13 @@ void restoreRegisterStates(struct Stack *savedStateStack,
         ASMblock_append(outputBlock, outputLine);
         // printf("retrieving r%d 's value from %%rr (unsmash scratch register)", scratchRegister->index);
         Stack_push(activeList, scratchRegister);
-    }else{
+    }
+    else
+    {
         Stack_push(inactiveList, scratchRegister);
     }
+
+    Stack_free(correctPlaceVariables);
 
     while (savedActiveList->size > 0)
         free(Stack_pop(savedActiveList));
@@ -710,6 +719,7 @@ void restoreRegisterStates(struct Stack *savedStateStack,
     Stack_free(savedSpilledList);
     free(editableState);
     Stack_free(relocationStack);
+
     // printf("done in restoreregisterstates\n");
     // printCurrentState(activeList, inactiveList, spilledList);
     // printf("\n");

@@ -169,18 +169,6 @@ void printBasicBlocks(struct symbolTable *theTable)
         if (theTable->entries[i]->type == e_function)
         {
             struct functionEntry *thisEntry = theTable->entries[i]->entry;
-            // generateCode(thisEntry->table, outFile);
-            struct Stack *blockStack = Stack_new();
-            for (struct LinkedListNode *runner = thisEntry->table->BasicBlockList->tail; runner != NULL; runner = runner->prev)
-            {
-                struct BasicBlock *thisBlock = runner->data;
-                if (thisBlock->containsEffectiveCode)
-                {
-                    Stack_push(blockStack, thisBlock);
-                }
-
-                // printf("%d\n", ((struct TACLine *)thisBlock->TACList->head->data)->index);
-            }
 
             for (struct LinkedListNode *runner = thisEntry->table->BasicBlockList->head; runner != NULL; runner = runner->next)
             {
@@ -219,7 +207,7 @@ int main(int argc, char **argv)
     linearizeProgram(program, theTable);
     printf("\n\n");
 
-    // printBasicBlocks(theTable);
+    printBasicBlocks(theTable);
 
     printSymTab(theTable, 1);
     printf("\n\n");
@@ -228,6 +216,16 @@ int main(int argc, char **argv)
 
     // struct Lifetime *theseLifetimes = findLifetimes(theTable);
     struct ASMblock *output;
+    output = generateCode(theTable, outFile);
+    struct ASMline *L1 = output->head;
+    struct ASMline *L2 = L1->next;
+    output->head = L2->next;
+    free(L1->data);
+    free(L1);
+    free(L2->data);
+    free(L2);
+    ASMblock_output(output, outFile);
+    ASMblock_free(output);
 
     for (int i = 0; i < theTable->size; i++)
     {
@@ -245,6 +243,7 @@ int main(int argc, char **argv)
             ASMblock_free(output);
         }
     }
+    
 
     fclose(outFile);
     freeDictionary(parseDict);

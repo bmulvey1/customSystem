@@ -18,8 +18,8 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
     for (int i = 0; i < REGISTER_COUNT; i++)
         registerLoads[i] = 0;
 
-    int *stackLoads = malloc(lifetimeCount * sizeof(int)); // count of TAC steps with different numbers of variables spilled
-    for (int i = 0; i < lifetimeCount; i++)
+    int *stackLoads = malloc((lifetimeCount + 1) * sizeof(int)); // count of TAC steps with different numbers of variables spilled
+    for (int i = 0; i <= lifetimeCount; i++)
         stackLoads[i] = 0;
 
     struct Stack *inactiveList = Stack_new(); // registers not currently in use
@@ -340,6 +340,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                     printedTAC = sPrintTACLine(currentTAC);
                     sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
                     free(outputLine);
+                    free(printedTAC);
                     ASMblock_append(outputBlock, finalOutputLine);
                 }
             }
@@ -424,6 +425,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
             case tt_resetstate:
                 resetRegisterStates(savedStateStack, activeList, inactiveList, spilledList, &currentLifetimeIndex);
+
                 break;
 
             case tt_popstate:
@@ -461,7 +463,9 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                 }
 
                 outputLine = malloc(64);
-                sprintf(outputLine, "mov %%rr, %%r%d;%s", retValIndex, sPrintTACLine(currentTAC));
+                printedTAC = sPrintTACLine(currentTAC);
+                sprintf(outputLine, "mov %%rr, %%r%d;%s", retValIndex, printedTAC);
+                free(printedTAC);
                 ASMblock_append(outputBlock, outputLine);
 
                 break;
@@ -489,7 +493,11 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                 break;
 
             case tt_asm:
-                ASMblock_append(outputBlock, currentTAC->operands[0]);
+                // copy the line because it lives in dictionary
+                // freeing the operand itself in freeASM() will result in double free when freeing dictionary later
+                outputLine = malloc(strlen(currentTAC->operands[0]) + 1);
+                strcpy(outputLine, currentTAC->operands[0]);
+                ASMblock_append(outputBlock, outputLine);
                 break;
 
             default:
@@ -546,7 +554,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
     }
 
     outputLine = malloc(64);
-    sprintf(outputLine, ".%s:", table->name);
+    sprintf(outputLine, "%s:", table->name);
     ASMblock_prepend(outputBlock, outputLine);
 
     if (maxSpillSpace > 0)
