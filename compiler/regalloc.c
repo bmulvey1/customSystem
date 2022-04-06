@@ -543,10 +543,11 @@ void restoreRegisterStates(struct Stack *savedStateStack,
                 needRelocate = 0;
             }
         }
-        else
-        {
-            Stack_push(savedActiveList, desiredRegister);
-        }
+        // don't push null back to stack - this is superfluous?!
+        // else
+        // {
+            // Stack_push(savedActiveList, desiredRegister);
+        // }
 
         if (needRelocate) // the variable is in the wrong register or should be spilled at this time
         {

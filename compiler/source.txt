@@ -6,7 +6,7 @@ code:
     add %r0, $1
     cmp %r0, $20
     jg code_done
-    push $20
+    push %r0
     call fib
     out %rr
     jmp code;

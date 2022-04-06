@@ -23,6 +23,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         stackLoads[i] = 0;
 
     struct Stack *inactiveList = Stack_new(); // registers not currently in use
+
     struct Stack *activeList = Stack_new();   // registers containing variables
     struct Stack *spilledList = Stack_new();  // list of live variables which have been spilled to stack
     int maxSpillSpace = 0;
@@ -32,7 +33,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
     {
         struct Register *wip = malloc(sizeof(struct Register));
         wip->lifetime = NULL;
-        wip->index = REGISTER_COUNT - 1 - i;
+        wip->index = (REGISTER_COUNT - 1) - i;
         Stack_push(inactiveList, wip);
     }
 
@@ -417,7 +418,8 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                 struct SavedState *duplicatedState = duplicateCurrentState(activeList, inactiveList, spilledList, currentLifetimeIndex);
                 Stack_push(savedStateStack, duplicatedState);
             }
-            break;
+
+                break;
 
             case tt_restorestate:
                 restoreRegisterStates(savedStateStack, activeList, inactiveList, spilledList, &currentLifetimeIndex, (long int)currentTAC->operands[0], outputBlock);
@@ -425,7 +427,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
             case tt_resetstate:
                 resetRegisterStates(savedStateStack, activeList, inactiveList, spilledList, &currentLifetimeIndex);
-
                 break;
 
             case tt_popstate:
@@ -525,13 +526,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         printf(".");
         blockRunner = blockRunner->next;
     }
-
-    while (activeList->size > 0)
-    {
-        Stack_push(inactiveList, Stack_pop(activeList));
-    }
-
-    sortByRegisterNumber((struct Register **)inactiveList->data, inactiveList->size);
 
     for (int i = 0; i < REGISTER_COUNT; i++)
     {
@@ -640,7 +634,11 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
     free(lifetimeArray);
 
+    if (savedStateStack->size > 0)
+    {
+        perror("saved state stack not empty after code generation!");
+        exit(1);
+    }
     Stack_free(savedStateStack);
-
     return outputBlock;
 }

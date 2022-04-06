@@ -1,16 +1,16 @@
-#include "CPU.asm"
-entry code
+	#include "CPU.asm"
+	entry code
 code:
-	inc %r0
+	add %r0, $1
 	cmp %r0, $20
 	jg code_done
 	push %r0
 	call fib
 	out %rr
-	jmp code
+	jmp code;
 code_done:
 	hlt
-
+	ret 0
 fib:
 	sub %sp, $6
 	push %r3
@@ -18,10 +18,10 @@ fib:
 	push %r1
 	push %r0
 fib_0:
-		;introduce var i to %r0
+	;introduce var i to %r0
 	mov %r0, 4(%bp) ;place argument i
-		;introduce var result to %r1
-		;introduce var x to %r2
+	;introduce var result to %r1
+	;introduce var x to %r2
 	mov %r2, $1;x = 1
 		;introduce var y to %r3
 	mov %r3, $2;y = 2
