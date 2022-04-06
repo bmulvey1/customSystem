@@ -137,7 +137,7 @@ void sortByStackOffset(struct SpilledRegister **list, int size)
     {
         for (int j = 0; j < size - i - 1; j++)
         {
-            if (list[j]->stackOffset < list[j + 1]->stackOffset)
+            if (list[j]->stackOffset > list[j + 1]->stackOffset)
             {
                 struct SpilledRegister *temp = list[j];
                 list[j] = list[j + 1];
@@ -482,6 +482,8 @@ struct SavedState *duplicateCurrentState(struct Stack *activeList,
     return wip;
 }
 
+void rrs_done(){}
+
 void restoreRegisterStates(struct Stack *savedStateStack,
                            struct Stack *activeList,
                            struct Stack *inactiveList,
@@ -638,17 +640,42 @@ void restoreRegisterStates(struct Stack *savedStateStack,
                 sprintf(outputLine, "push %%r%d", scratchRegister->index);
                 ASMblock_append(outputBlock, outputLine);
                 Stack_push(relocationStack, examinedSpill->lifetime);
+                free(examinedSpill);
             }
         }
-        free(examinedSpill);
     }
 
     sortByStackOffset((struct SpilledRegister **)correctPlaceVariables->data, correctPlaceVariables->size);
 
-    while(correctPlaceVariables->size > 0){
-        struct SpilledRegister *examinedCorrectPlaceSpill = Stack_pop(correctPlaceVariables);
-        printf("%d\n", examinedCorrectPlaceSpill->stackOffset);
-        printf("spill %d [%s]\n", examinedCorrectPlaceSpill->stackOffset, examinedCorrectPlaceSpill->lifetime->variable);
+    // savedSpilledList and correctPlaceVariables contain all of the SpilledRegisters needed to reconstruct the proper spilled list
+    while (savedSpilledList->size > 0 || correctPlaceVariables->size > 0)
+    {
+        // figure out which list has the variable closest to %bp
+        int peekedExistingOffset = -10000;
+        int peekedNeededOffset = -10000;
+        if (correctPlaceVariables->size > 0)
+        {
+            peekedExistingOffset = ((struct SpilledRegister *)Stack_peek(correctPlaceVariables))->stackOffset;
+        }
+        if (savedSpilledList->size > 0)
+        {
+            peekedNeededOffset = ((struct SpilledRegister *)Stack_peek(savedSpilledList))->stackOffset;
+        }
+
+        // place the SpilledRegisters in the correct order back into the spilled list
+        if (peekedNeededOffset > peekedExistingOffset)
+        {
+            Stack_push(spilledList, Stack_pop(savedSpilledList));
+        }
+        else if (peekedNeededOffset < peekedExistingOffset)
+        {
+            Stack_push(spilledList, Stack_pop(correctPlaceVariables));
+        }
+        else // if this happens, a spill has been duplicated and appears in both lists for some reason
+        {
+            perror("Clash during restoration of spilled list!\nShouldn't be possible to see identical offset in both correct list and needed list!\n");
+            exit(1);
+        }
     }
 
     while (relocationStack->size > 0)
@@ -663,6 +690,9 @@ void restoreRegisterStates(struct Stack *savedStateStack,
         sprintf(outputLine, "mov %%r%d, %%rr", scratchRegister->index);
         ASMblock_append(outputBlock, outputLine);
         printf("retrieving r%d 's value from %%rr (unsmash scratch register)", scratchRegister->index);
+        Stack_push(activeList, scratchRegister);
+    }else{
+        Stack_push(inactiveList, scratchRegister);
     }
 
     while (savedActiveList->size > 0)
@@ -681,7 +711,10 @@ void restoreRegisterStates(struct Stack *savedStateStack,
     Stack_free(savedSpilledList);
     free(editableState);
     Stack_free(relocationStack);
-    // printf("\n");
+    printf("done in restoreregisterstates\n");
+    printCurrentState(activeList, inactiveList, spilledList);
+    rrs_done(); // for breakpoints
+    printf("\n");
 }
 
 void resetRegisterStates(struct Stack *savedStateStack,
@@ -715,7 +748,7 @@ void resetRegisterStates(struct Stack *savedStateStack,
         free(Stack_pop(spilledList));
 
     for (int i = 0; i < resetTo->spilledList->size; i++)
-        Stack_push(inactiveList, duplicateSpilledRegister(resetTo->spilledList->data[i]));
+        Stack_push(spilledList, duplicateSpilledRegister(resetTo->spilledList->data[i]));
 
     // printf("DONE:\n");
     // printCurrentState(activeList, inactiveList, spilledList);

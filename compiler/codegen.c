@@ -99,8 +99,8 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         while (TACRunner != NULL)
         {
             struct TACLine *currentTAC = TACRunner->data;
-            // printTACLine(currentTAC);
-            // printf("\n");
+            printTACLine(currentTAC);
+            printf("\n");
             TACIndex = currentTAC->index;
             expireOldIntervals(activeList, inactiveList, spilledList, TACIndex);
 
@@ -407,7 +407,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
                         if (currentTAC->operandTypes[2] == vt_literal)
                         {
-                            sprintf(outputLine, "cmp %%r%d, %s", firstSourceRegister, currentTAC->operands[0]);
+                            sprintf(outputLine, "cmp %%r%d, $%s", firstSourceRegister, currentTAC->operands[2]);
                         }
                         else
                         {
@@ -522,8 +522,8 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                     activeSpills++;
             }
             stackLoads[activeSpills]++;
-            // printCurrentState(activeList, inactiveList, spilledList);
-            // printf("\n\n");
+            printCurrentState(activeList, inactiveList, spilledList);
+            printf("\n\n");
             TACRunner = TACRunner->next;
 
             sortByEndPoint((struct Register **)activeList->data, activeList->size);
