@@ -23,7 +23,22 @@ fun print(var i){
     };
 }
 
+fun nestedWhile(var i){
+    var j = 0;
+    var l = 0;
+    while(j < i){
+        var k = 0;
+        while(k < i){
+            print(k);
+            k = k + 1;
+            l = l + 1;
+        }
+        j = j + 1;
+    }
+    print(l);
+}
 
+/*
 fun fib(var n){
     var *fibarr = 256;
     *fibarr = 0;
@@ -43,6 +58,7 @@ fun fib(var n){
     }
     
 }
+*/
 
 /*
 // compute the first n fibonacci numbers (using pointers!)
@@ -68,21 +84,25 @@ fun firstnfibs(var n){
 fun firstkprimes(){
     var *primes = 1000;
     var i = 2;
+    var j;
     while(i <= 10000){
         if(*(primes + i) == 0){
-            var j = i;
+            j = i;
             while(j <= 10000){
                 *(primes + j) = 1;
                 j = j + i;
             }
-            asm{
-                out [i]
-            };
+            print(i);
         }
         i = i + 1;
     }
+    i = i;
+    j = j;
+    var k = i + j;
 }
 */
+
+
 
 
 $$

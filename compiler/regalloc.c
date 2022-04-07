@@ -251,7 +251,7 @@ void expireOldIntervals(struct Stack *activeList,
         if (poppedRegister->lifetime->end < TACIndex)
         {
             // if the variable this register contains expires, add register to inactive list
-            // printf("Expire %s\n", poppedRegister->lifetime->variable);
+            printf("Expire %s\n", poppedRegister->lifetime->variable);
             Stack_push(inactiveList, poppedRegister);
         }
         else
@@ -274,7 +274,7 @@ void expireOldIntervals(struct Stack *activeList,
         // if the spill slot is occupied and the variable in that slot is expired
         if (checkedSpill->occupied && checkedSpill->lifetime->end < TACIndex)
         {
-            // printf("Expire %s (spilled on stack)\n", checkedSpill->lifetime->variable);
+            printf("Expire %s (spilled on stack)\n", checkedSpill->lifetime->variable);
             // free the slot
             checkedSpill->occupied = 0;
         }
@@ -433,6 +433,7 @@ int findSpilledVariable(struct Stack *spilledLilst, char *varName)
 
 void printLifetimesGraph(struct LinkedList *lifetimeList)
 {
+    int highestIndex = 0;
     for (struct LinkedListNode *runner = lifetimeList->head; runner != NULL; runner = runner->next)
     {
         struct Lifetime *thisLifetime = runner->data;
@@ -448,8 +449,38 @@ void printLifetimesGraph(struct LinkedList *lifetimeList)
         {
             printf("-");
         }
+        if (i > highestIndex)
+        {
+            highestIndex = i;
+        }
         printf("\n");
     }
+    printf("         ");
+    for (int i = 0; i < highestIndex; i++)
+    {
+        if (i % 2 == 0)
+        {
+            printf("%x", i % 16);
+        }
+        else
+        {
+            printf(" ");
+        }
+    }
+    printf("\n         ");
+
+    for (int i = 0; i < highestIndex; i++)
+    {
+        if (i % 2 == 0)
+        {
+            printf("%x", i / 16);
+        }
+        else
+        {
+            printf(" ");
+        }
+    }
+    printf("\n");
 }
 
 /*
@@ -823,9 +854,10 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
                     {
                         if (examinedLifetime->variable[0] != '.')
                         {
-                            examinedLifetime->end = extendTo;
-                            if (examinedLifetime->start >= extendFrom)
-                                examinedLifetime->start = extendFrom;
+                            if (examinedLifetime->end < extendTo)
+                                examinedLifetime->end = extendTo;
+                            // if (examinedLifetime->start > extendFrom)
+                            // examinedLifetime->start = extendFrom;
                         }
                     }
                 }
@@ -853,7 +885,7 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
         }
         blockRunner = blockRunner->next;
     }
-    
+
     Stack_free(doDepth);
     return lifetimes;
 }

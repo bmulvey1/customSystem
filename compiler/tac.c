@@ -130,14 +130,14 @@ void printTACLine(struct TACLine *it)
     char *operationStr;
     char fallingThrough = 0;
     int width;
-    // if (TACLine_isEffective(it))
-    // {
+    if (TACLine_isEffective(it))
+    {
         width = printf("%2x: ", it->index);
-    // }
-    // else
-    // {
-        // width = printf(" ~  ");
-    // }
+    }
+    else
+    {
+        width = printf(" ~  ");
+    }
 
     switch (it->operation)
     {
@@ -252,7 +252,7 @@ void printTACLine(struct TACLine *it)
         break;
 
     case tt_restorestate:
-        width += printf("RESTORESTATE (interval %ld)", (long int)it->operands[0]);
+        width += printf("RESTORESTATE (interval %2lx)", (long int)it->operands[0]);
         break;
 
     case tt_resetstate:
@@ -390,7 +390,7 @@ char *sPrintTACLine(struct TACLine *it)
         break;
 
     case tt_restorestate:
-        width += sprintf(tacString, "RESTORESTATE (interval %ld)", (long int)it->operands[0]);
+        width += sprintf(tacString, "RESTORESTATE (interval %2lx)", (long int)it->operands[0]);
         break;
 
     case tt_resetstate:

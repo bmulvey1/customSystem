@@ -744,13 +744,13 @@ int linearizeWhileLoop(int currentTACIndex, struct LinkedList *blockList, struct
         struct TACLine *examinedTAC = runner->data;
         if (examinedTAC->operation == tt_restorestate)
         {
-            examinedTAC->operands[0] = (char *)((long int)currentTACIndex);
+            examinedTAC->operands[0] = (char *)((long int)entryTACIndex);
             break;
         }
     }
 
     struct TACLine *whileEndDo = newTACLine(currentTACIndex - 1, tt_enddo);
-    BasicBlock_append(whileBlock, whileEndDo);
+    BasicBlock_append(afterWhileBlock, whileEndDo);
 
     return currentTACIndex;
 }
