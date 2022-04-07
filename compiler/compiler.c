@@ -226,7 +226,7 @@ int main(int argc, char **argv)
     free(L2);
     ASMblock_output(output, outFile);
     ASMblock_free(output);
-
+    // exit(1);
     for (int i = 0; i < theTable->size; i++)
     {
         if (theTable->entries[i]->type == e_function)

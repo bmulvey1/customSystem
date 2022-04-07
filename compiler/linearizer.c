@@ -597,6 +597,49 @@ int linearizeAssignment(int currentTACIndex, struct LinkedList *blockList, struc
     return currentTACIndex;
 }
 
+struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp)
+{
+    struct TACLine *notMetJump;
+    switch (cmpOp[0])
+    {
+    case '<':
+        switch (cmpOp[1])
+        {
+        case '=':
+            notMetJump = newTACLine(currentTACIndex, tt_jg);
+            break;
+
+        default:
+            notMetJump = newTACLine(currentTACIndex, tt_jge);
+            break;
+        }
+        break;
+
+    case '>':
+        switch (cmpOp[1])
+        {
+        case '=':
+            notMetJump = newTACLine(currentTACIndex, tt_jl);
+            break;
+
+        default:
+            notMetJump = newTACLine(currentTACIndex, tt_jle);
+            break;
+        }
+        break;
+
+    case '!':
+        notMetJump = newTACLine(currentTACIndex, tt_je);
+        break;
+
+    case '=':
+        notMetJump = newTACLine(currentTACIndex, tt_jne);
+        break;
+    }
+
+    return notMetJump;
+}
+
 int linearizeDeclaration(int currentTACIndex, struct BasicBlock *currentBlock, struct astNode *it, enum token type)
 {
     struct TACLine *declarationLine = newTACLine(currentTACIndex, tt_declare);
@@ -619,7 +662,7 @@ int linearizeDeclaration(int currentTACIndex, struct BasicBlock *currentBlock, s
 
 struct Stack *linearizeIfStatement(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct BasicBlock *afterIfBlock, struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl)
 {
-    // a stack is overkill but allows to store either 0 or 1 resulting blocks depending on if there is or isn't an else block
+    // a stack is overkill but allows to store either 1 or 2 resulting blocks depending on if there is or isn't an else block
     struct Stack *resultBlocks = Stack_new();
 
     // linearize the expression we will test
@@ -629,46 +672,9 @@ struct Stack *linearizeIfStatement(int currentTACIndex, struct LinkedList *block
     struct TACLine *pushState = newTACLine(currentTACIndex, tt_pushstate);
     BasicBlock_append(currentBlock, pushState);
 
-    struct TACLine *noifJump;
-
     // generate a label and figure out condition to jump when the if statement isn't executed
-    char *cmpOp = it->child->value;
-    switch (cmpOp[0])
-    {
-    case '<':
-        switch (cmpOp[1])
-        {
-        case '=':
-            noifJump = newTACLine(currentTACIndex++, tt_jg);
-            break;
+    struct TACLine *noifJump = linearizeConditionalJump(currentTACIndex++, it->child->value);
 
-        default:
-            noifJump = newTACLine(currentTACIndex++, tt_jge);
-            break;
-        }
-        break;
-
-    case '>':
-        switch (cmpOp[1])
-        {
-        case '=':
-            noifJump = newTACLine(currentTACIndex++, tt_jl);
-            break;
-
-        default:
-            noifJump = newTACLine(currentTACIndex++, tt_jle);
-            break;
-        }
-        break;
-
-    case '!':
-        noifJump = newTACLine(currentTACIndex++, tt_je);
-        break;
-
-    case '=':
-        noifJump = newTACLine(currentTACIndex++, tt_jne);
-        break;
-    }
     BasicBlock_append(currentBlock, noifJump);
 
     // track the highest TAC index of both branches
@@ -700,6 +706,41 @@ struct Stack *linearizeIfStatement(int currentTACIndex, struct LinkedList *block
     }
 
     return resultBlocks;
+}
+
+int linearizeWhileLoop(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct BasicBlock *afterWhileBlock, struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl)
+{
+    int entryTACIndex = currentTACIndex;
+    // save state before while block
+    struct TACLine *pushState = newTACLine(currentTACIndex, tt_pushstate);
+    BasicBlock_append(currentBlock, pushState);
+
+    struct BasicBlock *whileBlock = BasicBlock_new(++(*labelCount));
+    LinkedList_append(blockList, whileBlock);
+
+    // linearize the expression we will test
+    currentTACIndex = linearizeExpression(currentTACIndex, blockList, whileBlock, it->child, tempNum, tl);
+
+    // restore state before the conditional jump that exits the loop
+    struct TACLine *beforeNoWhileRestore = newTACLine(currentTACIndex, tt_restorestate);
+    beforeNoWhileRestore->operands[0] = (char *)((long int)entryTACIndex);
+    BasicBlock_append(whileBlock, beforeNoWhileRestore);
+
+    struct TACLine *noWhileJump = linearizeConditionalJump(currentTACIndex++, it->child->value);
+    BasicBlock_append(whileBlock, noWhileJump);
+
+    currentTACIndex = linearizeStatementList(currentTACIndex, blockList, whileBlock, whileBlock, it->child->sibling->child, tempNum, labelCount, tl);
+    for (struct LinkedListNode *runner = whileBlock->TACList->tail; runner != NULL; runner = runner->prev)
+    {
+        struct TACLine *examinedTAC = runner->data;
+        if (examinedTAC->operation == tt_restorestate)
+        {
+            examinedTAC->operands[0] = (char *)((long int)entryTACIndex);
+            break;
+        }
+    }
+
+    return currentTACIndex;
 }
 
 // given the AST for a function, generate TAC and return a pointer to the head of the generated block
@@ -829,99 +870,134 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
         break;
 
         case t_while:
+        {
+            struct BasicBlock *afterWhileBlock = BasicBlock_new(++(*labelCount));
+
+            currentTACIndex = linearizeWhileLoop(currentTACIndex, blockList, currentBlock, afterWhileBlock, runner, tempNum, labelCount, tl);
+
+            currentBlock = afterWhileBlock;
+
             /*
+            // grab all generated basic blocks generated by the if statement's linearization
+            char stillScraping = 1;
+            for (struct LinkedListNode *TACRunner = condCheckBlock->TACList->tail; TACRunner != NULL; TACRunner = TACRunner->prev)
             {
-                // push state before entering the loop
-                struct TACLine *pushState = newTACLine(currentTACIndex++, );
-                pushState->operation = tt_pushstate;
-                sltac = appendTAC(sltac, pushState);
-
-                // establish a block during which any live variable's lifetime will be extended
-                // since a variable could "die" during the while loop, then the loop could repeat
-                // we need to extend all the lifetimes within the loop or risk overwriting and losing some variables
-
-                // generate a label for the top of the while loop
-                struct TACLine *beginWhile = newTACLine(currentTACIndex++, );
-                beginWhile->operation = tt_label;
-                beginWhile->operands[0] = (char *)((long int)++(*labelCount));
-                appendTAC(sltac, beginWhile);
-
-                // linearize the expression we will test
-                appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
-
-                // generate a label and figure out condition to jump when the while loop isn't executed
-                struct TACLine *noWhileJump = newTACLine(currentTACIndex++, );
-                char *cmpOp = runner->child->value;
-                switch (cmpOp[0])
+                struct TACLine *examinedTAC = TACRunner->data;
+                switch (examinedTAC->operation)
                 {
-                case '<':
-                    switch (cmpOp[1])
-                    {
-                    case '=':
-                        noWhileJump->operation = tt_jg;
-                        break;
-
-                    default:
-                        noWhileJump->operation = tt_jge;
-                        break;
-                    }
+                case tt_jg:
+                case tt_jge:
+                case tt_jl:
+                case tt_jle:
+                case tt_je:
+                case tt_jne:
+                case tt_jmp:
+                    examinedTAC->operands[0] = (char *)((long int)afterWhileBlock->labelNum);
                     break;
 
-                case '>':
-                    switch (cmpOp[1])
-                    {
-                    case '=':
-                        noWhileJump->operation = tt_jl;
-                        break;
-
-                    default:
-                        noWhileJump->operation = tt_jle;
-                        break;
-                    }
-                    break;
-
-                case '!':
-                    noWhileJump->operation = tt_je;
-                    break;
-
-                case '=':
-                    noWhileJump->operation = tt_jne;
+                default:
                     break;
                 }
-                appendTAC(sltac, noWhileJump);
 
-                struct TACLine *noWhileLabel = newTACLine(currentTACIndex++, );
-                noWhileLabel->operation = tt_label;
-                // bit hax (⌐▨_▨)
-                // (store the label index using the char* for this TAC line)
-                // (avoids having to use more fields in the struct)
-                noWhileLabel->operands[0] = (char *)((long int)++(*labelCount));
-                noWhileJump->operands[0] = (char *)(long int)(*labelCount);
+                if (!stillScraping)
+                    break;
+            }*/
+            // skip the current TAC index as far forward as possible so code generated from here on out is always after previous code
+        }
 
-                // linearize the body of the loop
-                struct TACLine *whileBody = linearizeStatementList(runner->child->sibling->child, tempNum, labelCount, tl);
-                appendTAC(sltac, whileBody);
+        /*
+        {
+            // push state before entering the loop
+            struct TACLine *pushState = newTACLine(currentTACIndex++, );
+            pushState->operation = tt_pushstate;
+            sltac = appendTAC(sltac, pushState);
 
-                // restore the registers to a known state at the end of every loop
-                struct TACLine *restoreState = newTACLine(currentTACIndex++, );
-                restoreState->operation = tt_restorestate;
-                appendTAC(sltac, restoreState);
+            // establish a block during which any live variable's lifetime will be extended
+            // since a variable could "die" during the while loop, then the loop could repeat
+            // we need to extend all the lifetimes within the loop or risk overwriting and losing some variables
 
-                // jump back to the condition test
-                struct TACLine *loopJump = newTACLine(currentTACIndex++, );
-                loopJump->operation = tt_jmp;
-                loopJump->operands[0] = beginWhile->operands[0];
-                appendTAC(sltac, loopJump);
+            // generate a label for the top of the while loop
+            struct TACLine *beginWhile = newTACLine(currentTACIndex++, );
+            beginWhile->operation = tt_label;
+            beginWhile->operands[0] = (char *)((long int)++(*labelCount));
+            appendTAC(sltac, beginWhile);
 
-                // at the very end, add the label we jump to if the condition test fails
-                appendTAC(sltac, noWhileLabel);
-                // throw away the saved state when done with the loop
-                struct TACLine *endWhilePop = newTACLine(currentTACIndex++, );
-                endWhilePop->operation = tt_popstate;
-                appendTAC(sltac, endWhilePop);
+            // linearize the expression we will test
+            appendTAC(sltac, linearizeExpression(runner->child, tempNum, tl));
+
+            // generate a label and figure out condition to jump when the while loop isn't executed
+            struct TACLine *noWhileJump = newTACLine(currentTACIndex++, );
+            char *cmpOp = runner->child->value;
+            switch (cmpOp[0])
+            {
+            case '<':
+                switch (cmpOp[1])
+                {
+                case '=':
+                    noWhileJump->operation = tt_jg;
+                    break;
+
+                default:
+                    noWhileJump->operation = tt_jge;
+                    break;
+                }
+                break;
+
+            case '>':
+                switch (cmpOp[1])
+                {
+                case '=':
+                    noWhileJump->operation = tt_jl;
+                    break;
+
+                default:
+                    noWhileJump->operation = tt_jle;
+                    break;
+                }
+                break;
+
+            case '!':
+                noWhileJump->operation = tt_je;
+                break;
+
+            case '=':
+                noWhileJump->operation = tt_jne;
+                break;
             }
-            */
-            break;
+            appendTAC(sltac, noWhileJump);
+
+            struct TACLine *noWhileLabel = newTACLine(currentTACIndex++, );
+            noWhileLabel->operation = tt_label;
+            // bit hax (⌐▨_▨)
+            // (store the label index using the char* for this TAC line)
+            // (avoids having to use more fields in the struct)
+            noWhileLabel->operands[0] = (char *)((long int)++(*labelCount));
+            noWhileJump->operands[0] = (char *)(long int)(*labelCount);
+
+            // linearize the body of the loop
+            struct TACLine *whileBody = linearizeStatementList(runner->child->sibling->child, tempNum, labelCount, tl);
+            appendTAC(sltac, whileBody);
+
+            // restore the registers to a known state at the end of every loop
+            struct TACLine *restoreState = newTACLine(currentTACIndex++, );
+            restoreState->operation = tt_restorestate;
+            appendTAC(sltac, restoreState);
+
+            // jump back to the condition test
+            struct TACLine *loopJump = newTACLine(currentTACIndex++, );
+            loopJump->operation = tt_jmp;
+            loopJump->operands[0] = beginWhile->operands[0];
+            appendTAC(sltac, loopJump);
+
+            // at the very end, add the label we jump to if the condition test fails
+            appendTAC(sltac, noWhileLabel);
+            // throw away the saved state when done with the loop
+            struct TACLine *endWhilePop = newTACLine(currentTACIndex++, );
+            endWhilePop->operation = tt_popstate;
+            appendTAC(sltac, endWhilePop);
+        }
+        */
+        break;
 
         default:
             printf("Something broke :(\n");
