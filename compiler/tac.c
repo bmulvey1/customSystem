@@ -130,14 +130,14 @@ void printTACLine(struct TACLine *it)
     char *operationStr;
     char fallingThrough = 0;
     int width;
-    if (TACLine_isEffective(it))
-    {
+    // if (TACLine_isEffective(it))
+    // {
         width = printf("%2x: ", it->index);
-    }
-    else
-    {
-        width = printf(" ~  ");
-    }
+    // }
+    // else
+    // {
+        // width = printf(" ~  ");
+    // }
 
     switch (it->operation)
     {
@@ -421,7 +421,6 @@ char TACLine_isEffective(struct TACLine *it)
     case tt_popstate:
     case tt_restorestate:
     case tt_resetstate:
-    case tt_declare:
     case tt_do:
     case tt_enddo:
         return 0;

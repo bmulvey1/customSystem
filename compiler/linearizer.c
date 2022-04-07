@@ -545,7 +545,7 @@ int linearizeAssignment(int currentTACIndex, struct LinkedList *blockList, struc
         {
         case t_dereference:
             currentTACIndex = linearizeDereference(currentTACIndex, blockList, currentBlock, it->child->child->child, tempNum, tl);
-
+        
             finalWrite = newTACLine(currentTACIndex++, tt_memw_1);
             finalWrite->operands[1] = lastLine->operands[0];
             finalWrite->operandTypes[1] = lastLine->operandTypes[0];
@@ -558,12 +558,13 @@ int linearizeAssignment(int currentTACIndex, struct LinkedList *blockList, struc
         case t_un_add:
         case t_un_sub:
             currentTACIndex = linearizePointerArithmetic(currentTACIndex, blockList, currentBlock, it->child->child, tempNum, tl, 0);
-
+            struct TACLine *lastDereferenceLine = currentBlock->TACList->tail->data;
+            
             finalWrite = newTACLine(currentTACIndex++, tt_memw_1);
             finalWrite->operands[1] = lastLine->operands[0];
             finalWrite->operandTypes[1] = lastLine->operandTypes[0];
 
-            finalWrite->operands[0] = getTempString(tl, *tempNum);
+            finalWrite->operands[0] = lastDereferenceLine->operands[0];
             finalWrite->operandTypes[0] = vt_temp;
 
             BasicBlock_append(currentBlock, finalWrite);
@@ -646,7 +647,7 @@ struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp)
 
 int linearizeDeclaration(int currentTACIndex, struct BasicBlock *currentBlock, struct astNode *it, enum token type)
 {
-    struct TACLine *declarationLine = newTACLine(currentTACIndex, tt_declare);
+    struct TACLine *declarationLine = newTACLine(currentTACIndex++, tt_declare);
     declarationLine->operands[0] = it->value;
     enum variableTypes declaredType;
     switch (type)
@@ -743,7 +744,7 @@ int linearizeWhileLoop(int currentTACIndex, struct LinkedList *blockList, struct
         struct TACLine *examinedTAC = runner->data;
         if (examinedTAC->operation == tt_restorestate)
         {
-            examinedTAC->operands[0] = (char *)((long int)entryTACIndex);
+            examinedTAC->operands[0] = (char *)((long int)currentTACIndex);
             break;
         }
     }
@@ -813,6 +814,7 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
             currentTACIndex = linearizeFunctionCall(currentTACIndex, blockList, currentBlock, runner, tempNum, tl);
             struct TACLine *lastLine = currentBlock->TACList->tail->data;
             lastLine->operands[0] = NULL;
+            lastLine->operandTypes[0] = vt_null;
         }
         break;
 

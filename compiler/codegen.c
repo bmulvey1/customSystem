@@ -98,6 +98,8 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
             struct TACLine *currentTAC = TACRunner->data;
             TACIndex = currentTAC->index;
             expireOldIntervals(activeList, inactiveList, spilledList, TACIndex);
+            // printTACLine(currentTAC);
+            // printf("\n");
 
             // increment last used values of all active registers or reset if variable used in this step
             for (int i = 0; i < activeList->size; i++)
@@ -214,6 +216,8 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
             case tt_add:
             case tt_subtract:
+            case tt_mul:
+            case tt_div:
             {
                 outputLine = malloc(20);
                 finalOutputLine = malloc(64);
@@ -293,13 +297,57 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                         sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationRegister, findSpilledVariable(spilledList, currentTAC->operands[1]));
                         ASMblock_append(outputBlock, outputLine);
                         outputLine = malloc(20);
-                        sprintf(outputLine, "%s %%r%d, %d(%%bp)", getAsmOp(currentTAC->operation), destinationRegister, findSpilledVariable(spilledList, currentTAC->operands[2]));
+                        if (currentTAC->operandTypes[2] == vt_literal)
+                        {
+                            sprintf(outputLine, "%s %%r%d, %s", getAsmOp(currentTAC->operation), destinationRegister, currentTAC->operands[2]);
+
+                        }
+                        else
+                        {
+                            sprintf(outputLine, "%s %%r%d, %d(%%bp)", getAsmOp(currentTAC->operation), destinationRegister, findSpilledVariable(spilledList, currentTAC->operands[2]));
+                        }
                     }
                 }
                 printedTAC = sPrintTACLine(currentTAC);
                 sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
                 free(outputLine);
                 free(printedTAC);
+                ASMblock_append(outputBlock, finalOutputLine);
+            }
+            break;
+
+            case tt_memr_1:
+            {
+                finalOutputLine = malloc(48);
+                int destinationIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+                int sourceIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
+
+                outputLine = malloc(16);
+                sprintf(outputLine, "mov %%r%d, (%%r%d)", destinationIndex, sourceIndex);
+
+                printedTAC = sPrintTACLine(currentTAC);
+                sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
+                free(outputLine);
+                free(printedTAC);
+
+                ASMblock_append(outputBlock, finalOutputLine);
+            }
+            break;
+
+            case tt_memw_1:
+            {
+                finalOutputLine = malloc(48);
+                int destinationIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+                int sourceIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
+
+                outputLine = malloc(16);
+                sprintf(outputLine, "mov (%%r%d), %%r%d", destinationIndex, sourceIndex);
+
+                printedTAC = sPrintTACLine(currentTAC);
+                sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
+                free(outputLine);
+                free(printedTAC);
+
                 ASMblock_append(outputBlock, finalOutputLine);
             }
             break;
@@ -471,6 +519,16 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                 break;
             }
 
+            case tt_do:
+                printf("DO\n");
+                printCurrentState(activeList, inactiveList, spilledList);
+                break;
+
+            case tt_enddo:
+                printf("END DO\n");
+                printCurrentState(activeList, inactiveList, spilledList);
+                break;
+
             case tt_jg:
             case tt_jge:
             case tt_jl:
@@ -522,6 +580,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                 struct Register *activeRegister = activeList->data[i];
                 touchedRegisters[activeRegister->index] = 1;
             }
+            // printCurrentState(activeList, inactiveList, spilledList);
         }
         printf(".");
         blockRunner = blockRunner->next;

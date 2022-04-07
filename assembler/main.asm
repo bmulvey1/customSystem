@@ -4,73 +4,115 @@ code:
 	add %r0, $1
 	cmp %r0, $20
 	jg code_done
-	push %r0
+	;push %r0
+	push $20
 	call fib
+	hlt
 	out %rr
 	jmp code;
 code_done:
 	hlt
 	ret 0
+print:
+	push %r1
+	push %r0
+print_0:
+	;introduce var i to %r0
+	mov %r0, 4(%bp) ;place argument i
+	;introduce var j to %r1
+	mov %r1, %r0;j = i
+	out %r1
+	pop %r0
+	pop %r1
+	ret 2
 fib:
-	sub %sp, $4
+	push %r6
+	push %r5
 	push %r4
 	push %r3
 	push %r2
 	push %r1
 	push %r0
 fib_0:
-	;introduce var i to %r0
-	mov %r0, 4(%bp) ;place argument i
-	;introduce var result to %r1
-	;introduce var x to %r2
-	mov %r2, $1;x = 1
-		;introduce var y to %r3
-	mov %r3, $2;y = 2
-		;introduce var z to %r4
-	mov %r4, $3;z = 3
-	cmp %r0, $2;cmp i 2
-	jge fib_4
-	cmp %r0, $1;cmp i 1
-	jge fib_3
-	mov %r1, $0;result = 0
-	jmp fib_2
-fib_3:
-	mov %r1, $1;result = 1
-	jmp fib_2
-fib_2:
-	jmp fib_1
-fib_4:
-	mov -2(%bp), %r2;spill            x
-		;introduce var .t2 to %r2
-	mov %r2, %r0
-	sub %r2, $2;.t2 = i - 2
-	push %r2
+	;introduce var n to %r0
+	mov %r0, 4(%bp) ;place argument n
+	;introduce var fibarr to %r1
+	mov %r1, $256;fibarr = 256
+		;introduce var .t0 to %r2
+	mov %r2, $0;.t0 = 0
+	mov (%r1), %r2;(fibarr) = .t0
 		;introduce var .t1 to %r2
-	call fib
-	mov %r2, %rr;.t1 = call fib
-	mov -4(%bp), %r2;spill          .t1
-		;introduce var .t4 to %r2
-	mov %r2, %r0
-	sub %r2, $1;.t4 = i - 1
-	push %r2
-		;introduce var .t3 to %r2
-	call fib
-	mov %r2, %rr;.t3 = call fib
-	mov %r1, -4(%bp)
-	add %r1, %r2;result = .t1 + .t3
-	mov %r2, -2(%bp)
-	jmp fib_1
+	mov %r2, $1;.t1 = 1
+		;introduce var .t2 to %r3
+	mov %r3, %r1
+	add %r3, $2;.t2 = fibarr + 2
+	mov (%r3), %r2;(.t2) = .t1
+		;introduce var j to %r2
+		;introduce var i to %r3
+	mov %r3, $2;i = 2
+fib_2:
+	cmp %r3, %r0;cmp i n
+	jg fib_1
+		;introduce var .t7 to %r4
+	mov %r4, %r3
+	sub %r4, $1;.t7 = i - 1
+		;introduce var .t6 to %r5
+	mov %r5, %r4
+	mul %r5, $2;.t6 = .t7 * 2
+		;introduce var .t5 to %r4
+	mov %r4, %r1
+	add %r4, %r5;.t5 = fibarr + .t6
+		;introduce var .t4 to %r5
+	mov %r5, (%r4);.t4 = (.t5)
+		;introduce var .t11 to %r4
+	mov %r4, %r3
+	sub %r4, $2;.t11 = i - 2
+		;introduce var .t10 to %r6
+	mov %r6, %r4
+	mul %r6, $2;.t10 = .t11 * 2
+		;introduce var .t9 to %r4
+	mov %r4, %r1
+	add %r4, %r6;.t9 = fibarr + .t10
+		;introduce var .t8 to %r6
+	mov %r6, (%r4);.t8 = (.t9)
+	mov %r2, %r5
+	add %r2, %r6;j = .t4 + .t8
+		;introduce var .t12 to %r5
+	mov %r5, %r2;.t12 = j
+		;introduce var .t14 to %r4
+	mov %r4, %r3
+	mul %r4, $2;.t14 = i * 2
+		;introduce var .t13 to %r6
+	mov %r6, %r1
+	add %r6, %r4;.t13 = fibarr + .t14
+	mov (%r6), %r5;(.t13) = .t12
+	mov %r3, %r3
+	add %r3, $1;i = i + 1
+	jmp fib_2
 fib_1:
-	mov %r2, %r2;x = x
-	mov %r3, %r3;y = y
-	mov %r4, %r4;z = z
-		;introduce var .RETVAL to %r4
-	mov %r4, %r1;.RETVAL = result
-	mov %rr, %r4;ret .RETVAL
+	mov %r3, $1;i = 1
+fib_4:
+	cmp %r3, %r0;cmp i n
+	jg fib_3
+		;introduce var .t19 to %r2
+	mov %r2, %r3
+	mul %r2, $2;.t19 = i * 2
+		;introduce var .t18 to %r4
+	mov %r4, %r1
+	add %r4, %r2;.t18 = fibarr + .t19
+		;introduce var .t17 to %r2
+	mov %r2, (%r4);.t17 = (.t18)
+	push %r2
+	call print
+	mov %r3, %r3
+	add %r3, $1;i = i + 1
+	jmp fib_4
+fib_3:
 	pop %r0
 	pop %r1
 	pop %r2
 	pop %r3
 	pop %r4
-	add %sp, $4
+	pop %r5
+	pop %r6
 	ret 2

@@ -789,7 +789,7 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
         if (table->entries[i]->type == e_argument)
         {
             // struct variableEntry *theArgument = table->entries[i]->entry;
-            // printf("%s is %d\n", table->entries[i]->name, ((struct variableEntry *)table->entries[i]->entry)->type);
+            printf("%s is %d\n", table->entries[i]->name, ((struct variableEntry *)table->entries[i]->entry)->type);
 
             updateOrInsertLifetime(lifetimes, table->entries[i]->name, ((struct variableEntry *)table->entries[i]->entry)->type, 0);
         }
@@ -832,6 +832,9 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
             }
             break;
 
+            case t_asm:
+                break;
+
             default:
                 for (int i = 0; i < 3; i++)
                 {
@@ -846,10 +849,11 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
                 }
                 break;
             }
-
             TACRunner = TACRunner->next;
         }
         blockRunner = blockRunner->next;
     }
+    
+    Stack_free(doDepth);
     return lifetimes;
 }
