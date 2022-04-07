@@ -11,6 +11,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         lifetimeArray[lifetimeCount++] = runner->data;
 
     // print out the variable lifetimes as a horizontal graph
+    printf("\n");
     printLifetimesGraph(lifetimes);
     printf("Generate code for function %s", table->name);
 
@@ -417,8 +418,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                 struct SavedState *duplicatedState = duplicateCurrentState(activeList, inactiveList, spilledList, currentLifetimeIndex);
                 Stack_push(savedStateStack, duplicatedState);
             }
-
-                break;
+            break;
 
             case tt_restorestate:
                 restoreRegisterStates(savedStateStack, activeList, inactiveList, spilledList, &currentLifetimeIndex, (long int)currentTAC->operands[0], outputBlock);
@@ -501,6 +501,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                 break;
 
             default:
+                break;
             }
 
             registerLoads[inactiveList->size]++;

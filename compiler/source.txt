@@ -15,21 +15,8 @@ code_done:
 };
 
 
-fun fib(var i){
-    var j = 0;
-    //var x = 1;
-    //var y = 2;
-    //var z = 3;
-    while(j < i){
-        j = j + 1;
-    }
-    //x = x;
-    //y = y;
-    //z = z;
-}
 
-/*
-fun fib(var i){
+fun fib(var n){
     var *fibarr = 1000;
     *fibarr = 0;
     *(fibarr + 1) = 1;
@@ -41,7 +28,7 @@ fun fib(var i){
         *(fibarr + i) = j;
         i = i + 1;
     }
-}*/
+}
 
 /*
 // compute the first n fibonacci numbers (using pointers!)

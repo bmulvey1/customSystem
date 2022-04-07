@@ -32,8 +32,8 @@ void updateOrInsertLifetime(struct LinkedList *ltList,
             printf("Error - type mismatch between identically named variables [%s] expected %d, saw %d!\n", variable, thisLt->type, type);
             exit(1);
         }
-
-        thisLt->end = newEnd;
+        if (newEnd > thisLt->end)
+            thisLt->end = newEnd;
     }
     else
     {
@@ -546,7 +546,7 @@ void restoreRegisterStates(struct Stack *savedStateStack,
         // don't push null back to stack - this is superfluous?!
         // else
         // {
-            // Stack_push(savedActiveList, desiredRegister);
+        // Stack_push(savedActiveList, desiredRegister);
         // }
 
         if (needRelocate) // the variable is in the wrong register or should be spilled at this time
@@ -784,7 +784,6 @@ int findOrPlaceAssignedVariable(struct Stack *activeList,
 struct LinkedList *findLifetimes(struct symbolTable *table)
 {
     struct LinkedList *lifetimes = LinkedList_new();
-
     for (int i = 0; i < table->size; i++)
     {
         if (table->entries[i]->type == e_argument)
@@ -797,6 +796,7 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
     }
 
     struct LinkedListNode *blockRunner = table->BasicBlockList->head;
+    struct Stack *doDepth = Stack_new();
     while (blockRunner != NULL)
     {
         struct BasicBlock *thisBlock = blockRunner->data;
@@ -806,18 +806,47 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
             struct TACLine *thisLine = TACRunner->data;
             int TACIndex = thisLine->index;
 
-            for (int i = 0; i < 3; i++)
+            switch (thisLine->operation)
             {
-                switch (thisLine->operandTypes[i])
+            case tt_do:
+                Stack_push(doDepth, (void *)(long int)thisLine->index);
+                break;
+
+            case tt_enddo:
+            {
+                int extendTo = thisLine->index;
+                int extendFrom = (int)(long int)Stack_pop(doDepth);
+                for (struct LinkedListNode *lifetimeRunner = lifetimes->head; lifetimeRunner != NULL; lifetimeRunner = lifetimeRunner->next)
                 {
-                case vt_var:
-                case vt_temp:
-                    // printf("%s is %d\n", runner->operands[i], runner->operandTypes[i]);
-                    updateOrInsertLifetime(lifetimes, thisLine->operands[i], thisLine->operandTypes[i], TACIndex);
-                    break;
-                default:
+                    struct Lifetime *examinedLifetime = lifetimeRunner->data;
+                    if (examinedLifetime->end >= extendFrom && examinedLifetime->end < extendTo)
+                    {
+                        if (examinedLifetime->variable[0] != '.')
+                        {
+                            examinedLifetime->end = extendTo;
+                            if (examinedLifetime->start >= extendFrom)
+                                examinedLifetime->start = extendFrom;
+                        }
+                    }
                 }
             }
+            break;
+
+            default:
+                for (int i = 0; i < 3; i++)
+                {
+                    switch (thisLine->operandTypes[i])
+                    {
+                    case vt_var:
+                    case vt_temp:
+                        updateOrInsertLifetime(lifetimes, thisLine->operands[i], thisLine->operandTypes[i], TACIndex);
+                        break;
+                    default:
+                    }
+                }
+                break;
+            }
+
             TACRunner = TACRunner->next;
         }
         blockRunner = blockRunner->next;
