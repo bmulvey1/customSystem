@@ -23,7 +23,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         stackLoads[i] = 0;
 
     struct Stack *inactiveList = Stack_new(); // registers not currently in use
-
     struct Stack *activeList = Stack_new();   // registers containing variables
     struct Stack *spilledList = Stack_new();  // list of live variables which have been spilled to stack
     int maxSpillSpace = 0;
