@@ -354,6 +354,8 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
             case tt_push:
             {
+                printCurrentState(activeList, inactiveList, spilledList);
+                printTACLine(currentTAC);
                 int sourceRegister = findActiveVariable(activeList, currentTAC->operands[0]);
                 if (sourceRegister == -1)
                 {

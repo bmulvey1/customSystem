@@ -3,15 +3,9 @@ asm
     #include "CPU.asm"
     entry code
 code:
-    add %r0, $1
-    cmp %r0, $20
-    jg code_done
-    ;push %r0
     push $20
     call fib
-    hlt
-    out %rr
-    jmp code;
+    ;call firstkprimes
 code_done:
     hlt
 };
@@ -23,24 +17,9 @@ fun print(var i){
     };
 }
 
-fun nestedWhile(var i){
-    var j = 0;
-    var l = 0;
-    while(j < i){
-        var k = 0;
-        while(k < i){
-            print(k);
-            k = k + 1;
-            l = l + 1;
-        }
-        j = j + 1;
-    }
-    print(l);
-}
 
-/*
 fun fib(var n){
-    var *fibarr = 256;
+    var *fibarr = 512;
     *fibarr = 0;
     *(fibarr + 1) = 1;
     var j;
@@ -56,9 +35,9 @@ fun fib(var n){
         print(*(fibarr + i));
         i = i + 1;
     }
-    
 }
-*/
+
+
 
 /*
 // compute the first n fibonacci numbers (using pointers!)

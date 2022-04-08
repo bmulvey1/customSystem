@@ -248,7 +248,7 @@ void expireOldIntervals(struct Stack *activeList,
     {
         // pop all active retisters
         struct Register *poppedRegister = Stack_pop(activeList);
-        if (poppedRegister->lifetime->end < TACIndex)
+        if (poppedRegister->lifetime->end < TACIndex || poppedRegister->lifetime->start > TACIndex)
         {
             // if the variable this register contains expires, add register to inactive list
             printf("Expire %s\n", poppedRegister->lifetime->variable);
@@ -272,7 +272,7 @@ void expireOldIntervals(struct Stack *activeList,
     {
         struct SpilledRegister *checkedSpill = spilledList->data[i];
         // if the spill slot is occupied and the variable in that slot is expired
-        if (checkedSpill->occupied && checkedSpill->lifetime->end < TACIndex)
+        if (checkedSpill->occupied && (checkedSpill->lifetime->end < TACIndex || checkedSpill->lifetime->start > TACIndex))
         {
             printf("Expire %s (spilled on stack)\n", checkedSpill->lifetime->variable);
             // free the slot
@@ -521,8 +521,8 @@ void restoreRegisterStates(struct Stack *savedStateStack,
                            int TACIndex,
                            struct ASMblock *outputBlock)
 {
-    // printf("restore register states at TAC index %d\n", TACIndex);
-    // printf("%d live registers, %d free registers, %d vars on stack\n\n", activeList->size, inactiveList->size, spilledList->size);
+    printf("restore register states at TAC index %d\n", TACIndex);
+    printf("%d live registers, %d free registers, %d vars on stack\n\n", activeList->size, inactiveList->size, spilledList->size);
 
     // pull the saved states off the stack
     struct SavedState *restoreTo = Stack_peek(savedStateStack);
@@ -542,11 +542,11 @@ void restoreRegisterStates(struct Stack *savedStateStack,
     sortByRegisterNumber((struct Register **)activeList->data, activeList->size);
     sortByRegisterNumber((struct Register **)inactiveList->data, inactiveList->size);
 
-    // printf("Current state:\n");
-    // printCurrentState(activeList, inactiveList, spilledList);
+    printf("Current state:\n");
+    printCurrentState(activeList, inactiveList, spilledList);
 
-    // printf("Desired state:\n");
-    // printCurrentState(savedActiveList, savedInactiveList, savedSpilledList);
+    printf("Desired state:\n");
+    printCurrentState(savedActiveList, savedInactiveList, savedSpilledList);
 
     sortByRegisterNumber((struct Register **)savedActiveList->data, savedActiveList->size);
     sortByRegisterNumber((struct Register **)savedInactiveList->data, savedInactiveList->size);
@@ -714,8 +714,82 @@ void restoreRegisterStates(struct Stack *savedStateStack,
         }
     }
 
+    for (int i = 0; i < savedSpilledList->size; i++)
+    {
+        struct SpilledRegister *this = savedSpilledList->data[i];
+        printf("%s: %d %d", this->lifetime->variable, this->stackOffset, this->occupied);
+    }
+
+    for (int i = 0; i < spilledList->size; i++)
+    {
+        struct SpilledRegister *this = spilledList->data[i];
+        printf("%s: %d %d", this->lifetime->variable, this->stackOffset, this->occupied);
+    }
+
     while (relocationStack->size > 0)
     {
+        struct Lifetime *relocatedLifetime = Stack_pop(relocationStack);
+        int destinationRegister = findActiveVariable(savedActiveList, relocatedLifetime->variable);
+        if (destinationRegister != -1)
+        {
+            outputLine = malloc(64);
+            sprintf(outputLine, "pop %%r%d;relocate %s", destinationRegister, relocatedLifetime->variable);
+            ASMblock_append(outputBlock, outputLine);
+            struct Register *relocatedTo = findAndRemoveInactiveRegisterByIndex(inactiveList, destinationRegister);
+            relocatedTo->lifetime = relocatedLifetime;
+            relocatedTo->lastUsed = 0;
+            Stack_push(activeList, relocatedTo);
+        }
+        else
+        {
+            outputLine = malloc(16);
+            sprintf(outputLine, "pop %%r%d", scratchRegister->index);
+            ASMblock_append(outputBlock, outputLine);
+            outputLine = malloc(64);
+            struct SpilledRegister *desiredSpill = findAndRemoveSpilledVariable(savedSpilledList, relocatedLifetime->variable);
+            char foundcorrectSlot = 0;
+            for (int i = 0; i < spilledList->size; i++)
+            {
+                struct SpilledRegister *examinedSpill = spilledList->data[i];
+                if (examinedSpill->stackOffset == desiredSpill->stackOffset)
+                {
+                    if (examinedSpill->occupied)
+                    {
+                        perror("need to relocate to stack slot which is alredy occupied!");
+                        exit(1);
+                    }
+                    sprintf(outputLine, "mov %d(%%bp), %%r%d;relocate %s", findSpilledVariable(savedSpilledList, relocatedLifetime->variable), scratchRegister->index, relocatedLifetime->variable);
+                    ASMblock_append(outputBlock, outputLine);
+
+                    examinedSpill->occupied = 1;
+                    examinedSpill->lifetime = relocatedLifetime;
+                    foundcorrectSlot = 1;
+                    break;
+                }
+            }
+            if (!foundcorrectSlot)
+            {
+                sortByStackOffset((struct SpilledRegister **)spilledList->data, spilledList->size);
+                sortByStackOffset((struct SpilledRegister **)savedSpilledList->data, savedSpilledList->size);
+                int j = spilledList->size - 1;
+                struct SpilledRegister *spillToDuplicate = savedSpilledList->data[j++];
+                printf("%s\n", spillToDuplicate->lifetime->variable);
+                while (spillToDuplicate->stackOffset != desiredSpill->stackOffset)
+                {
+                    struct SpilledRegister *duplicatedSpill = duplicateSpilledRegister(savedSpilledList->data[j]);
+                    duplicatedSpill->occupied = 0;
+                    Stack_push(spilledList, duplicatedSpill);
+                    spillToDuplicate = savedSpilledList->data[j++];
+                }
+                struct SpilledRegister *duplicatedSpill = duplicateSpilledRegister(savedSpilledList->data[j]);
+                duplicatedSpill->occupied = 1;
+                duplicatedSpill->lifetime = relocatedLifetime;
+                sprintf(outputLine, "mov %d(%%bp), %%r%d;relocate %s", duplicatedSpill->stackOffset, scratchRegister->index, relocatedLifetime->variable);
+                ASMblock_append(outputBlock, outputLine);
+                Stack_push(spilledList, duplicatedSpill);
+            }
+        }
+
         perror("need to relocate stuff!\n");
         exit(2);
     }

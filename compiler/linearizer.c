@@ -545,7 +545,7 @@ int linearizeAssignment(int currentTACIndex, struct LinkedList *blockList, struc
         {
         case t_dereference:
             currentTACIndex = linearizeDereference(currentTACIndex, blockList, currentBlock, it->child->child->child, tempNum, tl);
-        
+
             finalWrite = newTACLine(currentTACIndex++, tt_memw_1);
             finalWrite->operands[1] = lastLine->operands[0];
             finalWrite->operandTypes[1] = lastLine->operandTypes[0];
@@ -559,7 +559,7 @@ int linearizeAssignment(int currentTACIndex, struct LinkedList *blockList, struc
         case t_un_sub:
             currentTACIndex = linearizePointerArithmetic(currentTACIndex, blockList, currentBlock, it->child->child, tempNum, tl, 0);
             struct TACLine *lastDereferenceLine = currentBlock->TACList->tail->data;
-            
+
             finalWrite = newTACLine(currentTACIndex++, tt_memw_1);
             finalWrite->operands[1] = lastLine->operands[0];
             finalWrite->operandTypes[1] = lastLine->operandTypes[0];
@@ -758,6 +758,7 @@ int linearizeWhileLoop(int currentTACIndex, struct LinkedList *blockList, struct
 // given the AST for a function, generate TAC and return a pointer to the head of the generated block
 int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct BasicBlock *controlConvergesTo, struct astNode *it, int *tempNum, int *labelCount, struct tempList *tl)
 {
+    // int startingTACIndex = currentTACIndex;
     // scrape along the function
     struct astNode *runner = it;
     while (runner != NULL)
@@ -887,7 +888,6 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
             struct BasicBlock *afterWhileBlock = BasicBlock_new(++(*labelCount));
 
             currentTACIndex = linearizeWhileLoop(currentTACIndex, blockList, currentBlock, afterWhileBlock, runner, tempNum, labelCount, tl);
-
             LinkedList_append(blockList, afterWhileBlock);
 
             currentBlock = afterWhileBlock;
@@ -906,7 +906,7 @@ int linearizeStatementList(int currentTACIndex, struct LinkedList *blockList, st
     if (controlConvergesTo != NULL)
     {
         struct TACLine *beforeConvergeRestore = newTACLine(currentTACIndex, tt_restorestate);
-        // beforeConvergeRestore->operands[0] = (char *)((long int)((struct TACLine *)controlConvergesTo->TACList->head->data)->index);
+        // beforeConvergeRestore->operands[0] = (char *)((long int)startingTACIndex - 1); // this might cause problems
         BasicBlock_append(currentBlock, beforeConvergeRestore);
 
         struct TACLine *convergeControlJump = newTACLine(currentTACIndex++, tt_jmp);

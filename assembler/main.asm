@@ -1,15 +1,9 @@
 	#include "CPU.asm"
 	entry code
 code:
-	add %r0, $1
-	cmp %r0, $20
-	jg code_done
-	;push %r0
 	push $20
 	call fib
-	hlt
-	out %rr
-	jmp code;
+	;call firstkprimes
 code_done:
 	hlt
 	ret 0
@@ -26,7 +20,7 @@ print_0:
 	pop %r1
 	ret 2
 fib:
-	push %r6
+	sub %sp, $2
 	push %r5
 	push %r4
 	push %r3
@@ -37,7 +31,7 @@ fib_0:
 	;introduce var n to %r0
 	mov %r0, 4(%bp) ;place argument n
 	;introduce var fibarr to %r1
-	mov %r1, $256;fibarr = 256
+	mov %r1, $512;fibarr = 512
 		;introduce var .t0 to %r2
 	mov %r2, $0;.t0 = 0
 	mov (%r1), %r2;(fibarr) = .t0
@@ -67,25 +61,28 @@ fib_2:
 		;introduce var .t11 to %r4
 	mov %r4, %r3
 	sub %r4, $2;.t11 = i - 2
-		;introduce var .t10 to %r6
-	mov %r6, %r4
-	mul %r6, $2;.t10 = .t11 * 2
+	mov -2(%bp), %r5;spill          .t4
+		;introduce var .t10 to %r5
+	mov %r5, %r4
+	mul %r5, $2;.t10 = .t11 * 2
 		;introduce var .t9 to %r4
 	mov %r4, %r1
-	add %r4, %r6;.t9 = fibarr + .t10
-		;introduce var .t8 to %r6
-	mov %r6, (%r4);.t8 = (.t9)
-	mov %r2, %r5
-	add %r2, %r6;j = .t4 + .t8
+	add %r4, %r5;.t9 = fibarr + .t10
+		;introduce var .t8 to %r5
+	mov %r5, (%r4);.t8 = (.t9)
+	mov %r2, -2(%bp)
+	add %r2, %r5;j = .t4 + .t8
 		;introduce var .t12 to %r5
 	mov %r5, %r2;.t12 = j
 		;introduce var .t14 to %r4
 	mov %r4, %r3
 	mul %r4, $2;.t14 = i * 2
-		;introduce var .t13 to %r6
-	mov %r6, %r1
-	add %r6, %r4;.t13 = fibarr + .t14
-	mov (%r6), %r5;(.t13) = .t12
+	mov -2(%bp), %r5;spill         .t12
+		;introduce var .t13 to %r5
+	mov %r5, %r1
+	add %r5, %r4;.t13 = fibarr + .t14
+	mov %r4, -2(%bp);unspill     .t12
+	mov (%r5), %r4;(.t13) = .t12
 	mov %r3, %r3
 	add %r3, $1;i = i + 1
 	jmp fib_2
@@ -114,5 +111,5 @@ fib_3:
 	pop %r3
 	pop %r4
 	pop %r5
-	pop %r6
+	add %sp, $2
 	ret 2
