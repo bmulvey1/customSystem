@@ -4,6 +4,7 @@ asm
     entry code
 code:
     push $20
+    ;call firstNtets
     ;call fib
     call firstkprimes
     ;call nestedWhile
@@ -17,13 +18,35 @@ fun print(var i){
         out %r1
     };
 }
-
+/*
 fun mul(var a, var b){
     asm{
         mul %r0, %r1
         mov %rr, %r0
     };
+}*/
+
+/*
+fun tet(var i){
+    if(i < 5){
+        if(i < 4){
+            return 0;
+        }else{
+            return 1;
+        }
+    }else{
+        return tet(i - 1) + tet(i - 2) + tet(i - 3) + tet(i - 4);
+    }
 }
+
+fun firstNtets(var n){
+    var i = 1;
+    while(i < n){
+        var result = tet(i);
+        print(result);
+        i = i + 1;
+    }
+}*/
 
 /*
 fun nestedWhile(var i){
@@ -41,16 +64,19 @@ fun nestedWhile(var i){
         }
     }
     //print(x);
-}*/
+}
 
-
-/*
-fun fib(var n){
-    var *fibarr = 512;
-    *fibarr = 0;
-    *(fibarr + 1) = 1;
-    var j;
-    var i = 2;
+fun tet(var i){
+    if(i < 5){
+        if(i < 4){
+            return 0;
+        }else{
+            return 1;
+        }
+    }else{
+        return tet(i - 1) + tet(i - 2) + tet(i - 3) + tet(i - 4);
+    }
+}
 
     while(i <= n){
         j = *(fibarr + i - 1) + *(fibarr + i - 2);
@@ -98,7 +124,7 @@ fun firstkprimes(){
                 *(primes + j) = 1;
                 j = j + i;
             }
-            print(i);
+            //print(i);
         }
         i = i + 1;
     }

@@ -890,6 +890,8 @@ struct LinearizationResult *linearizeStatementList(int currentTACIndex, struct L
 
                 if (poppedResult->endingTACIndex > currentTACIndex)
                     currentTACIndex = poppedResult->endingTACIndex + 1;
+
+                free(poppedResult);
             }
 
             Stack_free(results);
@@ -917,6 +919,7 @@ struct LinearizationResult *linearizeStatementList(int currentTACIndex, struct L
             struct LinearizationResult *r = linearizeWhileLoop(currentTACIndex, blockList, currentBlock, afterWhileBlock, runner, tempNum, labelCount, tl);
             currentTACIndex = r->endingTACIndex;
             LinkedList_append(blockList, afterWhileBlock);
+            free(r);
 
             currentBlock = afterWhileBlock;
             struct TACLine *endPop = newTACLine(currentTACIndex, tt_popstate);
@@ -977,7 +980,8 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
             functionBlock->hintLabel = table->name;
 
             LinkedList_append(functionBlockList, functionBlock);
-            linearizeStatementList(0, functionBlockList, functionBlock, NULL, runner->child->sibling, &funTempNum, &labelCount, table->tl);
+            struct LinearizationResult *r = linearizeStatementList(0, functionBlockList, functionBlock, NULL, runner->child->sibling, &funTempNum, &labelCount, table->tl);
+            free(r);
             // theFunction->table->codeBlock = generatedTAC;
             break;
         }

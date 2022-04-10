@@ -2,6 +2,7 @@
 	entry code
 code:
 	push $20
+	;call firstNtets
 	;call fib
 	call firstkprimes
 	;call nestedWhile
@@ -20,19 +21,6 @@ print_0:
 	pop %r0
 	pop %r1
 	ret 2
-mul:
-	push %r1
-	push %r0
-mul_0:
-	;introduce var a to %r0
-	mov %r0, 4(%bp) ;place argument a
-	;introduce var b to %r1
-	mov %r1, 6(%bp) ;place argument b
-	mul %r0, %r1
-	mov %rr, %r0
-	pop %r0
-	pop %r1
-	ret 4
 firstkprimes:
 	push %r5
 	push %r4
@@ -78,8 +66,6 @@ firstkprimes_5:
 	add %r2, %r1;j = j + i
 	jmp firstkprimes_5
 firstkprimes_4:
-	push %r1
-	call print
 	jmp firstkprimes_3
 firstkprimes_3:
 	mov %r1, %r1
