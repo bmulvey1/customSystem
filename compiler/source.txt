@@ -4,8 +4,9 @@ asm
     entry code
 code:
     push $20
-    call fib
-    ;call firstkprimes
+    ;call fib
+    call firstkprimes
+    ;call nestedWhile
 code_done:
     hlt
 };
@@ -17,7 +18,33 @@ fun print(var i){
     };
 }
 
+fun mul(var a, var b){
+    asm{
+        mul %r0, %r1
+        mov %rr, %r0
+    };
+}
 
+/*
+fun nestedWhile(var i){
+    var result;
+    var x = 0;
+    var y;
+
+    while(x < i){
+        x = x + 1;
+        y = x;
+        while(y < i){
+            y = y + 1;
+            result = mul(x, y);
+            print(result);
+        }
+    }
+    //print(x);
+}*/
+
+
+/*
 fun fib(var n){
     var *fibarr = 512;
     *fibarr = 0;
@@ -36,7 +63,7 @@ fun fib(var n){
         i = i + 1;
     }
 }
-
+*/
 
 
 /*
@@ -59,7 +86,7 @@ fun firstnfibs(var n){
 }
 */
 
-/*
+
 fun firstkprimes(){
     var *primes = 1000;
     var i = 2;
@@ -79,9 +106,5 @@ fun firstkprimes(){
     j = j;
     var k = i + j;
 }
-*/
-
-
-
 
 $$

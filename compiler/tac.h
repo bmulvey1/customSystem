@@ -60,6 +60,7 @@ struct TACLine
     int index;
     char reorderable;
 };
+
 char *getAsmOp(enum TACType t);
 
 void printTACLine(struct TACLine *it);
@@ -76,6 +77,7 @@ struct BasicBlock
 {
     struct LinkedList *TACList;
     int labelNum;
+    char *hintLabel;
 
     // only set when the block contains TAC lines containing operations other than code generator directives
     char containsEffectiveCode;
@@ -92,3 +94,8 @@ void BasicBlock_prepend(struct BasicBlock *b, struct TACLine *l);
 struct TACLine *findLastEffectiveTAC(struct BasicBlock *b);
 
 void printBasicBlock(struct BasicBlock *b, int indentLevel);
+
+struct LinearizationResult{
+    struct BasicBlock *block;
+    int endingTACIndex;
+};

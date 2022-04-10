@@ -2,8 +2,9 @@
 	entry code
 code:
 	push $20
-	call fib
-	;call firstkprimes
+	;call fib
+	call firstkprimes
+	;call nestedWhile
 code_done:
 	hlt
 	ret 0
@@ -19,97 +20,81 @@ print_0:
 	pop %r0
 	pop %r1
 	ret 2
-fib:
-	sub %sp, $2
+mul:
+	push %r1
+	push %r0
+mul_0:
+	;introduce var a to %r0
+	mov %r0, 4(%bp) ;place argument a
+	;introduce var b to %r1
+	mov %r1, 6(%bp) ;place argument b
+	mul %r0, %r1
+	mov %rr, %r0
+	pop %r0
+	pop %r1
+	ret 4
+firstkprimes:
 	push %r5
 	push %r4
 	push %r3
 	push %r2
 	push %r1
 	push %r0
-fib_0:
-	;introduce var n to %r0
-	mov %r0, 4(%bp) ;place argument n
-	;introduce var fibarr to %r1
-	mov %r1, $512;fibarr = 512
-		;introduce var .t0 to %r2
-	mov %r2, $0;.t0 = 0
-	mov (%r1), %r2;(fibarr) = .t0
-		;introduce var .t1 to %r2
-	mov %r2, $1;.t1 = 1
+firstkprimes_0:
+	;introduce var primes to %r0
+	mov %r0, $1000;primes = 1000
+		;introduce var i to %r1
+	mov %r1, $2;i = 2
+		;introduce var j to %r2
+	jmp firstkprimes_2
+firstkprimes_2:
+	cmp %r1, $10000;cmp i 10000
+	jg firstkprimes_1
 		;introduce var .t2 to %r3
 	mov %r3, %r1
-	add %r3, $2;.t2 = fibarr + 2
-	mov (%r3), %r2;(.t2) = .t1
-		;introduce var j to %r2
-		;introduce var i to %r3
-	mov %r3, $2;i = 2
-fib_2:
-	cmp %r3, %r0;cmp i n
-	jg fib_1
-		;introduce var .t7 to %r4
-	mov %r4, %r3
-	sub %r4, $1;.t7 = i - 1
-		;introduce var .t6 to %r5
-	mov %r5, %r4
-	mul %r5, $2;.t6 = .t7 * 2
+	mul %r3, $2;.t2 = i * 2
+		;introduce var .t1 to %r4
+	mov %r4, %r0
+	add %r4, %r3;.t1 = primes + .t2
+		;introduce var .t0 to %r3
+	mov %r3, (%r4);.t0 = (.t1)
+	cmp %r3, $0;cmp .t0 0
+	jne firstkprimes_3
+	mov %r2, %r1;j = i
+	jmp firstkprimes_5
+firstkprimes_5:
+	cmp %r2, $10000;cmp j 10000
+	jg firstkprimes_4
+		;introduce var .t3 to %r3
+	mov %r3, $1;.t3 = 1
 		;introduce var .t5 to %r4
-	mov %r4, %r1
-	add %r4, %r5;.t5 = fibarr + .t6
+	mov %r4, %r2
+	mul %r4, $2;.t5 = j * 2
 		;introduce var .t4 to %r5
-	mov %r5, (%r4);.t4 = (.t5)
-		;introduce var .t11 to %r4
-	mov %r4, %r3
-	sub %r4, $2;.t11 = i - 2
-	mov -2(%bp), %r5;spill          .t4
-		;introduce var .t10 to %r5
-	mov %r5, %r4
-	mul %r5, $2;.t10 = .t11 * 2
-		;introduce var .t9 to %r4
-	mov %r4, %r1
-	add %r4, %r5;.t9 = fibarr + .t10
-		;introduce var .t8 to %r5
-	mov %r5, (%r4);.t8 = (.t9)
-	mov %r2, -2(%bp)
-	add %r2, %r5;j = .t4 + .t8
-		;introduce var .t12 to %r5
-	mov %r5, %r2;.t12 = j
-		;introduce var .t14 to %r4
-	mov %r4, %r3
-	mul %r4, $2;.t14 = i * 2
-	mov -2(%bp), %r5;spill         .t12
-		;introduce var .t13 to %r5
-	mov %r5, %r1
-	add %r5, %r4;.t13 = fibarr + .t14
-	mov %r4, -2(%bp);unspill     .t12
-	mov (%r5), %r4;(.t13) = .t12
-	mov %r3, %r3
-	add %r3, $1;i = i + 1
-	jmp fib_2
-fib_1:
-	mov %r3, $1;i = 1
-fib_4:
-	cmp %r3, %r0;cmp i n
-	jg fib_3
-		;introduce var .t19 to %r2
-	mov %r2, %r3
-	mul %r2, $2;.t19 = i * 2
-		;introduce var .t18 to %r4
-	mov %r4, %r1
-	add %r4, %r2;.t18 = fibarr + .t19
-		;introduce var .t17 to %r2
-	mov %r2, (%r4);.t17 = (.t18)
-	push %r2
+	mov %r5, %r0
+	add %r5, %r4;.t4 = primes + .t5
+	mov (%r5), %r3;(.t4) = .t3
+	mov %r2, %r2
+	add %r2, %r1;j = j + i
+	jmp firstkprimes_5
+firstkprimes_4:
+	push %r1
 	call print
-	mov %r3, %r3
-	add %r3, $1;i = i + 1
-	jmp fib_4
-fib_3:
+	jmp firstkprimes_3
+firstkprimes_3:
+	mov %r1, %r1
+	add %r1, $1;i = i + 1
+	jmp firstkprimes_2
+firstkprimes_1:
+	mov %r1, %r1;i = i
+	mov %r2, %r2;j = j
+		;introduce var k to %r0
+	mov %r0, %r1
+	add %r0, %r2;k = i + j
 	pop %r0
 	pop %r1
 	pop %r2
 	pop %r3
 	pop %r4
 	pop %r5
-	add %sp, $2
-	ret 2
+	ret 0

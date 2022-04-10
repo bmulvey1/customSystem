@@ -929,7 +929,7 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
                         if (examinedLifetime->variable[0] != '.')
                         {
                             if (examinedLifetime->end < extendTo)
-                                examinedLifetime->end = extendTo;
+                                examinedLifetime->end = extendTo + 1;
                             // if (examinedLifetime->start > extendFrom)
                             // examinedLifetime->start = extendFrom;
                         }

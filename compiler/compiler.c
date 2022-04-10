@@ -213,7 +213,6 @@ int main(int argc, char **argv)
     printf("\n\n");
 
     FILE *outFile = fopen(argv[2], "wb");
-
     // struct Lifetime *theseLifetimes = findLifetimes(theTable);
     struct ASMblock *output;
     output = generateCode(theTable, outFile);

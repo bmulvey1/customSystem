@@ -435,6 +435,7 @@ struct BasicBlock *BasicBlock_new(int labelNum)
     struct BasicBlock *wip = malloc(sizeof(struct BasicBlock));
     wip->TACList = LinkedList_new();
     wip->labelNum = labelNum;
+    wip->hintLabel = NULL;
     wip->containsEffectiveCode = 0;
     return wip;
 }
@@ -473,7 +474,7 @@ struct TACLine *findLastEffectiveTAC(struct BasicBlock *b)
 
 void printBasicBlock(struct BasicBlock *b, int indentLevel)
 {
-    printf("BASIC BLOCK %d\n", b->labelNum);
+    printf("BASIC BLOCK %d (%s)\n", b->labelNum, b->hintLabel);
     for (struct LinkedListNode *runner = b->TACList->head; runner != NULL; runner = runner->next)
     {
         struct TACLine *this = runner->data;
