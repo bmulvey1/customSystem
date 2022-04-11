@@ -300,7 +300,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                         if (currentTAC->operandTypes[2] == vt_literal)
                         {
                             sprintf(outputLine, "%s %%r%d, %s", getAsmOp(currentTAC->operation), destinationRegister, currentTAC->operands[2]);
-
                         }
                         else
                         {
@@ -505,17 +504,39 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
             case tt_return:
             {
                 // find where the return value is (it must be active in a register because it was just assigned!)
-                int retValIndex = findActiveVariable(activeList, currentTAC->operands[0]);
-                if (retValIndex == -1)
+                switch (currentTAC->operandTypes[0])
                 {
-                    printf("RETURN VALUE %s NOT FOUND ACTIVE IN REGISTER!", currentTAC->operands[0]);
+                case vt_literal:
+                {
+                    outputLine = malloc(24);
+                    sprintf(outputLine, "mov %%rr, $%s", currentTAC->operands[0]);
+                }
+                break;
+
+                case vt_var:
+                case vt_temp:
+                {
+                    int sourceRegister = findActiveVariable(activeList, currentTAC->operands[0]);
+                    if (sourceRegister != -1)
+                    {
+                        outputLine = malloc(16);
+                        sprintf(outputLine, "mov %%rr, %%r%d", sourceRegister);
+                    }
+                    else
+                    {
+                        outputLine = malloc(24);
+                        sprintf(outputLine, "mov %%rr, %d(%%bp)", findSpilledVariable(spilledList, currentTAC->operands[0]));
+                    }
+                }
+                break;
+
+                default:
+                    perror("unexpected type in return TAC!\n");
                     exit(1);
                 }
-
-                outputLine = malloc(64);
-                printedTAC = sPrintTACLine(currentTAC);
-                sprintf(outputLine, "mov %%rr, %%r%d;%s", retValIndex, printedTAC);
-                free(printedTAC);
+                ASMblock_append(outputBlock, outputLine);
+                outputLine = malloc(32);
+                sprintf(outputLine, "jmp %s_done", table->name);
                 ASMblock_append(outputBlock, outputLine);
 
                 break;
@@ -587,6 +608,10 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         printf(".");
         blockRunner = blockRunner->next;
     }
+    
+    outputLine = malloc(32);
+    sprintf(outputLine, "%s_done:", table->name);
+    ASMblock_append(outputBlock, outputLine);
 
     for (int i = 0; i < REGISTER_COUNT; i++)
     {

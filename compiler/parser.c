@@ -538,10 +538,7 @@ struct astNode *parseStatement(struct Dictionary *dict)
     case t_return:
     {
         statement = match(t_return, dict);
-        struct astNode *returnAssignment = newastNode(t_assign, "=");
-        astNode_insertChild(returnAssignment, newastNode(t_name, ".RETVAL"));
-        astNode_insertChild(returnAssignment, parseExpression(dict));
-        astNode_insertChild(statement, returnAssignment);
+        astNode_insertChild(statement, parseExpression(dict));
         consume(t_semicolon);
     }
     break;

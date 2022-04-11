@@ -849,14 +849,30 @@ struct LinearizationResult *linearizeStatementList(int currentTACIndex, struct L
 
         case t_return:
         {
-            currentTACIndex = linearizeAssignment(currentTACIndex, blockList, currentBlock, runner->child, tempNum, tl);
-            struct TACLine *returnLine = currentBlock->TACList->tail->data;
-            // force the ".RETVAL" variable to a temp type since we don't care about its lifespan
-            returnLine->operandTypes[0] = vt_temp;
+            char *returned;
+            enum variableTypes returnedType;
 
+            switch (runner->child->type)
+            {
+            case t_name:
+                returned = runner->child->value;
+                returnedType = vt_var;
+                break;
+
+            case t_literal:
+                returned = runner->child->value;
+                returnedType = vt_literal;
+                break;
+
+            default:
+                returned = getTempString(tl, *tempNum);
+                returnedType = vt_temp;
+                currentTACIndex = linearizeExpression(currentTACIndex, blockList, currentBlock, runner->child, tempNum, tl);
+                break;
+            }
             struct TACLine *returnTac = newTACLine(currentTACIndex++, tt_return);
-            returnTac->operands[0] = returnLine->operands[0];
-            returnTac->operandTypes[0] = returnLine->operandTypes[0];
+            returnTac->operands[0] = returned;
+            returnTac->operandTypes[0] = returnedType;
             BasicBlock_append(currentBlock, returnTac);
         }
         break;
@@ -936,13 +952,17 @@ struct LinearizationResult *linearizeStatementList(int currentTACIndex, struct L
 
     if (controlConvergesTo != NULL)
     {
-        struct TACLine *beforeConvergeRestore = newTACLine(currentTACIndex, tt_restorestate);
-        // beforeConvergeRestore->operands[0] = (char *)((long int)startingTACIndex - 1); // this might cause problems
-        BasicBlock_append(currentBlock, beforeConvergeRestore);
+        struct TACLine *lastLine = currentBlock->TACList->tail->data;
+        if (lastLine->operation != tt_return)
+        {
+            struct TACLine *beforeConvergeRestore = newTACLine(currentTACIndex, tt_restorestate);
+            // beforeConvergeRestore->operands[0] = (char *)((long int)startingTACIndex - 1); // this might cause problems
+            BasicBlock_append(currentBlock, beforeConvergeRestore);
 
-        struct TACLine *convergeControlJump = newTACLine(currentTACIndex++, tt_jmp);
-        convergeControlJump->operands[0] = (char *)((long int)controlConvergesTo->labelNum);
-        BasicBlock_append(currentBlock, convergeControlJump);
+            struct TACLine *convergeControlJump = newTACLine(currentTACIndex++, tt_jmp);
+            convergeControlJump->operands[0] = (char *)((long int)controlConvergesTo->labelNum);
+            BasicBlock_append(currentBlock, convergeControlJump);
+        }
     }
 
     struct LinearizationResult *r = malloc(sizeof(struct LinearizationResult));
