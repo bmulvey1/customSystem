@@ -833,7 +833,6 @@ struct astNode *parseASM(struct Dictionary *dict)
         case '\n':
             asmLine[lineLen] = '\0';
             curCol = 0;
-            curLine++;
             astNode_insertChild(asmNode, newastNode(t_asm, DictionaryLookupOrInsert(dict, asmLine)));
             trimWhitespace(1);
             lineLen = 0;

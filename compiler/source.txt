@@ -3,11 +3,8 @@ asm
     #include "CPU.asm"
     entry code
 code:
-    push $20
-    call firstNtets
-    ;call fib
-    ;call firstkprimes
-    ;call nestedWhile
+    push $512
+    call test
 code_done:
     hlt
 };
@@ -18,109 +15,10 @@ fun print(var i){
         out %r1
     };
 }
-/*
-fun mul(var a, var b){
-    asm{
-        mul %r0, %r1
-        mov %rr, %r0
-    };
-}*/
 
-fun tet(var i){
-    if(i < 5){
-        if(i < 4){
-            return 0;
-        }else{
-            return 1;
-        }
-    }else{
-        return tet(i - 1) + tet(i - 2) + tet(i - 3) + tet(i - 4);
-    }
+fun test(var* dest){
+    *dest = 1;
 }
 
-fun firstNtets(var n){
-    var i = 1;
-    while(i < n){
-        var result = tet(i);
-        print(result);
-        i = i + 1;
-    }
-}
-
-/*
-fun nestedWhile(var i){
-    var result;
-    var x = 0;
-    var y;
-
-    while(x < i){
-        x = x + 1;
-        y = x;
-        while(y < i){
-            y = y + 1;
-            result = mul(x, y);
-            print(result);
-        }
-    }
-    //print(x);
-}
-*/
-
-/*
-fun fib(n){
-    while(i <= n){
-        j = *(fibarr + i - 1) + *(fibarr + i - 2);
-        *(fibarr + i) = j;
-        i = i + 1;
-    }
-    i = 1;
-    while(i <= n){
-        print(*(fibarr + i));
-        i = i + 1;
-    }
-}
-*/
-
-
-/*
-// compute the first n fibonacci numbers (using pointers!)
-fun firstnfibs(var n){
-    var *fibarr = 1000;
-    *fibarr = 0;
-    *(fibarr + 1) = 1;
-    var j;
-
-    var i = 2;
-    while(i <= n){
-        j = *(fibarr + i - 1) + *(fibarr + i - 2);
-        asm{
-            out [j]
-        };
-        *(fibarr + i) = j;
-        i = i + 1;
-    }
-}
-*/
-
-/*
-fun firstkprimes(){
-    var *primes = 1000;
-    var i = 2;
-    var j;
-    while(i <= 10000){
-        if(*(primes + i) == 0){
-            j = i;
-            while(j <= 10000){
-                *(primes + j) = 1;
-                j = j + i;
-            }
-            //print(i);
-        }
-        i = i + 1;
-    }
-    i = i;
-    j = j;
-    var k = i + j;
-}*/
 
 $$
