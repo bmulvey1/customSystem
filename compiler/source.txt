@@ -9,15 +9,12 @@ code_done:
     hlt
 };
 
-fun print(var i){
-    var j = i;
-    asm{
-        out %r1
-    };
-}
-
-fun test(var* dest){
-    *dest = 1;
+fun fib(var n){
+    if(n < 2){
+        return n;
+    }else{
+        return fib(n - 2) + fib(n - 1);
+    }
 }
 
 

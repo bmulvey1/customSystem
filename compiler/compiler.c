@@ -9,6 +9,7 @@
 #include "linearizer.h"
 #include "asm.h"
 #include "codegen.h"
+#include "serialize.h"
 
 int compareBasicBlockStartIndices(struct BasicBlock *a, struct BasicBlock *b)
 {
@@ -196,6 +197,7 @@ int main(int argc, char **argv)
     struct Dictionary *parseDict = newDictionary(10);
     struct astNode *program = parseProgram(argv[1], parseDict);
 
+    serializeAST("astdump", program);
     printf("\n");
 
     printAST(program, 0);
