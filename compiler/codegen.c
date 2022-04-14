@@ -299,7 +299,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                         outputLine = malloc(20);
                         if (currentTAC->operandTypes[2] == vt_literal)
                         {
-                            sprintf(outputLine, "%s %%r%d, %s", getAsmOp(currentTAC->operation), destinationRegister, currentTAC->operands[2]);
+                            sprintf(outputLine, "%s %%r%d, $%s", getAsmOp(currentTAC->operation), destinationRegister, currentTAC->operands[2]);
                         }
                         else
                         {
@@ -353,8 +353,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
             case tt_push:
             {
-                printCurrentState(activeList, inactiveList, spilledList);
-                printTACLine(currentTAC);
                 int sourceRegister = findActiveVariable(activeList, currentTAC->operands[0]);
                 if (sourceRegister == -1)
                 {
@@ -543,13 +541,9 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
             }
 
             case tt_do:
-                printf("DO\n");
-                printCurrentState(activeList, inactiveList, spilledList);
                 break;
 
             case tt_enddo:
-                printf("END DO\n");
-                printCurrentState(activeList, inactiveList, spilledList);
                 break;
 
             case tt_jg:

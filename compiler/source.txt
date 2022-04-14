@@ -3,19 +3,77 @@ asm
     #include "CPU.asm"
     entry code
 code:
-    push $512
-    call test
+    push $20
+    call firstnfibs
 code_done:
     hlt
 };
 
-fun fib(var n){
-    if(n < 2){
-        return n;
-    }else{
-        return fib(n - 2) + fib(n - 1);
-    }
+fun print(var i){
+    asm{
+        out %r0
+    };
 }
+/*
+// compute the first n fibonacci numbers (using pointers!)
+fun firstnfibs(var n){
+
+    var x = 1;
+    var y = 2;
+    var z = 3;
+
+    var i = 2;
+    while(i < n){
+        x = x + y;
+        y = y + z;
+        print(i);
+        i = i + 1;
+    }
+
+    print(x);
+    print(y);
+    print(z);
+    print(i);
+}
+*/
+
+
+// compute the first n fibonacci numbers (using pointers!)
+fun firstnfibs(var n){
+    var *fibarr = 512;
+    *fibarr = 0;
+    *(fibarr + 1) = 1;
+    var j;
+
+    var x = 1;
+    var y = 2;
+    var z = 3;
+
+    var i = 2;
+    while(i <= n){
+        var j = *(fibarr + i - 1) + *(fibarr + i - 2);
+        x = x + 1;
+        y = y + 1;
+        print(x + y);
+        *(fibarr + i) = j;
+        i = i + 1;
+    }
+    x = x + 1;
+    y = y + 1;
+    z = z + 1;
+    i = 0;
+    while(i <= n){
+        print(*(fibarr + i));
+        i = i + 1;
+    }
+
+    print(x);
+    print(y);
+    print(z);
+    print(i);
+}
+
+
 
 
 $$
