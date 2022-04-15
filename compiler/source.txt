@@ -2,9 +2,10 @@ asm
 {
     #include "CPU.asm"
     entry code
+    data@ data
 code:
-    push $64
-    call writeTwelve
+    push $256
+    call testtest
 code_done:
     hlt
 };
@@ -15,48 +16,46 @@ fun print(var i){
     };
 }
 
-fun writeTwelve(var *destination){
-    *destination = 12;
+fun testtest(){
+    var one = 1;
+    var two = 2;
+    var three = 3;
+    test(one, two, three);
 }
 
+fun test(var arg1, var arg2, var arg3){
+    print(arg1);
+    print(arg2);
+    print(arg3);
+}
+
+
+
+fun setBlockAllocated(var *blkPtr, var size){
+    print(size);
+    print(blkPtr);
+    *(blkPtr - 3) = 1; // allocated flag in header
+    *(blkPtr - 2) = size; // size flag in header
+}
+
+fun setBlockNext(var *blkPtr, var *next){
+    *(blkPtr - 1) = next;
+}
+
+fun mm_init(var size){
+    var *dataAt = 2;
+    var *blkPtr = (*dataAt) + 6;
+    var newSize = size - 6;
+    print(newSize);
+    setBlockAllocated(blkPtr, newSize);
+    var zero = 0;
+    setBlockNext(blkPtr, zero);
+}
 /*
-// compute the first n fibonacci numbers (using pointers!)
-fun firstnfibs(var n){
-    var *fibarr = 512;
-    *fibarr = 0;
-    *(fibarr + 1) = 1;
-    var j;
-
-    var x = 1;
-    var y = 2;
-    var z = 3;
-
-    var i = 2;
-    while(i <= n){
-        var j = *(fibarr + i - 1) + *(fibarr + i - 2);
-        x = x + 1;
-        y = y + 1;
-        print(x + y);
-        *(fibarr + i) = j;
-        i = i + 1;
-    }
-    x = x + 1;
-    y = y + 1;
-    z = z + 1;
-    i = 0;
-    while(i <= n){
-        print(*(fibarr + i));
-        i = i + 1;
-    }
-
-    print(x);
-    print(y);
-    print(z);
-    print(i);
-}
-*/
-
-
+fun mm_malloc(var size){
+    var *dataAt = 2;
+    var blkRunner = (*dataAt) + 6;
+}*/
 
 
 $$

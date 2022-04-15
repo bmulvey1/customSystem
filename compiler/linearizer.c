@@ -251,44 +251,51 @@ int linearizePointerArithmetic(int currentTACIndex, struct LinkedList *blockList
     return currentTACIndex;
 }
 
+int linearizeArgumentPushes(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *argRunner, int *tempNum, struct tempList *tl)
+{
+    if (argRunner->sibling != NULL)
+    {
+        currentTACIndex = linearizeArgumentPushes(currentTACIndex, blockList, currentBlock, argRunner->sibling, tempNum, tl);
+    }
+    struct TACLine *thisArgument = NULL;
+    switch (argRunner->type)
+    {
+    case t_name:
+        thisArgument = newTACLine(currentTACIndex++, tt_push);
+        thisArgument->operandTypes[0] = vt_var;
+    case t_literal:
+        if (thisArgument == NULL)
+        {
+            thisArgument = newTACLine(currentTACIndex++, tt_push);
+            thisArgument->operandTypes[0] = vt_literal;
+        }
+        thisArgument->operands[0] = argRunner->value;
+        break;
+
+    default:
+        char *pushOperand0 = getTempString(tl, *tempNum);
+
+        currentTACIndex = linearizeExpression(currentTACIndex, blockList, currentBlock, argRunner, tempNum, tl);
+        struct TACLine *thisArgument = newTACLine(currentTACIndex++, tt_push);
+        thisArgument->operands[0] = pushOperand0;
+        thisArgument->operandTypes[0] = vt_temp;
+        BasicBlock_append(currentBlock, thisArgument);
+        thisArgument = NULL;
+    }
+    if (thisArgument != NULL)
+        BasicBlock_append(currentBlock, thisArgument);
+
+    return currentTACIndex;
+}
+
 // given an AST node of a function call, generate TAC to evaluate and push the arguments, then call it
 int linearizeFunctionCall(int currentTACIndex, struct LinkedList *blockList, struct BasicBlock *currentBlock, struct astNode *it, int *tempNum, struct tempList *tl)
 {
-    struct astNode *runner = it->child->child;
+    // struct astNode *runner = it->child->child;
     char *operand0 = getTempString(tl, *tempNum);
     (*tempNum)++;
 
-    while (runner != NULL)
-    {
-        struct TACLine *thisArgument = NULL;
-        switch (runner->type)
-        {
-        case t_name:
-            thisArgument = newTACLine(currentTACIndex++, tt_push);
-            thisArgument->operandTypes[0] = vt_var;
-        case t_literal:
-            if (thisArgument == NULL)
-            {
-                thisArgument = newTACLine(currentTACIndex++, tt_push);
-                thisArgument->operandTypes[0] = vt_literal;
-            }
-            thisArgument->operands[0] = runner->value;
-            break;
-
-        default:
-            char *pushOperand0 = getTempString(tl, *tempNum);
-
-            currentTACIndex = linearizeExpression(currentTACIndex, blockList, currentBlock, runner, tempNum, tl);
-            struct TACLine *pushOperation = newTACLine(currentTACIndex++, tt_push);
-            pushOperation->operands[0] = pushOperand0;
-            pushOperation->operandTypes[0] = vt_temp;
-            BasicBlock_append(currentBlock, pushOperation);
-        }
-        if (thisArgument != NULL)
-            BasicBlock_append(currentBlock, thisArgument);
-
-        runner = runner->sibling;
-    }
+    linearizeArgumentPushes(currentTACIndex, blockList, currentBlock, it->child->child, tempNum, tl);
 
     struct TACLine *calltac = newTACLine(currentTACIndex++, tt_call);
     calltac->operands[0] = operand0;

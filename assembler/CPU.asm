@@ -135,4 +135,6 @@
     hlt => 0xff
 
     entry {address: i16}    => address ; specify the entry point to the code
+
+    data@ {address: i16}      => address
 }

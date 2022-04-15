@@ -4,7 +4,7 @@
 #include "asm.h"
 #include "tac.h"
 
-#define REGISTER_COUNT 3
+#define REGISTER_COUNT 6
 /*
 2: 1760
 3: 1762

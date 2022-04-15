@@ -244,6 +244,8 @@ int main(int argc, char **argv)
             ASMblock_free(output);
         }
     }
+
+    fprintf(outFile, "nop\ndata:\n");
     
 
     fclose(outFile);
