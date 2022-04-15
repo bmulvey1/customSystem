@@ -167,8 +167,9 @@ int main(int argc, char *argv[])
     while (running)
     {
         opCode = consumeByte(registers[IP]);
-        //printf("%02x - ", opCode);
-        //std::cout << opcodeNames[opCode] << std::endl;
+        // printf("%4x\t%02x - ", registers[IP], opCode);
+        // std::cout << opcodeNames[opCode] << std::endl;
+        // printState();
         switch (opCode)
         {
         case 0x00:
@@ -631,11 +632,14 @@ int main(int argc, char *argv[])
             running = false;
             break;
         }
-        //printState();
-        //for (int i = 0; i < 0xffffff; i++){}
+        
+        // printf("%4x\t%02x - ", registers[IP], opCode);
+        // std::cout << opcodeNames[opCode] << std::endl;
+        // printState();
+        // for (int i = 0; i < 0xffffff; i++){}
         
         
-        //printf("\n");
+        // printf("\n");
         instructionCount++;
     }
     printState();

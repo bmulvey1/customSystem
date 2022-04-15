@@ -5,7 +5,9 @@ asm
     data@ data
 code:
     push $256
-    call testtest
+    call mm_init
+    push $8
+    call malloc_test
 code_done:
     hlt
 };
@@ -16,46 +18,83 @@ fun print(var i){
     };
 }
 
-fun testtest(){
-    var one = 1;
-    var two = 2;
-    var three = 3;
-    test(one, two, three);
+fun div(var i, var j){
+    asm{
+        div %r0, %r1
+        mov %rr, %r0
+    };
 }
 
-fun test(var arg1, var arg2, var arg3){
-    print(arg1);
-    print(arg2);
-    print(arg3);
+fun malloc_test(var n){
+    var i = 1;
+    while(i < n){
+        mm_malloc(i);
+        i = i + 1;
+    }
 }
 
 
 
-fun setBlockAllocated(var *blkPtr, var size){
-    print(size);
-    print(blkPtr);
-    *(blkPtr - 3) = 1; // allocated flag in header
+fun setBlockAllocated(var *blkPtr, var size, var isAllocated){
+    *(blkPtr - 1) = isAllocated; // allocated flag in header
     *(blkPtr - 2) = size; // size flag in header
 }
 
-fun setBlockNext(var *blkPtr, var *next){
-    *(blkPtr - 1) = next;
+fun getBlockIsAllocated(var *blkPtr){
+    return *(blkPtr - 1);
+}
+
+fun getBlockSize(var *blkPtr){
+    return *(blkPtr - 2);
+}
+
+fun getBlockNext(var *blkPtr){
+    return (blkPtr + *(blkPtr - 2) + 4);
 }
 
 fun mm_init(var size){
     var *dataAt = 2;
     var *blkPtr = (*dataAt) + 6;
-    var newSize = size - 6;
+    var newSize = size - 4;
     print(newSize);
-    setBlockAllocated(blkPtr, newSize);
+    var one = 1;
     var zero = 0;
-    setBlockNext(blkPtr, zero);
+
+    setBlockAllocated(blkPtr, newSize, zero);
+    print(blkPtr);
+    return 0;
 }
-/*
+
 fun mm_malloc(var size){
+    print(size);
+    var zero = 0;
+    var one = 1;
     var *dataAt = 2;
     var blkRunner = (*dataAt) + 6;
-}*/
+    while(one > 0){
+        print(zero);
+        print(blkRunner);
+        if(getBlockIsAllocated(blkRunner) == 0){
+            if(getBlockSize(blkRunner) >= size){
+                var newSize = (getBlockSize(blkRunner) - size) - 4;
+                setBlockAllocated(blkRunner, size, one);
+                var *newBlk = blkRunner + size + 4;
+                print(newSize);
+                setBlockAllocated(newBlk, newSize, zero);
+                return blkRunner;
+            }else{
+                asm{
+                    hlt
+                };
+                blkRunner = getBlockNext(blkRunner);
+            }
+        }else{
+            blkRunner = getBlockNext(blkRunner);
+        }
+    }
+    
+    return 0;
+}
 
 
 $$

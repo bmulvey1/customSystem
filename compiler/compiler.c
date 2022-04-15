@@ -233,6 +233,7 @@ int main(int argc, char **argv)
         if (theTable->entries[i]->type == e_function)
         {
             struct functionEntry *thisEntry = theTable->entries[i]->entry;
+            fprintf(outFile, "#d \"%s\"\n", thisEntry->table->name);
             output = generateCode(thisEntry->table, outFile);
             // for (struct Lifetime *ltRunner = theseLifetimes; ltRunner != NULL; ltRunner = ltRunner->next)
             // {

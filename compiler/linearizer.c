@@ -295,7 +295,7 @@ int linearizeFunctionCall(int currentTACIndex, struct LinkedList *blockList, str
     char *operand0 = getTempString(tl, *tempNum);
     (*tempNum)++;
 
-    linearizeArgumentPushes(currentTACIndex, blockList, currentBlock, it->child->child, tempNum, tl);
+    currentTACIndex = linearizeArgumentPushes(currentTACIndex, blockList, currentBlock, it->child->child, tempNum, tl);
 
     struct TACLine *calltac = newTACLine(currentTACIndex++, tt_call);
     calltac->operands[0] = operand0;
