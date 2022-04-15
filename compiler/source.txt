@@ -3,8 +3,8 @@ asm
     #include "CPU.asm"
     entry code
 code:
-    push $20
-    call firstnfibs
+    push $64
+    call writeTwelve
 code_done:
     hlt
 };
@@ -14,30 +14,12 @@ fun print(var i){
         out %r0
     };
 }
-/*
-// compute the first n fibonacci numbers (using pointers!)
-fun firstnfibs(var n){
 
-    var x = 1;
-    var y = 2;
-    var z = 3;
-
-    var i = 2;
-    while(i < n){
-        x = x + y;
-        y = y + z;
-        print(i);
-        i = i + 1;
-    }
-
-    print(x);
-    print(y);
-    print(z);
-    print(i);
+fun writeTwelve(var *destination){
+    *destination = 12;
 }
-*/
 
-
+/*
 // compute the first n fibonacci numbers (using pointers!)
 fun firstnfibs(var n){
     var *fibarr = 512;
@@ -72,6 +54,7 @@ fun firstnfibs(var n){
     print(z);
     print(i);
 }
+*/
 
 
 

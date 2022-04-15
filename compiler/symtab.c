@@ -187,7 +187,12 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
         case e_argument:
         {
             struct variableEntry *theArgument = it->entries[i]->entry;
-            printf("> argument [%s] (type %d)\n", it->entries[i]->name, theArgument->type);
+            printf("> argument variable ");
+            for (int i = 0; i < theArgument->indirectionLevel; i++)
+            {
+                printf("*");
+            }
+            printf("[%s] (type %d)\n", it->entries[i]->name, theArgument->type);
         }
         break;
 
@@ -397,9 +402,8 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
                 }
 
                 int indirectionLevel = 0;
-                struct astNode *runner = argumentRunner;
-                char scraping = 1;
-                while (scraping)
+                struct astNode *runner = argumentRunner->child;
+                while (runner->child != NULL)
                 {
                     switch (runner->type)
                     {
@@ -412,12 +416,14 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
                         break;
 
                     default:
-                        scraping = 0;
-                        break;
+                        perror("unexpected token as child of argument definition!");
+                        exit(1);
+
                     }
+                    runner = runner->child;
                 }
 
-                symTab_insertArgument(subTable, runner->child->value, theType, indirectionLevel);
+                symTab_insertArgument(subTable, runner->value, theType, indirectionLevel);
 
                 argumentRunner = argumentRunner->sibling;
             }

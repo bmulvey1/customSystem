@@ -666,13 +666,18 @@ struct astNode *parseArgDefinitions(struct Dictionary *dict)
     int parsing = 1;
     while (parsing)
     {
-
-        switch (lookahead())
+        enum token next = lookaheadToken();
+        switch (next)
         {
-        case 'v':
+        case t_var:
         {
-            struct astNode *argument = match(t_var, dict);
-            astNode_insertChild(argument, match(t_name, dict));
+            struct astNode *argument = match(next, dict);
+            struct astNode *declaration = argument;
+            while(lookaheadToken() == t_dereference){
+                astNode_insertChild(argument, match(t_dereference, dict));
+                declaration = declaration->child;
+            }
+            astNode_insertChild(declaration, match(t_name, dict));
 
             if (argList == NULL)
                 argList = argument;
@@ -681,8 +686,8 @@ struct astNode *parseArgDefinitions(struct Dictionary *dict)
         }
         break;
 
-        case ',':
-            consume(t_comma);
+        case t_comma:
+            consume(next);
             break;
 
         default:
