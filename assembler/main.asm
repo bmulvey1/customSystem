@@ -2,9 +2,9 @@
 	entry code
 	data@ data
 code:
-	push $256
+	push $32768
 	call mm_init
-	push $8
+	push $235
 	call malloc_test
 code_done:
 	hlt
@@ -20,36 +20,25 @@ print_0:
 print_done:
 	pop %r0
 	ret 2
-#d "div"
-div:
-	push %r1
-	push %r0
-div_0:
-	;introduce var i to %r0
-	mov %r0, 4(%bp) ;place argument i
-	;introduce var j to %r1
-	mov %r1, 6(%bp) ;place argument j
-	div %r0, %r1
-	mov %rr, %r0
-div_done:
-	pop %r0
-	pop %r1
-	ret 4
 #d "malloc_test"
 malloc_test:
+	push %r2
 	push %r1
 	push %r0
 malloc_test_0:
 	;introduce var n to %r0
 	mov %r0, 4(%bp) ;place argument n
 	;introduce var i to %r1
-	mov %r1, $1;i = 1
+	mov %r1, $2;i = 2
+		;introduce var result to %r2
+	mov %r2, $0;result = 0
 	jmp malloc_test_2
 malloc_test_2:
 	cmp %r1, %r0;cmp i n
 	jge malloc_test_1
 	push %r1
 	call mm_malloc
+	mov %r2, %rr;result = call mm_malloc
 	mov %r1, %r1
 	add %r1, $1;i = i + 1
 	jmp malloc_test_2
@@ -57,6 +46,7 @@ malloc_test_1:
 malloc_test_done:
 	pop %r0
 	pop %r1
+	pop %r2
 	ret 2
 #d "setBlockAllocated"
 setBlockAllocated:
@@ -165,17 +155,13 @@ mm_init_0:
 	mov %r2, (%r1);.t1 = (dataAt)
 		;introduce var blkPtr to %r1
 	mov %r1, %r2
-	add %r1, $6;blkPtr = .t1 + 6
+	add %r1, $4;blkPtr = .t1 + 4
 		;introduce var newSize to %r2
 	mov %r2, %r0
 	sub %r2, $4;newSize = size - 4
 	push %r2
 	call print
-		;introduce var one to %r0
-	mov %r0, $1;one = 1
-		;introduce var zero to %r0
-	mov %r0, $0;zero = 0
-	push %r0
+	push $0
 	push %r2
 	push %r1
 	call setBlockAllocated
@@ -190,7 +176,6 @@ mm_init_done:
 	ret 2
 #d "mm_malloc"
 mm_malloc:
-	sub %sp, $2
 	push %r5
 	push %r4
 	push %r3
@@ -200,86 +185,73 @@ mm_malloc:
 mm_malloc_0:
 	;introduce var size to %r0
 	mov %r0, 4(%bp) ;place argument size
-	push %r0
-	call print
-		;introduce var zero to %r1
-	mov %r1, $0;zero = 0
+	;introduce var dataAt to %r1
+	mov %r1, $2;dataAt = 2
+		;introduce var .t1 to %r2
+	mov %r2, (%r1);.t1 = (dataAt)
+		;introduce var blkRunner to %r1
+	mov %r1, %r2
+	add %r1, $4;blkRunner = .t1 + 4
 		;introduce var one to %r2
 	mov %r2, $1;one = 1
-		;introduce var dataAt to %r3
-	mov %r3, $2;dataAt = 2
-		;introduce var .t2 to %r4
-	mov %r4, (%r3);.t2 = (dataAt)
-		;introduce var blkRunner to %r3
-	mov %r3, %r4
-	add %r3, $6;blkRunner = .t2 + 6
 	jmp mm_malloc_2
 mm_malloc_2:
-	cmp %r2, $0;cmp one 0
-	jle mm_malloc_1
+	cmp %r2, $1;cmp one 1
+	jne mm_malloc_1
 	push %r1
-	call print
-	push %r3
-	call print
-	push %r3
-		;introduce var .t5 to %r4
+		;introduce var .t2 to %r3
 	call getBlockIsAllocated
-	mov %r4, %rr;.t5 = call getBlockIsAllocated
-	cmp %r4, $0;cmp .t5 0
+	mov %r3, %rr;.t2 = call getBlockIsAllocated
+	cmp %r3, $0;cmp .t2 0
 	jne mm_malloc_6
-	push %r3
-		;introduce var .t6 to %r4
-	call getBlockSize
-	mov %r4, %rr;.t6 = call getBlockSize
-	cmp %r4, %r0;cmp .t6 size
-	jl mm_malloc_5
-	push %r3
-		;introduce var .t9 to %r4
-	call getBlockSize
-	mov %r4, %rr;.t9 = call getBlockSize
-		;introduce var .t8 to %r5
-	mov %r5, %r4
-	sub %r5, %r0;.t8 = .t9 - size
-		;introduce var newSize to %r4
-	mov %r4, %r5
-	sub %r4, $4;newSize = .t8 - 4
-	push %r2
-	push %r0
-	push %r3
-	call setBlockAllocated
-		;introduce var .t12 to %r5
-	mov %r5, %r0
-	add %r5, $4;.t12 = size + 4
-	mov -2(%bp), %r2;spill          one
-		;introduce var newBlk to %r2
-	mov %r2, %r3
-	add %r2, %r5;newBlk = blkRunner + .t12
-	push %r4
-	call print
 	push %r1
-	push %r4
-	push %r2
+		;introduce var .t3 to %r3
+	call getBlockSize
+	mov %r3, %rr;.t3 = call getBlockSize
+	cmp %r3, %r0;cmp .t3 size
+	jl mm_malloc_5
+	push %r1
+		;introduce var .t6 to %r3
+	call getBlockSize
+	mov %r3, %rr;.t6 = call getBlockSize
+		;introduce var .t5 to %r4
+	mov %r4, %r3
+	sub %r4, %r0;.t5 = .t6 - size
+		;introduce var newSize to %r3
+	mov %r3, %r4
+	sub %r3, $4;newSize = .t5 - 4
+	push $1
+	push %r0
+	push %r1
 	call setBlockAllocated
-	mov %rr, %r3
+		;introduce var .t9 to %r4
+	mov %r4, %r0
+	add %r4, $4;.t9 = size + 4
+		;introduce var newBlk to %r5
+	mov %r5, %r1
+	add %r5, %r4;newBlk = blkRunner + .t9
+	push $0
+	push %r3
+	push %r5
+	call setBlockAllocated
+	mov %rr, %r1
 	jmp mm_malloc_done
 mm_malloc_5:
 	hlt
-	push %r3
+	push %r1
 	call getBlockNext
-	mov %r3, %rr;blkRunner = call getBlockNext
+	mov %r1, %rr;blkRunner = call getBlockNext
 	jmp mm_malloc_4
 mm_malloc_4:
 	jmp mm_malloc_3
 mm_malloc_6:
-	push %r3
+	push %r1
 	call getBlockNext
-	mov %r3, %rr;blkRunner = call getBlockNext
+	mov %r1, %rr;blkRunner = call getBlockNext
 	jmp mm_malloc_3
 mm_malloc_3:
 	jmp mm_malloc_2
 mm_malloc_1:
-	mov %rr, $0
-	jmp mm_malloc_done
 mm_malloc_done:
 	pop %r0
 	pop %r1
@@ -287,7 +259,5 @@ mm_malloc_done:
 	pop %r3
 	pop %r4
 	pop %r5
-	add %sp, $2
 	ret 2
-nop
 data:

@@ -246,7 +246,7 @@ int main(int argc, char **argv)
         }
     }
 
-    fprintf(outFile, "nop\ndata:\n");
+    fprintf(outFile, "data:\n");
     
 
     fclose(outFile);

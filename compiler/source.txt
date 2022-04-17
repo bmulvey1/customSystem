@@ -4,9 +4,9 @@ asm
     entry code
     data@ data
 code:
-    push $256
+    push $32768
     call mm_init
-    push $8
+    push $235
     call malloc_test
 code_done:
     hlt
@@ -18,22 +18,15 @@ fun print(var i){
     };
 }
 
-fun div(var i, var j){
-    asm{
-        div %r0, %r1
-        mov %rr, %r0
-    };
-}
 
 fun malloc_test(var n){
-    var i = 1;
+    var i = 2;
+    var *result = 0;
     while(i < n){
-        mm_malloc(i);
+        result = mm_malloc(i);
         i = i + 1;
     }
 }
-
-
 
 fun setBlockAllocated(var *blkPtr, var size, var isAllocated){
     *(blkPtr - 1) = isAllocated; // allocated flag in header
@@ -54,33 +47,27 @@ fun getBlockNext(var *blkPtr){
 
 fun mm_init(var size){
     var *dataAt = 2;
-    var *blkPtr = (*dataAt) + 6;
+    var *blkPtr = (*dataAt) + 4;
     var newSize = size - 4;
     print(newSize);
-    var one = 1;
-    var zero = 0;
 
-    setBlockAllocated(blkPtr, newSize, zero);
+    setBlockAllocated(blkPtr, newSize, 0);
     print(blkPtr);
     return 0;
 }
 
 fun mm_malloc(var size){
-    print(size);
-    var zero = 0;
-    var one = 1;
+    //print(size);
     var *dataAt = 2;
-    var blkRunner = (*dataAt) + 6;
-    while(one > 0){
-        print(zero);
-        print(blkRunner);
+    var blkRunner = (*dataAt) + 4;
+    var one = 1;
+    while(one == 1){
         if(getBlockIsAllocated(blkRunner) == 0){
             if(getBlockSize(blkRunner) >= size){
                 var newSize = (getBlockSize(blkRunner) - size) - 4;
-                setBlockAllocated(blkRunner, size, one);
+                setBlockAllocated(blkRunner, size, 1);
                 var *newBlk = blkRunner + size + 4;
-                print(newSize);
-                setBlockAllocated(newBlk, newSize, zero);
+                setBlockAllocated(newBlk, newSize, 0);
                 return blkRunner;
             }else{
                 asm{
@@ -92,8 +79,6 @@ fun mm_malloc(var size){
             blkRunner = getBlockNext(blkRunner);
         }
     }
-    
-    return 0;
 }
 
 

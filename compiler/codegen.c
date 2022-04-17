@@ -353,13 +353,31 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
             case tt_push:
             {
-                int sourceRegister = findActiveVariable(activeList, currentTAC->operands[0]);
-                if (sourceRegister == -1)
+                switch (currentTAC->operandTypes[0])
                 {
-                    sourceRegister = unSpillVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+                case vt_literal:
+                    outputLine = malloc(24);
+                    sprintf(outputLine, "push $%s", currentTAC->operands[0]);
+                    break;
+
+                case vt_var:
+                case vt_temp:
+                {
+                    int sourceRegister = findActiveVariable(activeList, currentTAC->operands[0]);
+                    if (sourceRegister == -1)
+                    {
+                        sourceRegister = unSpillVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+                    }
+                    outputLine = malloc(16);
+                    sprintf(outputLine, "push %%r%d", sourceRegister);
+                    
                 }
-                outputLine = malloc(16);
-                sprintf(outputLine, "push %%r%d", sourceRegister);
+                break;
+
+                default:
+                    perror("Unexpected TAC type in push TAC!");
+                    exit(1);
+                }
                 ASMblock_append(outputBlock, outputLine);
             }
             break;
@@ -602,7 +620,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         printf(".");
         blockRunner = blockRunner->next;
     }
-    
+
     outputLine = malloc(32);
     sprintf(outputLine, "%s_done:", table->name);
     ASMblock_append(outputBlock, outputLine);
