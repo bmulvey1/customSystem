@@ -5,7 +5,7 @@
 #include "ast.h"
 #include "util.h"
 
-#define BUF_SIZE 16
+#define BUF_SIZE 32
 
 void error();
 

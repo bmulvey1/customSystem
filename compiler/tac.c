@@ -64,6 +64,12 @@ char *getAsmOp(enum TACType t)
     case tt_return:
         return "ret";
 
+    case tt_do:
+        return "do";
+
+    case tt_enddo:
+        return "end do";
+
     case tt_jg:
         return "jg";
 
@@ -233,12 +239,20 @@ void printTACLine(struct TACLine *it)
         width += printf("ret %s", it->operands[0]);
         break;
 
+    case tt_do:
+        width += printf("do");
+        break;
+
+    case tt_enddo:
+        width += printf("end do");
+        break;
+
     case tt_pushstate:
         width += printf("PUSHSTATE");
         break;
 
     case tt_restorestate:
-        width += printf("RESTORESTATE");
+        width += printf("RESTORESTATE (interval %2lx)", (long int)it->operands[0]);
         break;
 
     case tt_resetstate:
@@ -363,12 +377,20 @@ char *sPrintTACLine(struct TACLine *it)
         width += sprintf(tacString, "ret %s", it->operands[0]);
         break;
 
+    case tt_do:
+        width += sprintf(tacString, "do");
+        break;
+
+    case tt_enddo:
+        width += sprintf(tacString, "end do");
+        break;
+
     case tt_pushstate:
         width += sprintf(tacString, "PUSHSTATE");
         break;
 
     case tt_restorestate:
-        width += sprintf(tacString, "RESTORESTATE");
+        width += sprintf(tacString, "RESTORESTATE (interval %2lx)", (long int)it->operands[0]);
         break;
 
     case tt_resetstate:
@@ -399,13 +421,12 @@ char TACLine_isEffective(struct TACLine *it)
     case tt_popstate:
     case tt_restorestate:
     case tt_resetstate:
-    case tt_declare:
+    case tt_do:
+    case tt_enddo:
         return 0;
-        break;
 
     default:
         return 1;
-        break;
     }
 }
 
@@ -414,6 +435,7 @@ struct BasicBlock *BasicBlock_new(int labelNum)
     struct BasicBlock *wip = malloc(sizeof(struct BasicBlock));
     wip->TACList = LinkedList_new();
     wip->labelNum = labelNum;
+    wip->hintLabel = NULL;
     wip->containsEffectiveCode = 0;
     return wip;
 }
@@ -439,10 +461,12 @@ void BasicBlock_prepend(struct BasicBlock *b, struct TACLine *l)
 struct TACLine *findLastEffectiveTAC(struct BasicBlock *b)
 {
     struct LinkedListNode *runner = b->TACList->tail;
-    while(runner != NULL && !TACLine_isEffective(runner->data)){
+    while (runner != NULL && !TACLine_isEffective(runner->data))
+    {
         runner = runner->prev;
     }
-    if(runner == NULL){
+    if (runner == NULL)
+    {
         return NULL;
     }
     return runner->data;
@@ -450,7 +474,7 @@ struct TACLine *findLastEffectiveTAC(struct BasicBlock *b)
 
 void printBasicBlock(struct BasicBlock *b, int indentLevel)
 {
-    printf("BASIC BLOCK %d\n", b->labelNum);
+    printf("BASIC BLOCK %d (%s)\n", b->labelNum, b->hintLabel);
     for (struct LinkedListNode *runner = b->TACList->head; runner != NULL; runner = runner->next)
     {
         struct TACLine *this = runner->data;

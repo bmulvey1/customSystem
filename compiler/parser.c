@@ -331,8 +331,9 @@ struct astNode *parseProgram(char *inFileName, struct Dictionary *dict)
     curLine = 1;
     curCol = 1;
     inFile = fopen(inFileName, "rb");
-    return parseTLDList(dict);
+    struct astNode *program = parseTLDList(dict);
     fclose(inFile);
+    return program;
 }
 
 struct astNode *parseTLDList(struct Dictionary *dict)
@@ -537,10 +538,7 @@ struct astNode *parseStatement(struct Dictionary *dict)
     case t_return:
     {
         statement = match(t_return, dict);
-        struct astNode *returnAssignment = newastNode(t_assign, "=");
-        astNode_insertChild(returnAssignment, newastNode(t_name, ".RETVAL"));
-        astNode_insertChild(returnAssignment, parseExpression(dict));
-        astNode_insertChild(statement, returnAssignment);
+        astNode_insertChild(statement, parseExpression(dict));
         consume(t_semicolon);
     }
     break;
@@ -668,13 +666,18 @@ struct astNode *parseArgDefinitions(struct Dictionary *dict)
     int parsing = 1;
     while (parsing)
     {
-
-        switch (lookahead())
+        enum token next = lookaheadToken();
+        switch (next)
         {
-        case 'v':
+        case t_var:
         {
-            struct astNode *argument = match(t_var, dict);
-            astNode_insertChild(argument, match(t_name, dict));
+            struct astNode *argument = match(next, dict);
+            struct astNode *declaration = argument;
+            while(lookaheadToken() == t_dereference){
+                astNode_insertChild(argument, match(t_dereference, dict));
+                declaration = declaration->child;
+            }
+            astNode_insertChild(declaration, match(t_name, dict));
 
             if (argList == NULL)
                 argList = argument;
@@ -683,8 +686,8 @@ struct astNode *parseArgDefinitions(struct Dictionary *dict)
         }
         break;
 
-        case ',':
-            consume(t_comma);
+        case t_comma:
+            consume(next);
             break;
 
         default:
@@ -835,7 +838,6 @@ struct astNode *parseASM(struct Dictionary *dict)
         case '\n':
             asmLine[lineLen] = '\0';
             curCol = 0;
-            curLine++;
             astNode_insertChild(asmNode, newastNode(t_asm, DictionaryLookupOrInsert(dict, asmLine)));
             trimWhitespace(1);
             lineLen = 0;

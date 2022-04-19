@@ -40,6 +40,7 @@ void ASMblock_prepend(struct ASMblock *block, char *data)
 
 void ASMblock_append(struct ASMblock *block, char *data)
 {
+    // printf("append [%s]\n", data);
     struct ASMline *newLine = malloc(sizeof(struct ASMline));
     newLine->data = data;
     newLine->next = NULL;

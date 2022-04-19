@@ -2,67 +2,84 @@ asm
 {
     #include "CPU.asm"
     entry code
-    .code:
-    push $20
-    call fib
-    out %r0
+    data@ data
+code:
+    push $32768
+    call mm_init
+    push $235
+    call malloc_test
+code_done:
     hlt
 };
 
-fun fib(var i){
-    var result;
-    if(i < 2){
-        result = 1;
-        if(i < 1){
-            result = 0;
-        }/*else{
-            result = 1;
-        }*/
-    }else{
-        result = fib(i - 2) + fib(i - 1);
-    }
-    return result;
+fun print(var i){
+    asm{
+        out %r0
+    };
 }
 
-/*
-// compute the first n fibonacci numbers (using pointers!)
-fun firstnfibs(var n){
-    var *fibarr = 1000;
-    *fibarr = 0;
-    *(fibarr + 1) = 1;
-    var j;
 
+fun malloc_test(var n){
     var i = 2;
-    while(i <= n){
-        j = *(fibarr + i - 1) + *(fibarr + i - 2);
-        asm{
-            out [j]
-        };
-        *(fibarr + i) = j;
+    var *result = 0;
+    while(i < n){
+        result = mm_malloc(i);
         i = i + 1;
     }
 }
-*/
 
-/*
-fun firstkprimes(){
-    var *primes = 1000;
-    var i = 2;
-    while(i <= 10000){
-        if(*(primes + i) == 0){
-            var j = i;
-            while(j <= 10000){
-                *(primes + j) = 1;
-                j = j + i;
+fun setBlockAllocated(var *blkPtr, var size, var isAllocated){
+    *(blkPtr - 1) = isAllocated; // allocated flag in header
+    *(blkPtr - 2) = size; // size flag in header
+}
+
+fun getBlockIsAllocated(var *blkPtr){
+    return *(blkPtr - 1);
+}
+
+fun getBlockSize(var *blkPtr){
+    return *(blkPtr - 2);
+}
+
+fun getBlockNext(var *blkPtr){
+    return (blkPtr + *(blkPtr - 2) + 4);
+}
+
+fun mm_init(var size){
+    var *dataAt = 2;
+    var *blkPtr = (*dataAt) + 4;
+    var newSize = size - 4;
+    print(newSize);
+
+    setBlockAllocated(blkPtr, newSize, 0);
+    print(blkPtr);
+    return 0;
+}
+
+fun mm_malloc(var size){
+    //print(size);
+    var *dataAt = 2;
+    var blkRunner = (*dataAt) + 4;
+    var one = 1;
+    while(one == 1){
+        if(getBlockIsAllocated(blkRunner) == 0){
+            if(getBlockSize(blkRunner) >= size){
+                var newSize = (getBlockSize(blkRunner) - size) - 4;
+                setBlockAllocated(blkRunner, size, 1);
+                var *newBlk = blkRunner + size + 4;
+                setBlockAllocated(newBlk, newSize, 0);
+                return blkRunner;
+            }else{
+                asm{
+                    hlt
+                };
+                blkRunner = getBlockNext(blkRunner);
             }
-            asm{
-                out [i]
-            };
+        }else{
+            blkRunner = getBlockNext(blkRunner);
         }
-        i = i + 1;
     }
 }
-*/
 
 
 $$

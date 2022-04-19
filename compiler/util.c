@@ -122,9 +122,9 @@ void freeDictionary(struct Dictionary *dict)
 struct Stack *Stack_new()
 {
     struct Stack *wip = malloc(sizeof(struct Stack));
-    wip->data = malloc(5 * sizeof(void *));
+    wip->data = malloc(20 * sizeof(void *));
     wip->size = 0;
-    wip->allocated = 5;
+    wip->allocated = 20;
     return wip;
 }
 
@@ -138,10 +138,11 @@ void Stack_push(struct Stack *s, void *data)
 {
     if (s->size >= s->allocated)
     {
-        void **newData = malloc((s->allocated + 5) * sizeof(void *));
+        void **newData = malloc((int)(s->allocated * 1.5) * sizeof(void *));
         memcpy(newData, s->data, s->allocated * sizeof(void *));
+        free(s->data);
         s->data = newData;
-        s->allocated += 5;
+        s->allocated = (int)(s->allocated * 1.5);
     }
 
     s->data[s->size++] = data;
