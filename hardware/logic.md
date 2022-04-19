@@ -10,22 +10,15 @@ ALUControl - select ALU function
 
 | Value | Function |
 | ----- | -------- |
-| 0000  | Add      |
-| 0001  | Subtract |
-| 0010  | Multiply |
-| 0011  | Divide   |
-| 0100  | Shift right |
-| 0101  | Shift left |
-| 0110  | AND |
-| 0111  | OR |
-| 1000  | XOR |
-| 1001  | NOT |
-| 1010  | None |
-| 1011  | None |
-| 1100  | None |
-| 1101  | None |
-| 1110  | None |
-| 1111  | None |
+| 000  | Add      |
+| 001  | Subtract |
+| 010  | Multiply |
+| 011  | Divide   |
+| 100  | AND |
+| 101  | OR |
+| 110  | XOR |
+| 111  | NOT |
+
 
 
 ## Output signals
