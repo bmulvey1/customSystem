@@ -43,6 +43,27 @@ void printAST(struct astNode *it, int depth)
         printAST(it->child, depth + 1);
 }
 
+void printASTHorizontal(struct astNode *it)
+{
+
+    if (it->sibling != NULL)
+    {
+        printASTHorizontal(it->sibling);
+        printf(" ");
+    }
+
+    printf("(");
+    printf("%s", it->value);
+
+    if (it->child != NULL)
+    {
+        printf(" ");
+        printASTHorizontal(it->child);
+    }
+
+    printf(")");
+}
+
 void freeAST(struct astNode *it)
 {
     struct astNode *runner = it;

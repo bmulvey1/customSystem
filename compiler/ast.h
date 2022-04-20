@@ -47,4 +47,6 @@ void astNode_insertChild(struct astNode *it, struct astNode *newChild);
 
 void printAST(struct astNode *it, int depth);
 
+void printASTHorizontal(struct astNode *it);
+
 void freeAST(struct astNode *it);

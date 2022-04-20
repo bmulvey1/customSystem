@@ -178,6 +178,76 @@ void printBasicBlocks(struct symbolTable *theTable)
         }
     }
 }
+/*
+void checkUninitializedUsage(struct symbolTable *table)
+{
+
+    for (struct LinkedListNode *r = table->BasicBlockList->head; r != NULL; r = r->next)
+    {
+
+        struct BasicBlock *b = r->data;
+        struct LinkedListNode *tr = b->TACList->head;
+        struct TACLine *ir = tr->data;
+
+        for (int i = 0; i < table->size; i++)
+        {
+            switch (table->entries[i]->type)
+            {
+            case e_variable:
+                struct variableEntry *theVar = table->entries[i]->entry;
+                if (theVar->assignedAt >= ir->index)
+                    theVar->isAssigned = 0;
+
+                break;
+            default:
+            }
+        }
+
+        for (; tr != NULL; tr = tr->next)
+        {
+            ir = tr->data;
+            // check operands 2 and 3
+            for (int j = 2; j > 0; j--)
+            {
+                switch (ir->operandTypes[j])
+                {
+                case vt_var:
+                    printf("%s used at %d\n", ir->operands[j], ir->index);
+                    struct symTabEntry *it = symbolTableLookup(table, ir->operands[j]);
+                    if (it == NULL)
+                    {
+                        printf("Error - use of undeclared variable [%s]\n", ir->operands[0]);
+                        exit(1);
+                    }
+                    if (!((struct variableEntry *)it->entry)->isAssigned)
+                    {
+                        printf("Error - use of variable [%s] before assignment!\n", ir->operands[j]);
+                        exit(1);
+                    }
+                    break;
+                default:
+                }
+            }
+
+            switch (ir->operandTypes[0])
+            {
+            case vt_var:
+                struct symTabEntry *it = symbolTableLookup(table, ir->operands[0]);
+                if (it == NULL)
+                {
+                    printf("Error - use of undeclared variable [%s]\n", ir->operands[0]);
+                    exit(1);
+                }
+                
+                it->isAssigned = 1;
+                it->assignedAt = ir->index;
+                break;
+
+            default:
+            }
+        }
+    }
+}*/
 
 int main(int argc, char **argv)
 {
@@ -205,34 +275,29 @@ int main(int argc, char **argv)
     struct symbolTable *theTable = walkAST(program);
     printf("\n");
 
+    printSymTab(theTable, 1);
+
     printf("Linearizing code to TAC");
     linearizeProgram(program, theTable);
     printf("\n\n");
 
-    printBasicBlocks(theTable);
-
-    printSymTab(theTable, 1);
+    // printBasicBlocks(theTable);
     printf("\n\n");
 
     FILE *outFile = fopen(argv[2], "wb");
     // struct Lifetime *theseLifetimes = findLifetimes(theTable);
     struct ASMblock *output;
     output = generateCode(theTable, outFile);
-    struct ASMline *L1 = output->head;
-    struct ASMline *L2 = L1->next;
-    output->head = L2->next;
-    free(L1->data);
-    free(L1);
-    free(L2->data);
-    free(L2);
     ASMblock_output(output, outFile);
     ASMblock_free(output);
+
     // exit(1);
     for (int i = 0; i < theTable->size; i++)
     {
         if (theTable->entries[i]->type == e_function)
         {
             struct functionEntry *thisEntry = theTable->entries[i]->entry;
+            // checkUninitializedUsage(thisEntry->table);
             fprintf(outFile, "#d \"%s\"\n", thisEntry->table->name);
             output = generateCode(thisEntry->table, outFile);
             // for (struct Lifetime *ltRunner = theseLifetimes; ltRunner != NULL; ltRunner = ltRunner->next)
@@ -247,7 +312,6 @@ int main(int argc, char **argv)
     }
 
     fprintf(outFile, "data:\n");
-    
 
     fclose(outFile);
     freeDictionary(parseDict);

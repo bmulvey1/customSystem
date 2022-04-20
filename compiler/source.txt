@@ -1,29 +1,53 @@
-asm
-{
+asm{
     #include "CPU.asm"
     entry code
     data@ data
 code:
-    push $32768
+    push $512
     call mm_init
-    push $235
-    call malloc_test
-code_done:
+    call doublePointer
     hlt
 };
-
-fun print(var i){
+fun print(var n){
     asm{
         out %r0
     };
 }
 
+fun doublePointer(){
+    var **array = mm_malloc(10); // allocate an array for 5 pointers
+    print(array);
+    var i = 0;
+    while(i < 5){
+        mm_malloc(16);
+        var *thisFibArray = mm_malloc(40);
+        firstnfibs(20, thisFibArray);
+        *(array + i) = thisFibArray;
+        i = i + 1;
+    }
 
-fun malloc_test(var n){
+    i = 0;
+    while(i < 5){
+        var j = 0;
+        while(j <= 20){
+            print(*(*(array + i) + j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+}
+
+
+// compute the first n fibonacci numbers (using pointers!)
+fun firstnfibs(var n, var* dest){
+    var *fibarr = dest;
+
+    *fibarr = 0;
+    *(fibarr + 1) = 1;
+
     var i = 2;
-    var *result = 0;
-    while(i < n){
-        result = mm_malloc(i);
+    while(i <= n){
+        *(fibarr + i) = *(fibarr + i - 1) + *(fibarr + i - 2);
         i = i + 1;
     }
 }
@@ -49,10 +73,8 @@ fun mm_init(var size){
     var *dataAt = 2;
     var *blkPtr = (*dataAt) + 4;
     var newSize = size - 4;
-    print(newSize);
 
     setBlockAllocated(blkPtr, newSize, 0);
-    print(blkPtr);
     return 0;
 }
 
@@ -79,7 +101,8 @@ fun mm_malloc(var size){
             blkRunner = getBlockNext(blkRunner);
         }
     }
+    asm{
+        #d "end_text"
+    };
 }
-
-
 $$

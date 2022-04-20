@@ -30,11 +30,12 @@ struct symTabEntry
 
 struct variableEntry
 {
-    int isAssigned;
-    char global;
     int stackOffset;
     enum variableTypes type;
     int indirectionLevel;
+    int assignedAt;
+    char isAssigned;
+    char global;
 };
 
 struct functionEntry
@@ -69,6 +70,8 @@ struct symbolTable *newSymbolTable(char *name);
 int symbolTableContains(struct symbolTable *table, char *name);
 
 struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name);
+
+struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *name);
 
 void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum symTabEntryType type);
 

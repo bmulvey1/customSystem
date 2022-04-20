@@ -54,8 +54,9 @@ enum TACType
 
 struct TACLine
 {
-    char *operands[4];                  // track all 3 operands
+    char *operands[4];                  // track operands by name
     enum variableTypes operandTypes[4]; // track whether the left hand side operands are literals
+    char indirectionLevels[4];          // track indirection levels of all operands
     enum TACType operation;
     int index;
     char reorderable;

@@ -117,6 +117,10 @@ struct TACLine *newTACLine(int index, enum TACType operation)
     wip->operandTypes[1] = vt_null;
     wip->operandTypes[2] = vt_null;
     wip->operandTypes[3] = vt_null;
+    wip->indirectionLevels[0] = 0;
+    wip->indirectionLevels[1] = 0;
+    wip->indirectionLevels[2] = 0;
+    wip->indirectionLevels[3] = 0;
     // default type of a line of TAC is assignment
     wip->operation = operation;
     // by default operands are NOT reorderable
@@ -268,6 +272,8 @@ void printTACLine(struct TACLine *it)
         printf(" ");
     }
     // printf("\t%d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
+    printf("\t%d %d %d", it->indirectionLevels[0], it->indirectionLevels[1], it->indirectionLevels[2]);
+
     // width += printf("%s", it->reorderable ? " - Reorderable" : "");
 }
 

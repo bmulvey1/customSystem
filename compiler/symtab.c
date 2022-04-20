@@ -62,11 +62,12 @@ struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
 struct variableEntry *newVariableEntry(int indirectionLevel, enum variableTypes type)
 {
     struct variableEntry *wip = malloc(sizeof(struct variableEntry));
-    wip->isAssigned = 0;
     wip->global = 0;
     wip->stackOffset = 0;
     wip->indirectionLevel = indirectionLevel;
     wip->type = type;
+    wip->assignedAt = 0;
+    wip->isAssigned = 0;
     return wip;
 }
 
@@ -116,6 +117,16 @@ struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name)
     }
 
     return NULL;
+}
+
+struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *name)
+{
+    struct symTabEntry *e = symbolTableLookup(table, name);
+
+    if (e != NULL)
+        return e->entry;
+    else
+        return NULL;
 }
 
 void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum symTabEntryType type)
@@ -229,7 +240,7 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
         }
     }
     // if (printTAC)
-        // printBasicBlockList(it->BasicBlockList, depth * 2);
+    // printBasicBlockList(it->BasicBlockList, depth * 2);
 
     printf("\n");
 }
@@ -300,17 +311,18 @@ void walkStatement(struct astNode *it, struct symbolTable *wip)
         }
 
         if (runner->type == t_assign)
-        {
             varName = runner->child->value;
-        }
         else
             varName = runner->value;
 
         // lookup the variable being assigned, only insert if unique
         // also covers modification of argument values
         if (!symbolTableContains(wip, varName))
-        {
             symTab_insertVariable(wip, varName, vt_var, indirectionLevel);
+        else
+        {
+            printf("Error - redeclaration of symbol [%s]\n", varName);
+            exit(1);
         }
 
         break;
@@ -418,7 +430,6 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
                     default:
                         perror("unexpected token as child of argument definition!");
                         exit(1);
-
                     }
                     runner = runner->child;
                 }

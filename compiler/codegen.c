@@ -11,8 +11,8 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         lifetimeArray[lifetimeCount++] = runner->data;
 
     // print out the variable lifetimes as a horizontal graph
-    printf("\n");
-    printLifetimesGraph(lifetimes);
+    // printf("\n");
+    // printLifetimesGraph(lifetimes);
     printf("Generate code for function %s", table->name);
 
     int *registerLoads = malloc((REGISTER_COUNT + 1) * sizeof(int)); // count of TAC steps with different numbers of registers free
@@ -370,7 +370,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
                     }
                     outputLine = malloc(16);
                     sprintf(outputLine, "push %%r%d", sourceRegister);
-                    
                 }
                 break;
 
@@ -666,7 +665,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         totalCodeSteps += registerLoads[i];
     }
 
-    if (totalCodeSteps > 0)
+    if (totalCodeSteps > 0 && 0)
     {
         printf("Done generating code for %d TAC steps\n\tFree registers\n        ", totalCodeSteps);
         for (int i = 0; i < REGISTER_COUNT; i++)
@@ -701,9 +700,8 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
         printf("\n %% time:");
         for (int i = 0; i <= maxSpillSpace / 2; i++)
             printf("%3d%% ", (stackLoads[i] * 100) / totalCodeSteps);
-
-        printf("\n\n");
     }
+    printf("\n");
 
     free(registerLoads);
 
