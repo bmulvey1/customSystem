@@ -179,7 +179,7 @@ void printBasicBlocks(struct symbolTable *theTable)
 		}
 	}
 }
-/*
+
 void checkUninitializedUsage(struct symbolTable *table)
 {
 
@@ -207,22 +207,46 @@ void checkUninitializedUsage(struct symbolTable *table)
 		for (; tr != NULL; tr = tr->next)
 		{
 			ir = tr->data;
+			switch (ir->operation)
+			{
+			case tt_declare:
+
+				struct variableEntry *declared = symbolTableLookup(table, ir->operands[0])->entry;
+				if (declared->declaredAt > 0)
+				{
+					printf("Error - redeclaration of variable [%s]\n", ir->operands[0]);
+					exit(1);
+				}
+				printf("declare %s at %d\n", ir->operands[0], ir->index);
+				declared->declaredAt = ir->index;
+				continue;
+
+			case tt_push:
+				continue;
+
+			default:
+				break;
+			}
+
 			// check operands 2 and 3
 			for (int j = 2; j > 0; j--)
 			{
 				switch (ir->operandTypes[j])
 				{
 				case vt_var:
-					printf("%s used at %d\n", ir->operands[j], ir->index);
 					struct symTabEntry *it = symbolTableLookup(table, ir->operands[j]);
 					if (it == NULL)
 					{
-						printf("Error - use of undeclared variable [%s]\n", ir->operands[0]);
+						struct ASTNode *n = ir->correspondingTree;
+						printf("Error - use of undeclared variable [%s]\n\tLine %d, Col %d\n", ir->operands[0], n->sourceLine, n->sourceCol);
 						exit(1);
 					}
 					if (!((struct variableEntry *)it->entry)->isAssigned)
 					{
-						printf("Error - use of variable [%s] before assignment!\n", ir->operands[j]);
+						struct ASTNode *n = ir->correspondingTree;
+						printTACLine(ir);
+						printf("\n");
+						printf("Error - use of variable [%s] before assignment!\n\tLine %d, Col %d\n\n", ir->operands[j], n->sourceLine, n->sourceCol);
 						exit(1);
 					}
 					break;
@@ -239,16 +263,27 @@ void checkUninitializedUsage(struct symbolTable *table)
 					printf("Error - use of undeclared variable [%s]\n", ir->operands[0]);
 					exit(1);
 				}
-
-				it->isAssigned = 1;
-				it->assignedAt = ir->index;
+				struct variableEntry *theVariable = it->entry;
+				if (theVariable->declaredAt > ir->index || theVariable->declaredAt == -1)
+				{
+					printTACLine(ir);
+					struct ASTNode *n = ir->correspondingTree;
+					if (n == NULL)
+					{
+						exit(1);
+					}
+					printf("Error - use of undeclared variable [%s]\n\tLine %d, Col %d\n", ir->operands[0], n->sourceLine, n->sourceCol);
+					exit(1);
+				}
+				theVariable->isAssigned = 1;
+				theVariable->assignedAt = ir->index;
 				break;
 
 			default:
 			}
 		}
 	}
-}*/
+}
 
 void checkIRConsistency(struct LinkedList *blockList)
 {
@@ -426,7 +461,7 @@ void checkIRConsistency(struct LinkedList *blockList)
 					ASTNode_printHorizontal(t->correspondingTree);
 					printf("\n\n");
 				}
-				
+
 				break;
 
 			default:
@@ -455,9 +490,9 @@ int main(int argc, char **argv)
 	struct ASTNode *program = parseProgram(argv[1], parseDict);
 
 	serializeAST("astdump", program);
-	// printf("\n");
+	printf("\n");
 
-	// printAST(program, 0);
+	ASTNode_print(program, 0);
 	printf("Generating symbol table from AST");
 	struct symbolTable *theTable = walkAST(program);
 	printf("\n");
@@ -467,8 +502,8 @@ int main(int argc, char **argv)
 	printf("Linearizing code to basic blocks\n");
 	linearizeProgram(program, theTable);
 
-	// printBasicBlocks(theTable);
-	// printf("\n\n");
+	printBasicBlocks(theTable);
+	printf("\n\n");
 
 	FILE *outFile = fopen(argv[2], "wb");
 	// struct Lifetime *theseLifetimes = findLifetimes(theTable);
@@ -483,7 +518,7 @@ int main(int argc, char **argv)
 		if (theTable->entries[i]->type == e_function)
 		{
 			struct functionEntry *thisEntry = theTable->entries[i]->entry;
-			// checkUninitializedUsage(thisEntry->table);
+			checkUninitializedUsage(thisEntry->table);
 			checkIRConsistency(thisEntry->table->BasicBlockList);
 			fprintf(outFile, "#d \"%s\"\n", thisEntry->table->name);
 			output = generateCode(thisEntry->table, outFile);

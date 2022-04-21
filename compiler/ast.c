@@ -45,12 +45,10 @@ void ASTNode_print(struct ASTNode *it, int depth)
 		ASTNode_print(it->child, depth + 1);
 }
 
-void ASTNode_printHorizontal(struct ASTNode *it)
-{
-
+void ASTNode_printHorizontalRec(struct ASTNode *it){
 	if (it->sibling != NULL)
 	{
-		ASTNode_printHorizontal(it->sibling);
+		ASTNode_printHorizontalRec(it->sibling);
 		printf(" ");
 	}
 
@@ -60,7 +58,22 @@ void ASTNode_printHorizontal(struct ASTNode *it)
 	if (it->child != NULL)
 	{
 		printf(" ");
-		ASTNode_printHorizontal(it->child);
+		ASTNode_printHorizontalRec(it->child);
+	}
+
+	printf(")");
+}
+
+void ASTNode_printHorizontal(struct ASTNode *it)
+{
+
+	printf("(");
+	printf("%s", it->value);
+
+	if (it->child != NULL)
+	{
+		printf(" ");
+		ASTNode_printHorizontalRec(it->child);
 	}
 
 	printf(")");

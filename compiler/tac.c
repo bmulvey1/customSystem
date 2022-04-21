@@ -273,7 +273,7 @@ void printTACLine(struct TACLine *it)
 		printf(" ");
 	}
 	// printf("\t%d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
-	printf("\t%d %d %d", it->indirectionLevels[0], it->indirectionLevels[1], it->indirectionLevels[2]);
+	// printf("\t%d %d %d", it->indirectionLevels[0], it->indirectionLevels[1], it->indirectionLevels[2]);
 
 	// width += printf("%s", it->reorderable ? " - Reorderable" : "");
 }

@@ -72,7 +72,7 @@ int linearizeDereference(struct symbolTable *table,
 	{
 		newIndirection--;
 	}
-	
+
 	thisDereference->indirectionLevels[0] = newIndirection;
 	BasicBlock_append(currentBlock, thisDereference);
 	return currentTACIndex;
@@ -311,6 +311,7 @@ int linearizeArgumentPushes(struct symbolTable *table,
 							int *tempNum,
 							struct tempList *tl)
 {
+
 	if (argRunner->sibling != NULL)
 	{
 		currentTACIndex = linearizeArgumentPushes(table, currentTACIndex, blockList, currentBlock, argRunner->sibling, tempNum, tl);
@@ -359,7 +360,11 @@ int linearizeFunctionCall(struct symbolTable *table,
 	char *operand0 = getTempString(tl, *tempNum);
 	(*tempNum)++;
 
-	currentTACIndex = linearizeArgumentPushes(table, currentTACIndex, blockList, currentBlock, it->child->child, tempNum, tl);
+	// push arguments iff they exist
+	if (it->child->child != NULL)
+	{
+		currentTACIndex = linearizeArgumentPushes(table, currentTACIndex, blockList, currentBlock, it->child->child, tempNum, tl);
+	}
 
 	struct TACLine *calltac = newTACLine(currentTACIndex++, tt_call);
 	calltac->correspondingTree = it;

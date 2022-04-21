@@ -484,13 +484,14 @@ struct ASTNode *parseStatement(struct Dictionary *dict)
 		}
 		struct ASTNode *name = match(t_name, dict);
 
+			ASTNode_insertChild(type, name);
+
 		// check whether or not whether this is an assignment or just a declaration
 		if (lookaheadToken() == t_assign)
-			ASTNode_insertChild(type, parseAssignment(name, dict));
-		else
 		{
-			// printf("var with no assignment\n");
-			ASTNode_insertChild(type, name);
+			struct ASTNode *assignedName = malloc(sizeof (struct ASTNode));
+			memcpy(assignedName, name, sizeof(struct ASTNode));
+			ASTNode_insertSibling(statement, parseAssignment(assignedName, dict));
 		}
 
 		// ASTNode_insertChild(statement, type);
@@ -678,7 +679,8 @@ struct ASTNode *parseArgDefinitions(struct Dictionary *dict)
 		{
 			struct ASTNode *argument = match(next, dict);
 			struct ASTNode *declaration = argument;
-			while(lookaheadToken() == t_dereference){
+			while (lookaheadToken() == t_dereference)
+			{
 				ASTNode_insertChild(argument, match(t_dereference, dict));
 				declaration = declaration->child;
 			}

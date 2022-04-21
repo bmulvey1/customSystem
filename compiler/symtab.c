@@ -66,7 +66,8 @@ struct variableEntry *newVariableEntry(int indirectionLevel, enum variableTypes 
 	wip->stackOffset = 0;
 	wip->indirectionLevel = indirectionLevel;
 	wip->type = type;
-	wip->assignedAt = 0;
+	wip->assignedAt = -1;
+	wip->declaredAt = -1;
 	wip->isAssigned = 0;
 	return wip;
 }

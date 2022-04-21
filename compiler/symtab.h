@@ -34,6 +34,7 @@ struct variableEntry
 	enum variableTypes type;
 	int indirectionLevel;
 	int assignedAt;
+	int declaredAt;
 	char isAssigned;
 	char global;
 };
