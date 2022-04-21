@@ -5,14 +5,14 @@
 #pragma once
 struct ASMline
 {
-    char *data;
-    struct ASMline *next;
+	char *data;
+	struct ASMline *next;
 };
 
 struct ASMblock
 {
-    struct ASMline *head;
-    struct ASMline *tail;
+	struct ASMline *head;
+	struct ASMline *tail;
 };
 
 struct ASMblock *newASMblock();

@@ -10,49 +10,49 @@
 
 enum symTabEntryType
 {
-    e_variable,
-    e_function,
-    e_argument
+	e_variable,
+	e_function,
+	e_argument
 };
 
 struct tempList
 {
-    int size;
-    char **temps;
+	int size;
+	char **temps;
 };
 
 struct symTabEntry
 {
-    char *name;
-    enum symTabEntryType type;
-    void *entry;
+	char *name;
+	enum symTabEntryType type;
+	void *entry;
 };
 
 struct variableEntry
 {
-    int stackOffset;
-    enum variableTypes type;
-    int indirectionLevel;
-    int assignedAt;
-    char isAssigned;
-    char global;
+	int stackOffset;
+	enum variableTypes type;
+	int indirectionLevel;
+	int assignedAt;
+	char isAssigned;
+	char global;
 };
 
 struct functionEntry
 {
-    struct symbolTable *table;
+	struct symbolTable *table;
 };
 
 struct symbolTable
 {
-    char *name;
-    struct symTabEntry **entries;
-    struct symbolTable *parentScope;
-    int size;
-    struct tempList *tl;
-    int localStackSize;
-    int argStackSize;
-    struct LinkedList *BasicBlockList;
+	char *name;
+	struct symTabEntry **entries;
+	struct symbolTable *parentScope;
+	int size;
+	struct tempList *tl;
+	int localStackSize;
+	int argStackSize;
+	struct LinkedList *BasicBlockList;
 };
 
 char *getTempString(struct tempList *tempList, int tempNum);

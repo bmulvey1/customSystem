@@ -11,14 +11,14 @@
  */
 struct DictionaryEntry
 {
-    char *data;
-    struct DictionaryEntry *next;
+	char *data;
+	struct DictionaryEntry *next;
 };
 
 struct Dictionary
 {
-    struct DictionaryEntry **buckets;
-    int nBuckets;
+	struct DictionaryEntry **buckets;
+	int nBuckets;
 };
 
 unsigned int hash(char *str);
@@ -40,9 +40,9 @@ void freeDictionary(struct Dictionary *dict);
 
 struct Stack
 {
-    void **data;
-    int size;
-    int allocated;
+	void **data;
+	int size;
+	int allocated;
 };
 
 struct Stack *Stack_new();
@@ -63,16 +63,16 @@ void *Stack_peek(struct Stack *s);
 
 struct LinkedListNode
 {
-    struct LinkedListNode *next;
-    struct LinkedListNode *prev;
-    void *data;
+	struct LinkedListNode *next;
+	struct LinkedListNode *prev;
+	void *data;
 };
 
 struct LinkedList
 {
-    struct LinkedListNode *head;
-    struct LinkedListNode *tail;
-    int size;
+	struct LinkedListNode *head;
+	struct LinkedListNode *tail;
+	int size;
 };
 
 struct LinkedList *LinkedList_new();
