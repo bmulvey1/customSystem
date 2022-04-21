@@ -285,9 +285,9 @@ void freeSymTab(struct symbolTable *it)
 /*
  * AST walk and symbol table generation functions
  */
-void walkStatement(struct astNode *it, struct symbolTable *wip)
+void walkStatement(struct ASTNode *it, struct symbolTable *wip)
 {
-	struct astNode *runner;
+	struct ASTNode *runner;
 	switch (it->type)
 	{
 	case t_var:
@@ -344,7 +344,7 @@ void walkStatement(struct astNode *it, struct symbolTable *wip)
 
 	case t_if:
 		// having fun yet?
-		struct astNode *ifRunner = it->child->sibling->child;
+		struct ASTNode *ifRunner = it->child->sibling->child;
 		while (ifRunner != NULL)
 		{
 			walkStatement(ifRunner, wip);
@@ -365,7 +365,7 @@ void walkStatement(struct astNode *it, struct symbolTable *wip)
 		break;
 
 	case t_while:
-		struct astNode *whileRunner = it->child->sibling->child;
+		struct ASTNode *whileRunner = it->child->sibling->child;
 		while (whileRunner != NULL)
 		{
 			walkStatement(whileRunner, wip);
@@ -385,9 +385,9 @@ void walkStatement(struct astNode *it, struct symbolTable *wip)
 	}
 }
 
-void walkFunction(struct astNode *it, struct symbolTable *wip)
+void walkFunction(struct ASTNode *it, struct symbolTable *wip)
 {
-	struct astNode *functionRunner = it->child;
+	struct ASTNode *functionRunner = it->child;
 	char *functionName = functionRunner->value;
 	struct symbolTable *subTable = newSymbolTable(functionName);
 	subTable->parentScope = wip;
@@ -397,7 +397,7 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
 		{
 		// looking at function name, which will have argument variables as children
 		case t_name:
-			struct astNode *argumentRunner = functionRunner->child;
+			struct ASTNode *argumentRunner = functionRunner->child;
 			while (argumentRunner != NULL)
 			{
 				enum variableTypes theType;
@@ -414,7 +414,7 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
 				}
 
 				int indirectionLevel = 0;
-				struct astNode *runner = argumentRunner->child;
+				struct ASTNode *runner = argumentRunner->child;
 				while (runner->child != NULL)
 				{
 					switch (runner->type)
@@ -447,7 +447,7 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
 
 		case t_if:
 			// having fun yet?
-			struct astNode *ifRunner = functionRunner->child->sibling->child;
+			struct ASTNode *ifRunner = functionRunner->child->sibling->child;
 			while (ifRunner != NULL)
 			{
 				walkStatement(ifRunner, subTable);
@@ -468,7 +468,7 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
 			break;
 
 		case t_while:
-			struct astNode *whileRunner = functionRunner->child->sibling->child;
+			struct ASTNode *whileRunner = functionRunner->child->sibling->child;
 			while (whileRunner != NULL)
 			{
 				walkStatement(whileRunner, subTable);
@@ -486,11 +486,11 @@ void walkFunction(struct astNode *it, struct symbolTable *wip)
 }
 
 // given an AST node for a program, walk the AST and generate a symbol table for the entire thing
-struct symbolTable *walkAST(struct astNode *it)
+struct symbolTable *walkAST(struct ASTNode *it)
 {
 	struct symbolTable *wip = newSymbolTable("Program");
 	wip->tl = newTempList();
-	struct astNode *runner = it;
+	struct ASTNode *runner = it;
 	while (runner != NULL)
 	{
 		printf(".");
@@ -501,7 +501,7 @@ struct symbolTable *walkAST(struct astNode *it)
 		// use walkStatement to handle this
 		case t_var:
 			walkStatement(runner, wip);
-			struct astNode *scraper = runner->child;
+			struct ASTNode *scraper = runner->child;
 			while (scraper->type != t_name)
 			{
 				scraper = scraper->child;

@@ -6,9 +6,9 @@
 
 int linearizeASMBlock(int currentTACIndex,
 					  struct BasicBlock *currentBlock,
-					  struct astNode *it)
+					  struct ASTNode *it)
 {
-	struct astNode *asmRunner = it->child;
+	struct ASTNode *asmRunner = it->child;
 	while (asmRunner != NULL)
 	{
 		struct TACLine *asmLine = newTACLine(currentTACIndex++, tt_asm);
@@ -23,7 +23,7 @@ int linearizeDereference(struct symbolTable *table,
 						 int currentTACIndex,
 						 struct LinkedList *blockList,
 						 struct BasicBlock *currentBlock,
-						 struct astNode *it,
+						 struct ASTNode *it,
 						 int *tempNum,
 						 struct tempList *tl)
 {
@@ -82,7 +82,7 @@ int linearizePointerArithmetic(struct symbolTable *table,
 							   int currentTACIndex,
 							   struct LinkedList *blockList,
 							   struct BasicBlock *currentBlock,
-							   struct astNode *it,
+							   struct ASTNode *it,
 							   int *tempNum,
 							   struct tempList *tl,
 							   int depth)
@@ -290,7 +290,7 @@ int linearizePointerArithmetic(struct symbolTable *table,
 	if (thisOperation->indirectionLevels[1] != thisOperation->indirectionLevels[2])
 	{
 		printf("Warning - pointer arithmetic between different indirection levels!\n\tExpression Tree: ");
-		printASTHorizontal(it);
+		ASTNode_printHorizontal(it);
 		printf("\n\t");
 		printTACLine(thisOperation);
 		printf("\n\n");
@@ -307,7 +307,7 @@ int linearizeArgumentPushes(struct symbolTable *table,
 							int currentTACIndex,
 							struct LinkedList *blockList,
 							struct BasicBlock *currentBlock,
-							struct astNode *argRunner,
+							struct ASTNode *argRunner,
 							int *tempNum,
 							struct tempList *tl)
 {
@@ -352,7 +352,7 @@ int linearizeFunctionCall(struct symbolTable *table,
 						  int currentTACIndex,
 						  struct LinkedList *blockList,
 						  struct BasicBlock *currentBlock,
-						  struct astNode *it,
+						  struct ASTNode *it,
 						  int *tempNum,
 						  struct tempList *tl)
 {
@@ -377,7 +377,7 @@ int linearizeExpression(struct symbolTable *table,
 						int currentTACIndex,
 						struct LinkedList *blockList,
 						struct BasicBlock *currentBlock,
-						struct astNode *it,
+						struct ASTNode *it,
 						int *tempNum,
 						struct tempList *tl)
 {
@@ -543,7 +543,7 @@ int linearizeAssignment(struct symbolTable *table,
 						int currentTACIndex,
 						struct LinkedList *blockList,
 						struct BasicBlock *currentBlock,
-						struct astNode *it,
+						struct ASTNode *it,
 						int *tempNum,
 						struct tempList *tl)
 {
@@ -720,9 +720,9 @@ struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp)
 int linearizeDeclaration(struct symbolTable *table,
 						 int currentTACIndex,
 						 struct BasicBlock *currentBlock,
-						 struct astNode *it)
+						 struct ASTNode *it)
 {
-	printAST(it, 0);
+	ASTNode_print(it, 0);
 	struct TACLine *declarationLine = newTACLine(currentTACIndex++, tt_declare);
 	declarationLine->correspondingTree = it;
 	enum variableTypes declaredType;
@@ -753,7 +753,7 @@ struct Stack *linearizeIfStatement(struct symbolTable *table,
 								   struct LinkedList *blockList,
 								   struct BasicBlock *currentBlock,
 								   struct BasicBlock *afterIfBlock,
-								   struct astNode *it,
+								   struct ASTNode *it,
 								   int *tempNum,
 								   int *labelCount,
 								   struct tempList *tl)
@@ -815,7 +815,7 @@ struct LinearizationResult *linearizeWhileLoop(struct symbolTable *table,
 											   struct LinkedList *blockList,
 											   struct BasicBlock *currentBlock,
 											   struct BasicBlock *afterWhileBlock,
-											   struct astNode *it,
+											   struct ASTNode *it,
 											   int *tempNum,
 											   int *labelCount,
 											   struct tempList *tl)
@@ -872,13 +872,13 @@ struct LinearizationResult *linearizeStatementList(struct symbolTable *table,
 												   struct LinkedList *blockList,
 												   struct BasicBlock *currentBlock,
 												   struct BasicBlock *controlConvergesTo,
-												   struct astNode *it,
+												   struct ASTNode *it,
 												   int *tempNum,
 												   int *labelCount,
 												   struct tempList *tl)
 {
 	// scrape along the function
-	struct astNode *runner = it;
+	struct ASTNode *runner = it;
 	while (runner != NULL)
 	{
 		switch (runner->type)
@@ -898,7 +898,7 @@ struct LinearizationResult *linearizeStatementList(struct symbolTable *table,
 				break;
 
 			case t_dereference:
-				struct astNode *dereferenceScraper = runner->child;
+				struct ASTNode *dereferenceScraper = runner->child;
 				while (dereferenceScraper->type == t_dereference)
 					dereferenceScraper = dereferenceScraper->child;
 
@@ -1061,14 +1061,14 @@ struct LinearizationResult *linearizeStatementList(struct symbolTable *table,
 }
 
 // given an AST and a populated symbol table, generate three address code for the function entries
-void linearizeProgram(struct astNode *it, struct symbolTable *table)
+void linearizeProgram(struct ASTNode *it, struct symbolTable *table)
 {
 	struct LinkedList *globalBlockList = LinkedList_new();
 	struct BasicBlock *globalBlock = BasicBlock_new(0);
 	LinkedList_append(globalBlockList, globalBlock);
 	// scrape along the top level of the AST
 	table->BasicBlockList = globalBlockList;
-	struct astNode *runner = it;
+	struct ASTNode *runner = it;
 	int tempNum = 0;
 	int currentTACIndex = 0;
 	while (runner != NULL)
@@ -1099,7 +1099,7 @@ void linearizeProgram(struct astNode *it, struct symbolTable *table)
 			break;
 
 		case t_var:
-			struct astNode *declarationScraper = runner;
+			struct ASTNode *declarationScraper = runner;
 
 			// scrape down all pointer levels if necessary, then linearize if the variable is actually assigned
 			while (declarationScraper->child->type == t_dereference)

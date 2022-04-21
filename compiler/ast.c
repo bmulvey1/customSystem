@@ -3,52 +3,54 @@
 
 #include "ast.h"
 
-struct astNode *newastNode(enum token t, char *value)
+struct ASTNode *ASTNode_new(enum token t, char *value)
 {
-	struct astNode *retNode = malloc(sizeof(struct astNode));
-	retNode->child = NULL;
-	retNode->sibling = NULL;
-	retNode->type = t;
-	retNode->value = value;
-	return retNode;
+	struct ASTNode *wip = malloc(sizeof(struct ASTNode));
+	wip->child = NULL;
+	wip->sibling = NULL;
+	wip->type = t;
+	wip->value = value;
+	wip->sourceLine = 0;
+	wip->sourceCol = 0;
+	return wip;
 }
 
-void astNode_insertSibling(struct astNode *it, struct astNode *newSibling)
+void ASTNode_insertSibling(struct ASTNode *it, struct ASTNode *newSibling)
 {
-	struct astNode *runner = it;
+	struct ASTNode *runner = it;
 	while (runner->sibling != NULL)
 		runner = runner->sibling;
 
 	runner->sibling = newSibling;
 }
 
-void astNode_insertChild(struct astNode *it, struct astNode *newChild)
+void ASTNode_insertChild(struct ASTNode *it, struct ASTNode *newChild)
 {
 	if (it->child == NULL)
 		it->child = newChild;
 	else
-		astNode_insertSibling(it->child, newChild);
+		ASTNode_insertSibling(it->child, newChild);
 }
 
-void printAST(struct astNode *it, int depth)
+void ASTNode_print(struct ASTNode *it, int depth)
 {
 	if (it->sibling != NULL)
-		printAST(it->sibling, depth);
+		ASTNode_print(it->sibling, depth);
 
 	for (int i = 0; i < depth; i++)
 		printf("\t");
 
 	printf("%s\n", it->value);
 	if (it->child != NULL)
-		printAST(it->child, depth + 1);
+		ASTNode_print(it->child, depth + 1);
 }
 
-void printASTHorizontal(struct astNode *it)
+void ASTNode_printHorizontal(struct ASTNode *it)
 {
 
 	if (it->sibling != NULL)
 	{
-		printASTHorizontal(it->sibling);
+		ASTNode_printHorizontal(it->sibling);
 		printf(" ");
 	}
 
@@ -58,22 +60,22 @@ void printASTHorizontal(struct astNode *it)
 	if (it->child != NULL)
 	{
 		printf(" ");
-		printASTHorizontal(it->child);
+		ASTNode_printHorizontal(it->child);
 	}
 
 	printf(")");
 }
 
-void freeAST(struct astNode *it)
+void ASTNode_free(struct ASTNode *it)
 {
-	struct astNode *runner = it;
+	struct ASTNode *runner = it;
 	while (runner != NULL)
 	{
 		if (runner->child != NULL)
 		{
-			freeAST(runner->child);
+			ASTNode_free(runner->child);
 		}
-		struct astNode *old = runner;
+		struct ASTNode *old = runner;
 		runner = runner->sibling;
 		free(old);
 	}

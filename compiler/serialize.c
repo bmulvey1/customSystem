@@ -2,7 +2,7 @@
 
 FILE *outFile = NULL;
 
-void serializeASTRec(struct astNode *n){
+void serializeASTRec(struct ASTNode *n){
 	fprintf(outFile, "%p\n%s\n%d\n%p\n%p\n", n, n->value, n->type, n->child, n->sibling);
 
 	if(n->child != NULL)
@@ -14,7 +14,7 @@ void serializeASTRec(struct astNode *n){
 	
 }
 
-void serializeAST(char *outFileName, struct astNode *root){
+void serializeAST(char *outFileName, struct ASTNode *root){
 	outFile = fopen(outFileName, "wb");
 	serializeASTRec(root);
 	fclose(outFile);

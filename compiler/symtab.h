@@ -88,8 +88,8 @@ void printSymTab(struct symbolTable *it, char printTAC);
 void freeSymTab(struct symbolTable *it);
 
 // AST walk functions
-void walkStatement(struct astNode *it, struct symbolTable *wip);
+void walkStatement(struct ASTNode *it, struct symbolTable *wip);
 
-void walkFunction(struct astNode *it, struct symbolTable *wip);
+void walkFunction(struct ASTNode *it, struct symbolTable *wip);
 
-struct symbolTable *walkAST(struct astNode *it);
+struct symbolTable *walkAST(struct ASTNode *it);

@@ -54,7 +54,7 @@ enum TACType
 
 struct TACLine
 {
-	struct astNode *correspondingTree;
+	struct ASTNode *correspondingTree;
 	char *operands[4];                  // track operands by name
 	enum variableTypes operandTypes[4]; // track whether the left hand side operands are literals
 	char indirectionLevels[4];          // track indirection levels of all operands

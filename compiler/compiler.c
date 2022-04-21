@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ast.h"
 #include "parser.h"
 #include "tac.h"
 #include "symtab.h"
@@ -303,8 +304,8 @@ void checkIRConsistency(struct LinkedList *blockList)
 					{
 						printf("*");
 					}
-					printf("\n\tExpression Tree: ");
-					printASTHorizontal(t->correspondingTree);
+					printf("\n\tLine %d, Col %d\n\tExpression Tree: ", t->correspondingTree->sourceLine, t->correspondingTree->sourceCol);
+					ASTNode_printHorizontal(t->correspondingTree);
 					printf("\n\n");
 				}
 
@@ -360,8 +361,8 @@ void checkIRConsistency(struct LinkedList *blockList)
 					{
 						printf("*");
 					}
-					printf(")\n\tExpression Tree: ");
-					printASTHorizontal(t->correspondingTree);
+					printf("\n\tLine %d, Col %d\n\tExpression Tree: ", t->correspondingTree->sourceLine, t->correspondingTree->sourceCol);
+					ASTNode_printHorizontal(t->correspondingTree);
 					printf("\n\t");
 					printTACLine(t);
 					printf("\n\n");
@@ -371,9 +372,9 @@ void checkIRConsistency(struct LinkedList *blockList)
 			case tt_reference:
 				if (t->indirectionLevels[1] == 0)
 				{
-					printf("Warning - dereference of non-indirect variable [%s]\n\tExpression Tree: ", t->operands[1]);
-					printASTHorizontal(t->correspondingTree);
-					printf("\n");
+					printf("Warning - dereference of non-indirect variable [%s]\n\tLine %d, Col %d\n\tExpression Tree: ", t->operands[1], t->correspondingTree->sourceLine, t->correspondingTree->sourceCol);
+					ASTNode_printHorizontal(t->correspondingTree);
+					printf("\n\n");
 				}
 
 			case tt_assign:
@@ -388,6 +389,10 @@ void checkIRConsistency(struct LinkedList *blockList)
 
 					case vt_temp:
 						printf("var");
+						break;
+
+					case vt_literal:
+						printf("literal");
 						break;
 
 					default:
@@ -417,8 +422,11 @@ void checkIRConsistency(struct LinkedList *blockList)
 					{
 						printf("*");
 					}
-					printf(")\n");
+					printf(")\n\tLine %d, Col %d\n\tExpression Tree: ", t->correspondingTree->sourceLine, t->correspondingTree->sourceCol);
+					ASTNode_printHorizontal(t->correspondingTree);
+					printf("\n\n");
 				}
+				
 				break;
 
 			default:
@@ -444,7 +452,7 @@ int main(int argc, char **argv)
 
 	printf("Generating output to %s\n", argv[2]);
 	struct Dictionary *parseDict = newDictionary(10);
-	struct astNode *program = parseProgram(argv[1], parseDict);
+	struct ASTNode *program = parseProgram(argv[1], parseDict);
 
 	serializeAST("astdump", program);
 	// printf("\n");
@@ -494,7 +502,7 @@ int main(int argc, char **argv)
 
 	fclose(outFile);
 	freeDictionary(parseDict);
-	freeAST(program);
+	ASTNode_free(program);
 	freeSymTab(theTable);
 
 	printf("done printing\n");
