@@ -1,6 +1,7 @@
 /*
 Pointer optimization:
 Before - 8706 instructions
+Mild pointer optimizations - use of offset(base, scale): 7483
 
 */
 
@@ -9,10 +10,9 @@ asm{
 	entry code
 	data@ data
 code:
-	push $512
+	push $4096
 	call mm_init
 	call doublePointer
-	;call ptest
 	hlt
 };
 
@@ -25,9 +25,9 @@ fun print(var n){
 	};
 }
 
-
 fun doublePointer(){
 	var **array = mm_malloc(10); // allocate an array for 5 pointers
+	print(array);
 	var i = 0;
 	while(i < 5){
 		// allocate 16bytes of padding for visibility in the memory dump file
@@ -48,6 +48,7 @@ fun doublePointer(){
 	i = 0;
 	while(i < 5){
 		var j = 0;
+		print(*(array + i));
 		while(j <= 20){
 			print(*(*(array + i) + j));
 			j = j + 1;
@@ -112,6 +113,7 @@ fun mm_malloc(var size){
 				setBlockAllocated(newBlk, newSize, 0);
 				return blkRunner;
 			}else{
+				print(9999);
 				asm{
 					hlt
 				};
@@ -125,4 +127,5 @@ fun mm_malloc(var size){
 		#d "end_text"
 	};
 }
+
 $$

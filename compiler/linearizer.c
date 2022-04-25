@@ -73,15 +73,33 @@ int linearizeDereference(struct symbolTable *table,
 			ASTNode_printHorizontal(it);
 			perror("Illegal type on LHS of dereferenced expression\n");
 			exit(1);
-
 		}
 		thisDereference->operation = tt_memr_3;
 		thisDereference->operands[3] = (char *)(long int)LHSSize; // scale
 		switch (it->child->sibling->type)						  // offset
 		{
 		case t_name:
-			thisDereference->operands[1] = it->child->sibling->value;
-			thisDereference->operandTypes[1] = vt_var;
+			if (it->type == t_un_sub)
+			{
+				struct TACLine *subtractInvert = newTACLine(currentTACIndex++, tt_mul);
+				subtractInvert->operands[0] = getTempString(tl, *tempNum);
+				(*tempNum)++;
+				subtractInvert->operandTypes[0] = vt_temp;
+				subtractInvert->operands[1] = it->child->sibling->value;
+				subtractInvert->operandTypes[1] = vt_var;
+				subtractInvert->operands[2] = "-1";
+				subtractInvert->operandTypes[2] = vt_literal;
+
+				thisDereference->operands[1] = subtractInvert->operands[0];
+				thisDereference->operandTypes[1] = vt_temp;
+				BasicBlock_append(currentBlock, subtractInvert);
+			}
+			else
+			{
+				thisDereference->operands[1] = it->child->sibling->value;
+				thisDereference->operandTypes[1] = vt_var;
+			}
+
 			break;
 
 		// if literal, just use addressing mode base + offset
@@ -90,15 +108,34 @@ int linearizeDereference(struct symbolTable *table,
 			// thisDereference->operandTypes[1] = thisDereference->operandTypes[2];
 			thisDereference->operation = tt_memr_2;
 			int offset = atoi(it->child->sibling->value);
-			thisDereference->operands[1] = (char *)(long int)(offset * 2);
+			thisDereference->operands[1] = (char *)(long int)((offset * 2) * ((it->type == t_un_sub) ? -1 : 1));
 			thisDereference->operandTypes[1] = vt_literal;
 			break;
 
 		case t_un_add:
 		case t_un_sub:
-			thisDereference->operands[1] = getTempString(tl, *tempNum);
-			thisDereference->operandTypes[1] = vt_temp;
-			currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, it->child->sibling, tempNum, tl);
+			if (it->type == t_un_sub)
+			{
+				struct TACLine *subtractInvert = newTACLine(currentTACIndex++, tt_mul);
+				subtractInvert->operands[0] = getTempString(tl, *tempNum);
+				(*tempNum)++;
+				currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, it->child->sibling, tempNum, tl);
+				subtractInvert->operandTypes[0] = vt_temp;
+				subtractInvert->operands[1] = it->child->sibling->value;
+				subtractInvert->operandTypes[1] = vt_var;
+				subtractInvert->operands[2] = "-1";
+				subtractInvert->operandTypes[2] = vt_literal;
+
+				thisDereference->operands[1] = subtractInvert->operands[0];
+				thisDereference->operandTypes[1] = vt_temp;
+				BasicBlock_append(currentBlock, subtractInvert);
+			}
+			else
+			{
+				thisDereference->operands[1] = getTempString(tl, *tempNum);
+				thisDereference->operandTypes[1] = vt_temp;
+				currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, it->child->sibling, tempNum, tl);
+			}
 			break;
 
 		default:
@@ -502,7 +539,12 @@ int linearizeExpression(struct symbolTable *table,
 	case t_name:
 		thisExpression->operands[1] = it->child->value;
 		thisExpression->operandTypes[1] = vt_var;
-		thisExpression->indirectionLevels[1] = symbolTableLookup_var(table, it->child->value)->indirectionLevel;
+		struct variableEntry *theVariable = symbolTableLookup_var(table, it->child->value);
+		if(theVariable == NULL){
+			printf("Error - use of variable [%s] before declaration\n", it->child->value);
+			exit(1);
+		}
+		thisExpression->indirectionLevels[1] = theVariable->indirectionLevel;
 		break;
 
 	case t_literal:

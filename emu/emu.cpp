@@ -150,7 +150,7 @@ void arithmeticOp(uint8_t RD, uint32_t value, uint8_t opCode)
 
 
     flags[VF] = ((registers[RD] >> 15) ^ ((result >> 15) & 1)) && !(1 ^ (registers[RD] >> 15) ^ (value >> 15));
-
+    // printf("NF: %d ZF: %d CF: %d VF: %d \n", flags[NF], flags[ZF], flags[CF], flags[VF]);
     // if the two inputs have MSB set
     /*if (registers[RD] >> 15 && value >> 15)
     {
@@ -226,7 +226,7 @@ int main(int argc, char *argv[])
         case 0x12:
         {
             uint16_t destination = consumeWord(registers[IP]);
-            if (flags[ZF] != 0)
+            if (flags[ZF] == 0)
             {
                 registers[IP] = destination;
             }

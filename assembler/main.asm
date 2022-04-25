@@ -4,10 +4,10 @@ Program_0:
 	entry code
 	data@ data
 code:
-	push $512
+	push $4096
 	call mm_init
 	call doublePointer
-	;call ptest
+	;call test
 	hlt
 Program_done:
 	ret 0
@@ -34,6 +34,8 @@ doublePointer_0:
 	push $10
 	call mm_malloc
 	mov %r0, %rr;array = call mm_malloc
+	push %r0
+	call print
 		;introduce var i to %r1
 	mov %r1, $0;i = 0
 	jmp doublePointer_2
@@ -49,15 +51,15 @@ doublePointer_2:
 	push %r2
 	push $20
 	call firstnfibs
-		;introduce var .t4 to %r3
-	mov %r3, %r2;.t4 = thisFibArray
-		;introduce var .t6 to %r4
+		;introduce var .t5 to %r3
+	mov %r3, %r2;.t5 = thisFibArray
+		;introduce var .t7 to %r4
 	mov %r4, %r1
-	mul %r4, $2;.t6 = i * 2
-		;introduce var .t5 to %r5
+	mul %r4, $2;.t7 = i * 2
+		;introduce var .t6 to %r5
 	mov %r5, %r0
-	add %r5, %r4;.t5 = array + .t6
-	mov (%r5), %r3;(.t5) = .t4
+	add %r5, %r4;.t6 = array + .t7
+	mov (%r5), %r3;(.t6) = .t5
 	mov %r1, %r1
 	add %r1, $1;i = i + 1
 	jmp doublePointer_2
@@ -69,20 +71,30 @@ doublePointer_4:
 	jge doublePointer_3
 		;introduce var j to %r2
 	mov %r2, $0;j = 0
+		;introduce var .t12 to %r3
+	mov %r3, %r1
+	mul %r3, $2;.t12 = i * 2
+		;introduce var .t11 to %r4
+	mov %r4, %r0
+	add %r4, %r3;.t11 = array + .t12
+		;introduce var .t10 to %r3
+	mov %r3, (%r4);.t10 = (.t11)
+	push %r3
+	call print
 	jmp doublePointer_6
 doublePointer_6:
 	cmp %r2, $20;cmp j 20
 	jg doublePointer_5
-		;introduce var .t11 to %r3
-	mov %r3, %r0(%r1, 2)
-		;introduce var .t12 to %r4
+		;introduce var .t16 to %r3
+	mov %r3, %r1(%r0, 2)
+		;introduce var .t17 to %r4
 	mov %r4, %r2
-	mul %r4, $2;.t12 = j * 2
-		;introduce var .t10 to %r5
+	mul %r4, $2;.t17 = j * 2
+		;introduce var .t15 to %r5
 	mov %r5, %r3
-	add %r5, %r4;.t10 = .t11 + .t12
-		;introduce var .t9 to %r3
-	mov %r3, (%r5);.t9 = (.t10)
+	add %r5, %r4;.t15 = .t16 + .t17
+		;introduce var .t14 to %r3
+	mov %r3, (%r5);.t14 = (.t15)
 	push %r3
 	call print
 	mov %r2, %r2
@@ -135,12 +147,12 @@ firstnfibs_2:
 	mov %r3, %r1
 	sub %r3, $1;.t5 = i - 1
 		;introduce var .t4 to %r4
-	mov %r4, %r2(%r3, 2)
+	mov %r4, %r3(%r2, 2)
 		;introduce var .t7 to %r3
 	mov %r3, %r1
 	sub %r3, $2;.t7 = i - 2
 		;introduce var .t6 to %r5
-	mov %r5, %r2(%r3, 2)
+	mov %r5, %r3(%r2, 2)
 		;introduce var .t8 to %r3
 	mov %r3, %r4
 	add %r3, %r5;.t8 = .t4 + .t6
@@ -239,7 +251,7 @@ getBlockNext_0:
 	;introduce var blkPtr to %r0
 	mov %r0, 4(%bp) ;place argument blkPtr
 	;introduce var .t2 to %r1
-	mov %r1, 4(%r0)
+	mov %r1, -4(%r0)
 		;introduce var .t1 to %r2
 	mov %r2, %r1
 	add %r2, $4;.t1 = .t2 + 4
@@ -347,6 +359,8 @@ mm_malloc_2:
 	mov %rr, %r2
 	jmp mm_malloc_done
 mm_malloc_5:
+	push $9999
+	call print
 	hlt
 	push %r2
 	call getBlockNext

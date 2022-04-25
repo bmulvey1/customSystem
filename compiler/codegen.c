@@ -354,7 +354,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 				int sourceIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
 				int scale = (int)(long int)currentTAC->operands[3];
 				outputLine = malloc(24);
-				sprintf(outputLine, "mov %%r%d, %%r%d(%%r%d, %d)", dest, sourceIndex, offsetIndex, scale);
+				sprintf(outputLine, "mov %%r%d, %%r%d(%%r%d, %d)", dest, offsetIndex, sourceIndex, scale);
 				ASMblock_append(outputBlock, outputLine);
 			}
 			break;
