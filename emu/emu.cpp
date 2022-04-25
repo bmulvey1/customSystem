@@ -28,10 +28,10 @@ uint16_t registers[17] = {0};
 
 enum flags
 {
+    NF,
     ZF,
-    SF, 
-    LF, 
-    GF
+    CF,
+    VF,
 };
 uint8_t flags[4] = {0};
 
@@ -58,7 +58,7 @@ void printState()
     {
         printf("|%04x|", registers[i]);
     }
-    printf("\n");
+    printf("NF: %d ZF: %d CF: %d VF: %d\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
 
     /*uint32_t stackScan = 0x10000;
     while (stackScan > (uint32_t)registers[SP])
@@ -103,52 +103,80 @@ uint16_t stackPop()
     return value;
 }
 
-void arithmeticOp(uint8_t RD, uint16_t value, uint8_t opCode)
+void arithmeticOp(uint8_t RD, uint32_t value, uint8_t opCode)
 {
+    uint32_t result = (uint32_t)registers[RD];
+
+    // their compiler optimizes better than mine
+    uint16_t invertedValue = ~value;
     switch (opCode & 0b1111)
     {
     case 0x0: // 0xX0: ADD
-        registers[RD] += value;
+        result += value;
         break;
     case 0x1: // 0xX1: SUB
-        registers[RD] -= value;
+        result += invertedValue + 1;
         break;
     case 0x2: // 0xX2: MUL
-        registers[RD] *= value;
+        result *= value;
         break;
     case 0x3: // 0xX3: DIV
-        registers[RD] /= value;
+        result /= value;
         break;
     case 0x4: // 0xX4: SHR
-        registers[RD] >>= value;
+        result >>= value;
         break;
     case 0x5: // 0xX5: SHL
-        registers[RD] <<= value;
+        result <<= value;
         break;
     case 0x8: // 0xX8: AND
-        registers[RD] &= value;
+        result &= value;
         break;
     case 0x9: // 0xX9: OR
-        registers[RD] |= value;
+        result |= value;
         break;
     case 0xa: // 0xXa: XOR
-        registers[RD] ^= value;
+        result ^= value;
         break;
     case 0xc: // 0xXc: CMP
-        //uint16_t result = registers[RD] - value;
-        flags[ZF] = (registers[RD] == value);
-        // sign flag needs to be set properly
-        //flags[SF] = (value < registers[RD]);
-        flags[GF] = (registers[RD] > value);
-        flags[LF] = (registers[RD] < value);
+        // uint16_t result = registers[RD] - value;
+        result += invertedValue + 1;
         break;
     }
-    // set the flags based on the result if the instruction isn't CMP
+
+    flags[ZF] = ((result & 0xffff) == 0);
+    flags[NF] = ((result >> 15) & 1);
+    flags[CF] = ((result >> 16) > 0);
+
+
+    flags[VF] = ((registers[RD] >> 15) ^ ((result >> 15) & 1)) && !(1 ^ (registers[RD] >> 15) ^ (value >> 15));
+
+    // if the two inputs have MSB set
+    /*if (registers[RD] >> 15 && value >> 15)
+    {
+        // opposite of whether result has sign flag
+        flags[VF] = !((result >> 15) > 0);
+    }
+    else
+    {
+        if (!(registers[RD] >> 15) && !(value >> 15))
+        {
+            flags[VF] = (result >> 15) > 0;
+        }
+        else
+        {
+            flags[VF] = 0;
+        }
+    }*/
+
+
+
+    // set result if not CMP
     if ((opCode & 0b1111) != 0xc)
     {
-        flags[ZF] = (registers[RD] == 0);
-        flags[SF] = (registers[RD] >> 15);
+        registers[RD] = result;
     }
+    
 }
 
 int main(int argc, char *argv[])
@@ -198,7 +226,7 @@ int main(int argc, char *argv[])
         case 0x12:
         {
             uint16_t destination = consumeWord(registers[IP]);
-            if (!flags[ZF])
+            if (flags[ZF] != 0)
             {
                 registers[IP] = destination;
             }
@@ -209,7 +237,7 @@ int main(int argc, char *argv[])
         case 0x13:
         {
             uint16_t destination = consumeWord(registers[IP]);
-            if (flags[GF])
+            if ((flags[ZF] == 0) && flags[CF])
             {
                 registers[IP] = destination;
             }
@@ -220,7 +248,7 @@ int main(int argc, char *argv[])
         case 0x14:
         {
             uint16_t destination = consumeWord(registers[IP]);
-            if (flags[LF])
+            if (flags[CF] == 0)
             {
                 registers[IP] = destination;
             }
@@ -231,7 +259,7 @@ int main(int argc, char *argv[])
         case 0x15:
         {
             uint16_t destination = consumeWord(registers[IP]);
-            if (flags[GF] || flags[ZF])
+            if (flags[CF])
             {
                 registers[IP] = destination;
             }
@@ -242,7 +270,7 @@ int main(int argc, char *argv[])
         case 0x16:
         {
             uint16_t destination = consumeWord(registers[IP]);
-            if (flags[LF] || flags[ZF])
+            if (flags[ZF] || (flags[CF] == 0))
             {
                 registers[IP] = destination;
             }
@@ -632,13 +660,12 @@ int main(int argc, char *argv[])
             running = false;
             break;
         }
-        
+
         // printf("%4x\t%02x - ", registers[IP], opCode);
         // std::cout << opcodeNames[opCode] << std::endl;
         // printState();
         // for (int i = 0; i < 0xffffff; i++){}
-        
-        
+
         // printf("\n");
         instructionCount++;
     }

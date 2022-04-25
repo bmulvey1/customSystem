@@ -47,7 +47,7 @@ char *getAsmOp(enum TACType t)
 		return "mov reg, offset(reg)";
 
 	case tt_memr_3:
-		return "mov reg, offset(reg, scale)";
+		return "mov reg, offset(basereg, scale)";
 
 	case tt_cmp:
 		return "cmp";
@@ -187,6 +187,7 @@ void printTACLine(struct TACLine *it)
 		break;
 
 	case tt_memw_3:
+		// offset base scale
 		width += printf("%s(%s, %d) = %s", it->operands[0], it->operands[1], (int)(long int)it->operands[2], it->operands[3]);
 		break;
 
@@ -199,6 +200,7 @@ void printTACLine(struct TACLine *it)
 		break;
 
 	case tt_memr_3:
+		// offset base scale
 		width += printf("%s = %s(%s, %d)", it->operands[0], it->operands[1], it->operands[2], (int)(long int)it->operands[3]);
 		break;
 
@@ -327,7 +329,7 @@ char *sPrintTACLine(struct TACLine *it)
 		break;
 
 	case tt_memw_3:
-		width += sprintf(tacString, "%s(%s, %d) = %s", it->operands[0], it->operands[1], (int)(long int)it->operands[2], it->operands[3]);
+		width += sprintf(tacString, "%s + (%s * %d) = %s", it->operands[0], it->operands[1], (int)(long int)it->operands[2], it->operands[3]);
 		break;
 
 	case tt_memr_1:
@@ -339,7 +341,7 @@ char *sPrintTACLine(struct TACLine *it)
 		break;
 
 	case tt_memr_3:
-		width += sprintf(tacString, "%s = %s(%s, %d)", it->operands[0], it->operands[1], it->operands[2], (int)(long int)it->operands[3]);
+		width += sprintf(tacString, "%s = %s + (%s * %d)", it->operands[0], it->operands[1], it->operands[2], (int)(long int)it->operands[3]);
 		break;
 
 	case tt_jg:

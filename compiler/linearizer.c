@@ -55,10 +55,62 @@ int linearizeDereference(struct symbolTable *table,
 		// handle pointer arithmetic to evalute the correct adddress to dereference
 	case t_un_add:
 	case t_un_sub:
-		thisDereference->operands[1] = getTempString(tl, *tempNum);
-		thisDereference->operandTypes[1] = vt_temp;
-		currentTACIndex = linearizePointerArithmetic(table, currentTACIndex, blockList, currentBlock, it, tempNum, tl, 0);
-		thisDereference->indirectionLevels[1] = ((struct TACLine *)currentBlock->TACList->tail->data)->indirectionLevels[0];
+		thisDereference->operands[2] = it->child->value; // base
+		int LHSSize;
+		switch (it->child->type)
+		{
+		case t_name:
+			thisDereference->operandTypes[2] = symbolTableLookup_var(table, it->child->value)->type;
+			LHSSize = symbolTable_getSizeOfVariable(table, it->child->value);
+			break;
+
+		case t_literal:
+			thisDereference->operandTypes[2] = vt_literal;
+			LHSSize = 2;
+			break;
+
+		default:
+			ASTNode_printHorizontal(it);
+			perror("Illegal type on LHS of dereferenced expression\n");
+			exit(1);
+
+		}
+		thisDereference->operation = tt_memr_3;
+		thisDereference->operands[3] = (char *)(long int)LHSSize; // scale
+		switch (it->child->sibling->type)						  // offset
+		{
+		case t_name:
+			thisDereference->operands[1] = it->child->sibling->value;
+			thisDereference->operandTypes[1] = vt_var;
+			break;
+
+		// if literal, just use addressing mode base + offset
+		case t_literal:
+			// thisDereference->operands[1] = thisDereference->operands[2];
+			// thisDereference->operandTypes[1] = thisDereference->operandTypes[2];
+			thisDereference->operation = tt_memr_2;
+			int offset = atoi(it->child->sibling->value);
+			thisDereference->operands[1] = (char *)(long int)(offset * 2);
+			thisDereference->operandTypes[1] = vt_literal;
+			break;
+
+		case t_un_add:
+		case t_un_sub:
+			thisDereference->operands[1] = getTempString(tl, *tempNum);
+			thisDereference->operandTypes[1] = vt_temp;
+			currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, it->child->sibling, tempNum, tl);
+			break;
+
+		default:
+			perror("Malformed parse tree in RHS of dereference arithmetic!\n");
+			exit(1);
+		}
+		/*
+			thisDereference->operands[1] = getTempString(tl, *tempNum);
+			thisDereference->operandTypes[1] = vt_temp;
+			currentTACIndex = linearizePointerArithmetic(table, currentTACIndex, blockList, currentBlock, it, tempNum, tl, 0);
+			thisDereference->indirectionLevels[1] = ((struct TACLine *)currentBlock->TACList->tail->data)->indirectionLevels[0];
+			*/
 		break;
 
 	default:

@@ -24,7 +24,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 		stackLoads[i] = 0;
 
 	struct Stack *inactiveList = Stack_new(); // registers not currently in use
-	struct Stack *activeList = Stack_new();   // registers containing variables
+	struct Stack *activeList = Stack_new();	  // registers containing variables
 	struct Stack *spilledList = Stack_new();  // list of live variables which have been spilled to stack
 	int maxSpillSpace = 0;
 
@@ -333,6 +333,32 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			}
 			break;
 
+			case tt_memr_2:
+			{
+				int dest = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+				int sourceIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
+				outputLine = malloc(24);
+				sprintf(outputLine, "mov %%r%d, %d(%%r%d)", dest, (int)(long int)currentTAC->operands[1], sourceIndex);
+				ASMblock_append(outputBlock, outputLine);
+			}
+			break;
+
+			case tt_memr_3:
+			{
+				printf("\n");
+
+				printTACLine(currentTAC);
+				printf("\n");
+				int dest = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+				int offsetIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
+				int sourceIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
+				int scale = (int)(long int)currentTAC->operands[3];
+				outputLine = malloc(24);
+				sprintf(outputLine, "mov %%r%d, %%r%d(%%r%d, %d)", dest, sourceIndex, offsetIndex, scale);
+				ASMblock_append(outputBlock, outputLine);
+			}
+			break;
+
 			case tt_memw_1:
 			{
 				finalOutputLine = malloc(48);
@@ -350,6 +376,14 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 				ASMblock_append(outputBlock, finalOutputLine);
 			}
 			break;
+
+			case tt_memw_2:
+				perror("unimplemented addressing instruction!\n");
+				exit(9);
+
+			case tt_memw_3:
+				perror("unimplemented addressing instruction!\n");
+				exit(9);
 
 			case tt_push:
 			{

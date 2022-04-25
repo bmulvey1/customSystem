@@ -130,6 +130,21 @@ struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *nam
 		return NULL;
 }
 
+int symbolTable_getSizeOfVariable(struct symbolTable *table, char *name)
+{
+	struct variableEntry *theVariable = symbolTableLookup(table, name)->entry;
+	switch (theVariable->type)
+	{
+	case vt_var:
+		return 2;
+		break;
+
+	default:
+		perror("Error - attempt to get size of unknown type!");
+		exit(1);
+	}
+}
+
 void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum symTabEntryType type)
 {
 	if (symbolTableContains(table, name))
