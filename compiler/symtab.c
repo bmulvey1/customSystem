@@ -128,16 +128,21 @@ struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *nam
 	if (e != NULL)
 		return e->entry;
 	else
-		return NULL;
+		{
+			printf("Error - Use of variable [%s] before declaration\n", name);
+			exit(1);
+		}
 }
 
-int symbolTable_getSizeOfVariable(struct symbolTable *table, struct variableEntry *theVariable)
+int symbolTable_getSizeOfVariable(struct symbolTable *table, enum variableTypes type)
 {
-	switch (theVariable->type)
+	switch (type)
 	{
 	case vt_var:
 		return 2;
-		break;
+
+	case vt_temp:
+		return 2;
 
 	default:
 		perror("Error - attempt to get size of unknown type!");

@@ -198,6 +198,7 @@ int main(int argc, char *argv[])
         // printf("%4x\t%02x - ", registers[IP], opCode);
         // std::cout << opcodeNames[opCode] << std::endl;
         // printState();
+        //for(int i = 0; i < 0xfffff; i++){}
         switch (opCode)
         {
         case 0x00:

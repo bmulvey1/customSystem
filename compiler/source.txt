@@ -13,7 +13,7 @@ code:
 	push $4664
 	call mm_init
 	call doublePointer
-	;call ptest
+	;call test
 	hlt
 };
 
@@ -21,6 +21,16 @@ fun print(var n){
 	asm{
 		out %r0
 	};
+}
+
+fun ptest(){
+	var **p = mm_malloc(8);
+	var i = 0;
+	while(i < 4){
+		*(p + i) = mm_malloc(9);
+		*(*(p + i)) = i + 48;
+		i = i + 1;
+	}
 }
 
 fun doublePointer(){
@@ -130,4 +140,5 @@ fun mm_malloc(var size){
 		#d "end_text"
 	};
 }
+
 $$

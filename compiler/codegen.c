@@ -100,8 +100,8 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			struct TACLine *currentTAC = TACRunner->data;
 			TACIndex = currentTAC->index;
 			expireOldIntervals(activeList, inactiveList, spilledList, TACIndex);
-			// printTACLine(currentTAC);
-			// printf("\n");
+			printTACLine(currentTAC);
+			printf("\n");
 
 			// increment last used values of all active registers or reset if variable used in this step
 			for (int i = 0; i < activeList->size; i++)
@@ -160,7 +160,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
 						// assign this variable to the next free register
 						int destinationIndex = assignRegister(activeList, inactiveList, this);
-						outputLine = malloc(32);
+						outputLine = malloc(64);
 						sprintf(outputLine, "\t;introduce var %s to %%r%d", this->variable, destinationIndex);
 						ASMblock_append(outputBlock, outputLine);
 						// place the value into the register if this is an argument (value starts on the stack)
@@ -347,7 +347,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
 			case tt_memr_3:
 			{
-				printf("\n");
 
 				printTACLine(currentTAC);
 				printf("\n");
@@ -355,7 +354,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 				int baseIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 				int offsetIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
 				int scale = (int)(long int)currentTAC->operands[3];
-				outputLine = malloc(24);
+				outputLine = malloc(32);
 				sprintf(outputLine, "mov %%r%d, %%r%d(%%r%d, %d)", dest, offsetIndex, baseIndex, scale);
 				ASMblock_append(outputBlock, outputLine);
 			}
@@ -446,7 +445,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
 				default:
 					perror("Unexpected TAC type in push TAC!");
-					exit(1);
+					exit(2);
 				}
 				ASMblock_append(outputBlock, outputLine);
 			}
@@ -618,7 +617,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
 				default:
 					perror("unexpected type in return TAC!\n");
-					exit(1);
+					exit(2);
 				}
 				ASMblock_append(outputBlock, outputLine);
 				outputLine = malloc(32);
@@ -663,7 +662,15 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 				ASMblock_append(outputBlock, outputLine);
 				break;
 
+			// skip declarations, these are handled by the register allocator
+			case tt_declare:
+				break;
+
 			default:
+				printTACLine(currentTAC);
+				printf("\n");
+				perror("Error - Unexpected TAC type while generating code\n");
+				exit(2);
 				break;
 			}
 
