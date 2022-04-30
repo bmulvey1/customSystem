@@ -120,6 +120,7 @@ struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name)
 	return NULL;
 }
 
+// return the variableEntry for a given name, or NULL if nonexistent
 struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *name)
 {
 	struct symTabEntry *e = symbolTableLookup(table, name);
@@ -130,9 +131,8 @@ struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *nam
 		return NULL;
 }
 
-int symbolTable_getSizeOfVariable(struct symbolTable *table, char *name)
+int symbolTable_getSizeOfVariable(struct symbolTable *table, struct variableEntry *theVariable)
 {
-	struct variableEntry *theVariable = symbolTableLookup(table, name)->entry;
 	switch (theVariable->type)
 	{
 	case vt_var:
@@ -179,6 +179,8 @@ void symTab_insertArgument(struct symbolTable *table, char *name, enum variableT
 {
 	struct variableEntry *newArgument = newVariableEntry(indirectionLevel, type);
 	newArgument->isAssigned = 1;
+	newArgument->assignedAt = 0;
+	newArgument->declaredAt = 0;
 	switch (type)
 	{
 	case vt_var:

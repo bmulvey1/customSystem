@@ -179,29 +179,33 @@ void printTACLine(struct TACLine *it)
 		break;
 
 	case tt_memw_1:
+		// operands: base source
 		width += printf("(%s) = %s", it->operands[0], it->operands[1]);
 		break;
 
 	case tt_memw_2:
-		width += printf("%d(%s) = %s", (int)(long int)it->operands[0], it->operands[1], it->operands[2]);
+		// operands: base offset source
+		width += printf("%s + %d = %s", it->operands[0], (int)(long int)it->operands[1], it->operands[2]);
 		break;
 
 	case tt_memw_3:
-		// offset base scale
-		width += printf("%s(%s, %d) = %s", it->operands[0], it->operands[1], (int)(long int)it->operands[2], it->operands[3]);
+		// operands base offset scale source
+		width += printf("(%s + %s * %d) = %s", it->operands[0], it->operands[1], (int)(long int)it->operands[2], it->operands[3]);
 		break;
 
 	case tt_memr_1:
+		// operands: dest base
 		width += printf("%s = (%s)", it->operands[0], it->operands[1]);
 		break;
 
 	case tt_memr_2:
-		width += printf("%s = %d(%s)", it->operands[0], (int)(long int)it->operands[1], it->operands[2]);
+		// operands: dest base offset
+		width += printf("%s = (%s + %d)", it->operands[0], it->operands[1], (int)(long int)it->operands[2]);
 		break;
 
 	case tt_memr_3:
-		// offset base scale
-		width += printf("%s = %s(%s, %d)", it->operands[0], it->operands[1], it->operands[2], (int)(long int)it->operands[3]);
+		// operands: dest base offset scale
+		width += printf("%s = (%s + %s * %d)", it->operands[0], it->operands[1], it->operands[2], (int)(long int)it->operands[3]);
 		break;
 
 	case tt_jg:
@@ -274,7 +278,7 @@ void printTACLine(struct TACLine *it)
 	{
 		printf(" ");
 	}
-	// printf("\t%d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2]);
+	printf("\t%d %d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2], it->operandTypes[3]);
 	// printf("\t%d %d %d", it->indirectionLevels[0], it->indirectionLevels[1], it->indirectionLevels[2]);
 
 	// width += printf("%s", it->reorderable ? " - Reorderable" : "");
@@ -321,27 +325,33 @@ char *sPrintTACLine(struct TACLine *it)
 		break;
 
 	case tt_memw_1:
+		// operands: base source
 		width += sprintf(tacString, "(%s) = %s", it->operands[0], it->operands[1]);
 		break;
 
 	case tt_memw_2:
-		width += sprintf(tacString, "%d(%s) = %s", (int)(long int)it->operands[0], it->operands[1], it->operands[2]);
+		// operands: base offset source
+		width += sprintf(tacString, "%s + %d = %s", it->operands[0], (int)(long int)it->operands[1], it->operands[2]);
 		break;
 
 	case tt_memw_3:
-		width += sprintf(tacString, "%s + (%s * %d) = %s", it->operands[0], it->operands[1], (int)(long int)it->operands[2], it->operands[3]);
+		// operands base offset scale source
+		width += sprintf(tacString, "(%s + %s * %d) = %s", it->operands[0], it->operands[1], (int)(long int)it->operands[2], it->operands[3]);
 		break;
 
 	case tt_memr_1:
+		// operands: dest base
 		width += sprintf(tacString, "%s = (%s)", it->operands[0], it->operands[1]);
 		break;
 
 	case tt_memr_2:
-		width += sprintf(tacString, "%s = %d(%s)", it->operands[0], (int)(long int)it->operands[1], it->operands[2]);
+		// operands: dest base offset
+		width += sprintf(tacString, "%s = (%s + %d)", it->operands[0], it->operands[1], (int)(long int)it->operands[2]);
 		break;
 
 	case tt_memr_3:
-		width += sprintf(tacString, "%s = %s + (%s * %d)", it->operands[0], it->operands[1], it->operands[2], (int)(long int)it->operands[3]);
+		// operands: dest base offset scale
+		width += sprintf(tacString, "%s = (%s + %s * %d)", it->operands[0], it->operands[1], it->operands[2], (int)(long int)it->operands[3]);
 		break;
 
 	case tt_jg:

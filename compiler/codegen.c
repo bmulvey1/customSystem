@@ -13,7 +13,9 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 	// print out the variable lifetimes as a horizontal graph
 	// printf("\n");
 	// printLifetimesGraph(lifetimes);
-	printf("Generate code for function %s", table->name);
+	printf("Generate code for function %s\n", table->name);
+	printLifetimesGraph(lifetimes);
+	printf("\n");
 
 	int *registerLoads = malloc((REGISTER_COUNT + 1) * sizeof(int)); // count of TAC steps with different numbers of registers free
 	for (int i = 0; i < REGISTER_COUNT; i++)
@@ -75,7 +77,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
 			// assign this variable to the next free register
 			int destinationIndex = assignRegister(activeList, inactiveList, this);
-			outputLine = malloc(32);
+			outputLine = malloc(64);
 			sprintf(outputLine, ";introduce var %s to %%r%d", this->variable, destinationIndex);
 			ASMblock_append(outputBlock, outputLine);
 			// place the value into the register if this is an argument (value starts on the stack)
@@ -319,10 +321,10 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			{
 				finalOutputLine = malloc(48);
 				int destinationIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
-				int sourceIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
+				int baseIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 
 				outputLine = malloc(16);
-				sprintf(outputLine, "mov %%r%d, (%%r%d)", destinationIndex, sourceIndex);
+				sprintf(outputLine, "mov %%r%d, (%%r%d)", destinationIndex, baseIndex);
 
 				printedTAC = sPrintTACLine(currentTAC);
 				sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
@@ -336,9 +338,9 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			case tt_memr_2:
 			{
 				int dest = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
-				int sourceIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
+				int baseIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 				outputLine = malloc(24);
-				sprintf(outputLine, "mov %%r%d, %d(%%r%d)", dest, (int)(long int)currentTAC->operands[1], sourceIndex);
+				sprintf(outputLine, "mov %%r%d, %d(%%r%d)", dest, (int)(long int)currentTAC->operands[2], baseIndex);
 				ASMblock_append(outputBlock, outputLine);
 			}
 			break;
@@ -350,11 +352,11 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 				printTACLine(currentTAC);
 				printf("\n");
 				int dest = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
-				int offsetIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
-				int sourceIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
+				int baseIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
+				int offsetIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
 				int scale = (int)(long int)currentTAC->operands[3];
 				outputLine = malloc(24);
-				sprintf(outputLine, "mov %%r%d, %%r%d(%%r%d, %d)", dest, offsetIndex, sourceIndex, scale);
+				sprintf(outputLine, "mov %%r%d, %%r%d(%%r%d, %d)", dest, offsetIndex, baseIndex, scale);
 				ASMblock_append(outputBlock, outputLine);
 			}
 			break;
@@ -378,12 +380,47 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			break;
 
 			case tt_memw_2:
-				perror("unimplemented addressing instruction!\n");
-				exit(9);
+			{
+				finalOutputLine = malloc(64);
+				int baseIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+				int sourceIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
+
+				outputLine = malloc(32);
+				sprintf(outputLine, "mov %d(%%r%d), %%r%d", (int)(long int)currentTAC->operands[1], baseIndex, sourceIndex);
+				printedTAC = sPrintTACLine(currentTAC);
+				sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
+				free(outputLine);
+				free(printedTAC);
+
+				ASMblock_append(outputBlock, finalOutputLine);
+			}
+			break;
 
 			case tt_memw_3:
-				perror("unimplemented addressing instruction!\n");
-				exit(9);
+			{
+				printTACLine(currentTAC);
+				printf("\n");
+				finalOutputLine = malloc(64);
+				int baseIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+				int offsetIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
+				int sourceIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[3], outputBlock, table);
+				outputLine = malloc(32);
+				sprintf(outputLine, "mov %%r%d(%%r%d, $%d), %%r%d", offsetIndex, baseIndex, (int)(long int)currentTAC->operands[2], sourceIndex);
+
+				printedTAC = sPrintTACLine(currentTAC);
+				sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
+				free(outputLine);
+				free(printedTAC);
+
+				ASMblock_append(outputBlock, finalOutputLine);
+				/*
+				outputLine = malloc(24);
+				sprintf(outputLine, "mov %s(%s, %d), %s", currentTAC->operands[0], currentTAC->operands[1], (int)(long int)currentTAC->operands[2], currentTAC->operands[3]);
+
+				*/
+				// ASMblock_append(outputBlock, outputLine);
+			}
+			break;
 
 			case tt_push:
 			{
