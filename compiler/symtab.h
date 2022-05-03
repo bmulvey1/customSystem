@@ -10,48 +10,50 @@
 
 enum symTabEntryType
 {
-    e_variable,
-    e_function,
-    e_argument
+	e_variable,
+	e_function,
+	e_argument
 };
 
 struct tempList
 {
-    int size;
-    char **temps;
+	int size;
+	char **temps;
 };
 
 struct symTabEntry
 {
-    char *name;
-    enum symTabEntryType type;
-    void *entry;
+	char *name;
+	enum symTabEntryType type;
+	void *entry;
 };
 
 struct variableEntry
 {
-    int isAssigned;
-    char global;
-    int stackOffset;
-    enum variableTypes type;
-    int indirectionLevel;
+	int stackOffset;
+	enum variableTypes type;
+	int indirectionLevel;
+	int assignedAt;
+	int declaredAt;
+	char isAssigned;
+	char global;
 };
 
 struct functionEntry
 {
-    struct symbolTable *table;
+	struct symbolTable *table;
 };
 
 struct symbolTable
 {
-    char *name;
-    struct symTabEntry **entries;
-    struct symbolTable *parentScope;
-    int size;
-    struct tempList *tl;
-    int localStackSize;
-    int argStackSize;
-    struct LinkedList *BasicBlockList;
+	char *name;
+	struct symTabEntry **entries;
+	struct symbolTable *parentScope;
+	int size;
+	struct tempList *tl;
+	int localStackSize;
+	int argStackSize;
+	struct LinkedList *BasicBlockList;
 };
 
 char *getTempString(struct tempList *tempList, int tempNum);
@@ -70,6 +72,10 @@ int symbolTableContains(struct symbolTable *table, char *name);
 
 struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name);
 
+struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *name);
+
+int symbolTable_getSizeOfVariable(struct symbolTable *table, enum variableTypes type);
+
 void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum symTabEntryType type);
 
 void symTab_insertVariable(struct symbolTable *table, char *name, enum variableTypes type, int indirectionLevel);
@@ -85,8 +91,8 @@ void printSymTab(struct symbolTable *it, char printTAC);
 void freeSymTab(struct symbolTable *it);
 
 // AST walk functions
-void walkStatement(struct astNode *it, struct symbolTable *wip);
+void walkStatement(struct ASTNode *it, struct symbolTable *wip);
 
-void walkFunction(struct astNode *it, struct symbolTable *wip);
+void walkFunction(struct ASTNode *it, struct symbolTable *wip);
 
-struct symbolTable *walkAST(struct astNode *it);
+struct symbolTable *walkAST(struct ASTNode *it);

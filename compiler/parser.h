@@ -17,36 +17,36 @@ char lookahead();
 
 enum token scan(char trackPos);
 
-struct astNode *match(enum token t, struct Dictionary *dict);
+struct ASTNode *match(enum token t, struct Dictionary *dict);
 
 void consume(enum token t);
 
 char *getTokenName(enum token t);
 
-struct astNode *parseProgram(char *inFileName, struct Dictionary *dict);
+struct ASTNode *parseProgram(char *inFileName, struct Dictionary *dict);
 
-struct astNode *parseTLDList(struct Dictionary *dict);
+struct ASTNode *parseTLDList(struct Dictionary *dict);
 
-struct astNode *parseTLD(struct Dictionary *dict);
+struct ASTNode *parseTLD(struct Dictionary *dict);
 
-struct astNode *parseAssignment(struct astNode *name, struct Dictionary *dict);
+struct ASTNode *parseAssignment(struct ASTNode *name, struct Dictionary *dict);
 
-struct astNode *parseStatementList(struct Dictionary *dict);
+struct ASTNode *parseStatementList(struct Dictionary *dict);
 
-struct astNode *parseStatement(struct Dictionary *dict);
+struct ASTNode *parseStatement(struct Dictionary *dict);
 
-struct astNode *parseExpression(struct Dictionary *dict);
+struct ASTNode *parseExpression(struct Dictionary *dict);
 
-struct astNode *parseArgDefinitions(struct Dictionary *dict);
+struct ASTNode *parseArgDefinitions(struct Dictionary *dict);
 
-struct astNode *parseArgList(struct Dictionary *dict);
+struct ASTNode *parseArgList(struct Dictionary *dict);
 
-struct astNode *parseFunctionCall(struct astNode *name, struct Dictionary *dict);
+struct ASTNode *parseFunctionCall(struct ASTNode *name, struct Dictionary *dict);
 
-struct astNode *parseIfStatement(struct Dictionary *dict);
+struct ASTNode *parseIfStatement(struct Dictionary *dict);
 
-struct astNode *parseElseStatement(struct Dictionary *dict);
+struct ASTNode *parseElseStatement(struct Dictionary *dict);
 
-struct astNode* parseWhileLoop(struct Dictionary *dict);
+struct ASTNode* parseWhileLoop(struct Dictionary *dict);
 
-struct astNode* parseASM(struct Dictionary *dict);
+struct ASTNode* parseASM(struct Dictionary *dict);

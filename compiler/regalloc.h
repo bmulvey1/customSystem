@@ -4,24 +4,14 @@
 #include "asm.h"
 #include "tac.h"
 
-#define REGISTER_COUNT 6
-/*
-2: 1760
-3: 1762
-4: 1794
-5: 1719
-6: 1642
-7: 1559
-8: 1363
-9: 1251
-10:1194
-*/
+#define REGISTER_COUNT 7
+
 
 struct Lifetime
 {
-    int start, end;
-    char *variable;
-    enum variableTypes type;
+	int start, end;
+	char *variable;
+	enum variableTypes type;
 };
 
 struct Lifetime *newLifetime(char *variable, enum variableTypes type, int start);
@@ -29,13 +19,13 @@ struct Lifetime *newLifetime(char *variable, enum variableTypes type, int start)
 char compareLifetimes(struct Lifetime *a, char *variable);
 
 void updateOrInsertLifetime(struct LinkedList *ltList,
-                            char *variable,
-                            enum variableTypes type,
-                            int newEnd);
+							char *variable,
+							enum variableTypes type,
+							int newEnd);
 
 void printCurrentState(struct Stack *activeList,
-                       struct Stack *inactiveList,
-                       struct Stack *spilledList);
+					   struct Stack *inactiveList,
+					   struct Stack *spilledList);
 
 /*
  * Register, SpilledRegister, and SavedState functions
@@ -44,25 +34,25 @@ void printCurrentState(struct Stack *activeList,
 
 struct Register
 {
-    struct Lifetime *lifetime;
-    int index;
-    int lastUsed;
+	struct Lifetime *lifetime;
+	int index;
+	int lastUsed;
 };
 
 struct SpilledRegister
 {
-    struct Lifetime *lifetime;
-    int lastUsed;
-    int stackOffset;
-    char occupied;
+	struct Lifetime *lifetime;
+	int lastUsed;
+	int stackOffset;
+	char occupied;
 };
 
 struct SavedState
 {
-    struct Stack *activeList;
-    struct Stack *inactiveList;
-    struct Stack *spilledList;
-    int currentLifetimeIndex;
+	struct Stack *activeList;
+	struct Stack *inactiveList;
+	struct Stack *spilledList;
+	int currentLifetimeIndex;
 };
 
 
@@ -85,26 +75,26 @@ struct Register *findAndRemoveInactiveRegisterByIndex(struct Stack *inactiveList
 struct SpilledRegister *duplicateSpilledRegister(struct Register *r);
 
 void expireOldIntervals(struct Stack *activeList,
-                        struct Stack *inactiveList,
-                        struct Stack *spilledList,
-                        int TACIndex);
+						struct Stack *inactiveList,
+						struct Stack *spilledList,
+						int TACIndex);
 
 void spillRegister(struct Stack *activeList,
-                   struct Stack *inactiveList,
-                   struct Stack *spilledList,
-                   struct ASMblock *outputBlock,
-                   struct symbolTable *table);
+				   struct Stack *inactiveList,
+				   struct Stack *spilledList,
+				   struct ASMblock *outputBlock,
+				   struct symbolTable *table);
 
 int assignRegister(struct Stack *activeList,
-                   struct Stack *inactiveList,
-                   struct Lifetime *assignedLifetime);
+				   struct Stack *inactiveList,
+				   struct Lifetime *assignedLifetime);
 
 int unSpillVariable(struct Stack *activeList,
-                    struct Stack *inactiveList,
-                    struct Stack *spilledList,
-                    char *varName,
-                    struct ASMblock *outputBlock,
-                    struct symbolTable *table);
+					struct Stack *inactiveList,
+					struct Stack *spilledList,
+					char *varName,
+					struct ASMblock *outputBlock,
+					struct symbolTable *table);
 
 int findActiveVariable(struct Stack *activeList, char *varName);
 
@@ -113,29 +103,29 @@ int findSpilledVariable(struct Stack *spilledLilst, char *varName);
 void printLifetimesGraph(struct LinkedList *lifetimeList);
 
 struct SavedState *duplicateCurrentState(struct Stack *activeList,
-                                         struct Stack *inactiveList,
-                                         struct Stack *spilledList,
-                                         int currentLifetimeIndex);
+										 struct Stack *inactiveList,
+										 struct Stack *spilledList,
+										 int currentLifetimeIndex);
 
 void restoreRegisterStates(struct Stack *savedStateStack,
-                           struct Stack *activeList,
-                           struct Stack *inactiveList,
-                           struct Stack *spilledList,
-                           int *currentLifetimeIndex,
-                           int TACIndex,
-                           struct ASMblock *outputBlock);
+						   struct Stack *activeList,
+						   struct Stack *inactiveList,
+						   struct Stack *spilledList,
+						   int *currentLifetimeIndex,
+						   int TACIndex,
+						   struct ASMblock *outputBlock);
 
 void resetRegisterStates(struct Stack *savedStateStack,
-                         struct Stack *activeList,
-                         struct Stack *inactiveList,
-                         struct Stack *spilledList,
-                         int *currentLifetimeIndex);
+						 struct Stack *activeList,
+						 struct Stack *inactiveList,
+						 struct Stack *spilledList,
+						 int *currentLifetimeIndex);
 
 int findOrPlaceAssignedVariable(struct Stack *activeList,
-                                struct Stack *inactiveList,
-                                struct Stack *spilledList,
-                                char *varName,
-                                struct ASMblock *outputBlock,
-                                struct symbolTable *table);
+								struct Stack *inactiveList,
+								struct Stack *spilledList,
+								char *varName,
+								struct ASMblock *outputBlock,
+								struct symbolTable *table);
 
 struct LinkedList *findLifetimes(struct symbolTable *table);

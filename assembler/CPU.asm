@@ -114,8 +114,8 @@
     mov (%{rd:reg}), %{rs:reg}                       => 0xaa @ rs @ rd
     mov %{rd:reg}, {off:i8}(%{rs:reg})               => 0xab @ rs @ rd @ off
     mov {off:i8}(%{rd:reg}), %{rs:reg}               => 0xac @ rs @ rd @ off
-    mov %{rd: reg}, %{ro: reg}(%{rs: reg},{scl:i8})  => 0xad @ rs @ rd @ 0b0000 @ ro @ scl
-    mov %{ro: reg}(%{rd: reg},{scl:i8}), %{rs: reg}  => 0xae @ rs @ rd @ 0b0000 @ ro @ scl
+    mov %{rd: reg}, %{ro: reg}(%{rs: reg}, {scl:i8})  => 0xad @ rs @ rd @ 0b0000 @ ro @ scl
+    mov %{ro: reg}(%{rd: reg}, ${scl:i8}), %{rs: reg}  => 0xae @ rs @ rd @ 0b0000 @ ro @ scl
     mov %{rd: reg}, ${imm: i16}                      => 0xaf @ 0b0000 @ rd @ imm
 
     push %{rs:reg}                          => 0xc0 @ 0b0000 @ rs
