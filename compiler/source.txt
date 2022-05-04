@@ -10,18 +10,39 @@ asm{
 	entry code
 	data@ data
 code:
-	push $4664
-	call mm_init
-	call doublePointer
-	;call test
+	;push $4664
+	;call mm_init
+	;call doublePointer
+	call test
 	hlt
 };
-
 fun print(var n){
 	asm{
-		out %r0
+		out %r1
+		hlt
 	};
 }
+
+
+fun test(){
+	var i = 1;
+	var j = 2;
+	var k = i + j;
+	var l = i + i;
+	var m = j + j;
+	print(1234);
+	print(i);
+	print(j);
+	print(k);
+	print(l);
+	print(m);
+	asm{
+		hlt
+	};
+}
+
+/*
+
 
 fun ptest(){
 	var **p = mm_malloc(8);
@@ -42,7 +63,7 @@ fun doublePointer(){
 		mm_malloc(16); 
 
 		// allocate 40 bytes (20 var's worth of space)
-		var *thisFibArray = mm_malloc(40);
+		var *thisFibArray = mm_malloc(42);
 
 		// write the first 20 fibonacci numbers into the space we allocated
 		firstnfibs(20, thisFibArray);
@@ -56,7 +77,7 @@ fun doublePointer(){
 	i = 0;
 	while(i < 5){
 		var j = 0;
-		print(*(array + i));
+		//print(*(array + i));
 		while(j <= 20){
 			print(*(*(array + i) + j));
 			j = j + 1;
@@ -108,21 +129,13 @@ fun mm_malloc(var size){
 	var *dataAt = 2;
 	var blkRunner = (*dataAt) + 4;
 	var one = 1;
-	var isa;
-	var siz;
 	while(one == 1){
-		isa = getBlockIsAllocated(blkRunner);
-		siz = getBlockSize(blkRunner);
-		print(1234);
-		print(isa);
-		print(siz);
 		if(getBlockIsAllocated(blkRunner) == 0){
 			if(getBlockSize(blkRunner) >= size){
 				var newSize = (getBlockSize(blkRunner) - size) - 4;
 				setBlockAllocated(blkRunner, size, 1);
 				var *newBlk = blkRunner + size + 4;
 				setBlockAllocated(newBlk, newSize, 0);
-				print(0);
 				return blkRunner;
 			}else{
 				print(9999);
@@ -132,7 +145,6 @@ fun mm_malloc(var size){
 				blkRunner = getBlockNext(blkRunner);
 			}
 		}else{
-			print(blkRunner);
 			blkRunner = getBlockNext(blkRunner);
 		}
 	}
@@ -140,5 +152,5 @@ fun mm_malloc(var size){
 		#d "end_text"
 	};
 }
-
+*/
 $$

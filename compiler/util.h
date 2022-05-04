@@ -86,3 +86,5 @@ void LinkedList_prepend(struct LinkedList *l, void *element);
 void *LinkedList_delete(struct LinkedList *l, char (*compareFunction)(), void *element);
 
 void *LinkedList_find(struct LinkedList *l, char (*compareFunction)(), void *element);
+
+char *strTrim(char *s, int l);

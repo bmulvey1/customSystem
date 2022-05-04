@@ -304,3 +304,13 @@ void *LinkedList_find(struct LinkedList *l, char (*compareFunction)(), void *ele
 	}
 	return NULL;
 }
+
+/*
+ * string trimming - overallocate for sprintf and let this funciton trim it down
+*/
+
+char *strTrim(char *s, int l){
+	char *newStr = malloc(l + 1);
+	strcpy(newStr, s);
+	return newStr;
+}

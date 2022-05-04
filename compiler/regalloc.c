@@ -384,6 +384,7 @@ int unSpillVariable(struct Stack *activeList,
 	{
 		spillRegister(activeList, inactiveList, spilledList, outputBlock, table);
 	}
+
 	for (int i = 0; i < spilledList->size; i++)
 	{
 		struct SpilledRegister *examinedSpill = spilledList->data[i];
@@ -732,13 +733,50 @@ void resetRegisterStates(struct Stack *savedStateStack,
 }
 
 // find a variable which is to be assigned if in an active register
-// if the variable is spilled, unspill it
+// if the variable is spilled, simply delete its spot on the stack and reassign any register for it
+// because this potentially discards variable values it *must* be called after operands are placed for arithmetic
+// that way if the operation is self-modifying the value won't be stomped
 int findOrPlaceAssignedVariable(struct Stack *activeList,
 								struct Stack *inactiveList,
 								struct Stack *spilledList,
 								char *varName,
 								struct ASMblock *outputBlock,
 								struct symbolTable *table)
+{
+	for (int i = 0; i < activeList->size; i++)
+		if (!strcmp(((struct Register *)activeList->data[i])->lifetime->variable, varName))
+			return ((struct Register *)activeList->data[i])->index;
+
+	struct Lifetime *l = NULL;
+	for (int i = 0; i < spilledList->size; i++)
+	{
+		struct SpilledRegister *examinedSpill = spilledList->data[i];
+		if (!strcmp(examinedSpill->lifetime->variable, varName))
+		{
+			l = examinedSpill->lifetime;
+			examinedSpill->occupied = 0;
+		}
+		break;
+	}
+
+	if (l == NULL)
+	{
+		perror("Error finding/placing assigned variable - lifetime not found!\n");
+		exit(2);
+	}
+
+	if (inactiveList->size == 0)
+		spillRegister(activeList, inactiveList, spilledList, outputBlock, table);
+
+	return assignRegister(activeList, inactiveList, l);
+}
+
+int findOrPlaceOperand(struct Stack *activeList,
+					   struct Stack *inactiveList,
+					   struct Stack *spilledList,
+					   char *varName,
+					   struct ASMblock *outputBlock,
+					   struct symbolTable *table)
 {
 	for (int i = 0; i < activeList->size; i++)
 		if (!strcmp(((struct Register *)activeList->data[i])->lifetime->variable, varName))
