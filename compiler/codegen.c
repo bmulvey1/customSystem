@@ -36,7 +36,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 		struct Register *wip = malloc(sizeof(struct Register));
 		wip->lifetime = NULL;
 		// remember not to use the zero register
-		wip->index = (REGISTER_COUNT) - i;
+		wip->index = (REGISTER_COUNT)-i;
 		Stack_push(inactiveList, wip);
 	}
 
@@ -173,10 +173,10 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			/*
 			 * double check spill space because some functions in regalloc may spill variables on their own
 			 * TODO: consider just making this the only check, any reason it wouldn't work?
-			 * 
-			*/
+			 *
+			 */
 			if (spilledList->size * 2 > maxSpillSpace)
-								maxSpillSpace = spilledList->size * 2;
+				maxSpillSpace = spilledList->size * 2;
 
 			int destinationRegister;
 			int firstSourceRegister;
@@ -216,7 +216,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 				int source1Register = findOrPlaceOperand(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 				int source2Register = findOrPlaceOperand(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
 				destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
-				
+
 				trimmedStr = strTrim(printBuf, sprintf(printBuf, "%s %%r%d, %%r%d, %%r%d", getAsmOp(currentTAC->operation), destinationRegister, source1Register, source2Register));
 
 				ASMblock_append(outputBlock, trimmedStr);
@@ -452,6 +452,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 				case vt_literal:
 				{
 					trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%rr, $%s", currentTAC->operands[0]));
+					ASMblock_append(outputBlock, trimmedStr);
 				}
 				break;
 
@@ -467,13 +468,18 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 					{
 						trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%rr, %d(%%bp)", findSpilledVariable(spilledList, currentTAC->operands[0])));
 					}
+					ASMblock_append(outputBlock, trimmedStr);
 				}
 				break;
+
+				case vt_null:
+					break;
 
 				default:
 					perror("unexpected type in return TAC!\n");
 					exit(2);
 				}
+				trimmedStr = strTrim(printBuf, sprintf(printBuf, "jmp %s_done", table->name));
 				ASMblock_append(outputBlock, trimmedStr);
 
 				break;

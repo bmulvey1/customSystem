@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
         // printf("%4x\t%02x - ", registers[ip], opCode);
         // std::cout << opcodeNames[opCode] << std::endl;
         // printState();
-        for(int i = 0; i < 0xffffff; i++){}
+        // for(int i = 0; i < 0xffffff; i++){}
         switch (opCode)
         {
             // hlt/no instruction
