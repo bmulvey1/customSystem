@@ -13,32 +13,37 @@ code:
 	;push $4664
 	;call mm_init
 	;call doublePointer
+	push $4660
 	call test
 	hlt
 };
 fun print(var n){
 	asm{
 		out %r1
-		hlt
 	};
+}
+
+fun fib(var i){
+	print(i);
+	var two = 2;
+	var one = 1;
+	if(i < two){
+		return i;
+	}else{
+		return fib(i - two) + fib(i - one);
+	}
 }
 
 
 fun test(){
 	var i = 1;
-	var j = 2;
-	var k = i + j;
-	var l = i + i;
-	var m = j + j;
-	print(1234);
-	print(i);
-	print(j);
-	print(k);
-	print(l);
-	print(m);
-	asm{
-		hlt
-	};
+	var one = 1;
+	while(i < 5){
+		var result = fib(i);
+		result = i;
+		print(result);
+		i = i + one;
+	}
 }
 
 /*

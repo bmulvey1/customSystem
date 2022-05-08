@@ -7,6 +7,7 @@ code:
 	;push $4664
 	;call mm_init
 	;call doublePointer
+	push $4660
 	call test
 	hlt
 Program_done:
@@ -17,51 +18,75 @@ print:
 print_0:
 	mov %r1, 4(%bp)
 	out %r1
-	hlt
 print_done:
 	pop %r1
 	ret 2
+#d "fib"
+fib:
+	push %r4
+	push %r3
+	push %r2
+	push %r1
+fib_0:
+	mov %r1, 4(%bp)
+	push %r1
+	call print
+		;introduce var two to %r2
+	mov %r2, $2
+		;introduce var one to %r3
+	mov %r3, $1
+	cmp %r1, %r2
+	jge fib_2
+	mov %rr, %r1
+fib_2:
+		;introduce var .t3 to %r4
+	sub %r4, %r1, %r2
+	push %r4
+		;introduce var .t2 to %r4
+	call fib
+	mov %r4, %rr
+		;introduce var .t5 to %r2
+	sub %r2, %r1, %r3
+	push %r2
+		;introduce var .t4 to %r2
+	call fib
+	mov %r2, %rr
+		;introduce var .t1 to %r1
+	add %r1, %r4, %r2
+	mov %rr, %r1
+fib_1:
+fib_done:
+	pop %r1
+	pop %r2
+	pop %r3
+	pop %r4
+	ret 2
 #d "test"
 test:
-	subi %sp, %sp, $6
+	push %r3
 	push %r2
 	push %r1
 test_0:
 	mov %r1, $1
-		;introduce var j to %r2
-	mov %r2, $2
-		;introduce var k to %r3
-	add %r3, %r1, %r2
-	mov -2(%bp), %r1;spill            i
-		;introduce var l to %r1
-	mov -4(%bp), %r2;spill            j
-	mov %r2, -2(%bp);unspill        i
-	add %r1, %r2, %r2
-	mov -2(%bp), %r2;spill            i
-		;introduce var m to %r2
-	mov -6(%bp), %r3;spill            k
-	mov %r3, -4(%bp);unspill        j
-	add %r2, %r3, %r3
-	push $1234
-	call print
-	mov -4(%bp), %r3;spill            j
-	mov %r3, -2(%bp);unspill        i
-	push %r3
-	call print
-	mov %r3, -4(%bp);unspill        j
-	push %r3
-	call print
-	mov %r3, -6(%bp);unspill        k
-	push %r3
-	call print
+		;introduce var one to %r2
+	mov %r2, $1
+	jmp test_2
+test_2:
+	cmpi %r1, $5
+	jge test_1
+		;introduce var result to %r3
 	push %r1
+	call fib
+	mov %r3, %rr
+	mov %r3, %r1
+	push %r3
 	call print
-	push %r2
-	call print
-	hlt
+	add %r1, %r1, %r2
+	jmp test_2
+test_1:
 test_done:
 	pop %r1
 	pop %r2
-	addi %sp, %sp, $6
+	pop %r3
 	ret 0
 data:

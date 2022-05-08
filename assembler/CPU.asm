@@ -52,7 +52,7 @@
     or  %{rd: reg}, %{rs1: reg}, %{rs2: reg}        => 0x49 @ rd @ rs1 @rs2 @ 0b0
     xor %{rd: reg}, %{rs1: reg}, %{rs2: reg}        => 0x4a @ rd @ rs1 @rs2 @ 0b0
     not %{rd: reg}, %{rs1: reg}                     => 0x4b @ rd @ rs1
-    cmp %{rd: reg}, %{rs1: reg}, %{rs2: reg}        => 0x4c @ rd @ rs1 @ rs2 @ 0b0
+    cmp %{rs1: reg}, %{rs2: reg}                    => 0x4c @ 0b00000 @ rs1 @ rs2 @ 0b0
 
         ; immediate
     addi %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x50 @ rd @ rs1 @ 0b000000 @ imm
@@ -64,7 +64,7 @@
     andi %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x58 @ rd @ rs1 @ 0b000000 @ imm
     ori  %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x59 @ rd @ rs1 @ 0b000000 @ imm
     xori %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x5a @ rd @ rs1 @ 0b000000 @ imm
-    cmpi %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x5c @ rd @ rs1 @ 0b000000 @ imm
+    cmpi %{rs1: reg}, ${imm: i16}                   => 0x5c @ 0b000 @ rs1 @ imm
 
 
     ; data movement (byte)

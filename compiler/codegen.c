@@ -370,7 +370,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 					{
 						if (currentTAC->operandTypes[2] == vt_literal)
 						{
-							trimmedStr = strTrim(printBuf, sprintf(printBuf, "cmp %%r%d, $%s", firstSourceRegister, currentTAC->operands[2]));
+							trimmedStr = strTrim(printBuf, sprintf(printBuf, "cmpi %%r%d, $%s", firstSourceRegister, currentTAC->operands[2]));
 						}
 						else
 						{
