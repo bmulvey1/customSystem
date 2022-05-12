@@ -9,9 +9,7 @@
 enum variableTypes
 {
 	vt_null,
-	vt_var,
-	vt_temp,
-	vt_literal
+	vt_var
 };
 
 enum TACType
@@ -56,6 +54,7 @@ struct TACLine
 	struct ASTNode *correspondingTree;
 	char *operands[4];                  // track operands by name
 	enum variableTypes operandTypes[4]; // track the types of each operand
+	char operandPermutations[4];		// permutations for the operands, 0 if normal, 1 if temp, 2 if literal
 	char indirectionLevels[4];          // track indirection levels of all operands
 	enum TACType operation;
 	int index;

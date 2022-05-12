@@ -141,9 +141,6 @@ int symbolTable_getSizeOfVariable(struct symbolTable *table, enum variableTypes 
 	case vt_var:
 		return 2;
 
-	case vt_temp:
-		return 2;
-
 	default:
 		perror("Error - attempt to get size of unknown type!");
 		exit(1);

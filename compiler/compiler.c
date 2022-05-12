@@ -244,12 +244,6 @@ void checkUninitializedUsage(struct symbolTable *table)
 					}
 					break;
 
-				case vt_literal:
-					break;
-
-				case vt_temp:
-					break;
-
 				default:
 					perror("Unexpected type in IR line for push\n");
 					exit(2);
@@ -342,10 +336,6 @@ void checkIRConsistency(struct LinkedList *blockList)
 						printf("var");
 						break;
 
-					case vt_temp:
-						printf("var");
-						break;
-
 					default:
 						printf("-");
 					}
@@ -359,10 +349,6 @@ void checkIRConsistency(struct LinkedList *blockList)
 					switch (t->operandTypes[2])
 					{
 					case vt_var:
-						printf("var");
-						break;
-
-					case vt_temp:
 						printf("var");
 						break;
 
@@ -387,10 +373,6 @@ void checkIRConsistency(struct LinkedList *blockList)
 						printf("var");
 						break;
 
-					case vt_temp:
-						printf("var");
-						break;
-
 					default:
 						printf("-");
 					}
@@ -409,14 +391,6 @@ void checkIRConsistency(struct LinkedList *blockList)
 
 					case vt_null:
 						printf("WTF\n");
-						break;
-
-					case vt_temp:
-						printf("var");
-						break;
-
-					case vt_literal:
-						printf("literal");
 						break;
 
 					default:
@@ -452,14 +426,6 @@ void checkIRConsistency(struct LinkedList *blockList)
 						printf("var");
 						break;
 
-					case vt_temp:
-						printf("var");
-						break;
-
-					case vt_literal:
-						printf("literal");
-						break;
-
 					default:
 						printf("-");
 					}
@@ -473,10 +439,6 @@ void checkIRConsistency(struct LinkedList *blockList)
 					switch (t->operandTypes[0])
 					{
 					case vt_var:
-						printf("var");
-						break;
-
-					case vt_temp:
 						printf("var");
 						break;
 
