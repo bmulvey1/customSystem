@@ -150,6 +150,17 @@ int symbolTable_getSizeOfVariable(struct symbolTable *table, enum variableTypes 
 	}
 }
 
+struct functionEntry *symbolTableLookup_fun(struct symbolTable *table, char *name){
+	struct symTabEntry *e = symbolTableLookup(table, name);
+
+	if(e != NULL)
+		return e->entry;
+	else{
+		printf("Error - Use of function [%s] before declaration\n", name);
+		exit(1);
+	}
+}
+
 void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum symTabEntryType type)
 {
 	if (symbolTableContains(table, name))

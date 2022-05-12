@@ -24,12 +24,10 @@ fun print(var n){
 }
 
 fun fib(var i){
-	var two = 2;
-	var one = 1;
-	if(i < two){
+	if(i < 2){
 		return i;
 	}else{
-		return fib(i - two) + fib(i - one);
+		return fib(i - 1) + fib(i - 1);
 	}
 }
 

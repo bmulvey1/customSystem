@@ -74,6 +74,8 @@ struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name);
 
 struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *name);
 
+struct functionEntry *symbolTableLookup_fun(struct symbolTable *table, char *name);
+
 int symbolTable_getSizeOfVariable(struct symbolTable *table, enum variableTypes type);
 
 void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum symTabEntryType type);

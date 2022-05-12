@@ -106,10 +106,10 @@ char *getAsmOp(enum TACType t)
 	return "";
 }
 
-struct TACLine *newTACLine(int index, enum TACType operation)
+struct TACLine *newTACLine(int index, enum TACType operation, struct ASTNode *correspondingTree)
 {
 	struct TACLine *wip = malloc(sizeof(struct TACLine));
-	wip->correspondingTree = NULL;
+	wip->correspondingTree = correspondingTree;
 	wip->operands[0] = NULL;
 	wip->operands[1] = NULL;
 	wip->operands[2] = NULL;

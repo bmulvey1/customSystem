@@ -11,7 +11,6 @@ enum variableTypes
 	vt_null,
 	vt_var,
 	vt_temp,
-	vt_returnval,
 	vt_literal
 };
 
@@ -56,7 +55,7 @@ struct TACLine
 {
 	struct ASTNode *correspondingTree;
 	char *operands[4];                  // track operands by name
-	enum variableTypes operandTypes[4]; // track whether the left hand side operands are literals
+	enum variableTypes operandTypes[4]; // track the types of each operand
 	char indirectionLevels[4];          // track indirection levels of all operands
 	enum TACType operation;
 	int index;
@@ -69,7 +68,7 @@ void printTACLine(struct TACLine *it);
 
 char *sPrintTACLine(struct TACLine *it);
 
-struct TACLine *newTACLine(int index, enum TACType operation);
+struct TACLine *newTACLine(int index, enum TACType operation, struct ASTNode *correspondingTree);
 
 void freeTAC(struct TACLine *it);
 

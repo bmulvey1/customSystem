@@ -212,7 +212,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			case tt_mul:
 			case tt_div:
 			{
-
 				int source1Register = findOrPlaceOperand(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 				int source2Register = findOrPlaceOperand(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
 				destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);

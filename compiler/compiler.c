@@ -407,12 +407,8 @@ void checkIRConsistency(struct LinkedList *blockList)
 						printf("var");
 						break;
 
-					case vt_returnval:
-						printf("WTF\n");
-						break;
-
 					case vt_null:
-						printf("ALSO WTF\n");
+						printf("WTF\n");
 						break;
 
 					case vt_temp:
