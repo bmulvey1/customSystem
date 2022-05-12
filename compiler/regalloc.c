@@ -861,7 +861,6 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
 				switch (thisLine->operandTypes[0])
 				{
 				case vt_var:
-				case vt_temp:
 					updateOrInsertLifetime(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
 					break;
 
@@ -883,7 +882,6 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
 					switch (thisLine->operandTypes[i])
 					{
 					case vt_var:
-					case vt_temp:
 						updateOrInsertLifetime(lifetimes, thisLine->operands[i], thisLine->operandTypes[i], TACIndex);
 						break;
 					default:

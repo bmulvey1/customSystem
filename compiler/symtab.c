@@ -120,7 +120,7 @@ struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name)
 	return NULL;
 }
 
-// return the variableEntry for a given name, or NULL if nonexistent
+// return the variableEntry for a given name, or throw a use-before-declare error if nonexistent
 struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *name)
 {
 	struct symTabEntry *e = symbolTableLookup(table, name);

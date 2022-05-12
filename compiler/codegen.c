@@ -108,7 +108,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 					switch (currentTAC->operandTypes[i])
 					{
 					case vt_var:
-					case vt_temp:
 						if (!strcmp(thisReg->lifetime->variable, currentTAC->operands[i]))
 							thisReg->lastUsed = 0;
 
@@ -186,7 +185,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			case tt_assign:
 			{
 				destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
-				if (currentTAC->operandTypes[1] == vt_literal)
+				if (currentTAC->operandPermutations[1] == vp_literal)
 				{
 					trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d, $%s", destinationRegister, currentTAC->operands[1]));
 				}
@@ -295,14 +294,14 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
 			case tt_push:
 			{
-				switch (currentTAC->operandTypes[0])
+				switch (currentTAC->operandPermutations[0])
 				{
-				case vt_literal:
+				case vp_literal:
 					trimmedStr = strTrim(printBuf, sprintf(printBuf, "push $%s", currentTAC->operands[0]));
 					break;
 
-				case vt_var:
-				case vt_temp:
+				case vp_standard:
+				case vp_temp:
 				{
 					int sourceRegister = findActiveVariable(activeList, currentTAC->operands[0]);
 					if (sourceRegister == -1)
@@ -367,7 +366,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 					// first source exists in register, second is spilled or a literal
 					if (firstSourceRegister != -1 && secondSourceRegister == -1)
 					{
-						if (currentTAC->operandTypes[2] == vt_literal)
+						if (currentTAC->operandPermutations[2] == vp_literal)
 						{
 							trimmedStr = strTrim(printBuf, sprintf(printBuf, "cmpi %%r%d, $%s", firstSourceRegister, currentTAC->operands[2]));
 						}
@@ -389,7 +388,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 					{
 						firstSourceRegister = unSpillVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 
-						if (currentTAC->operandTypes[2] == vt_literal)
+						if (currentTAC->operandPermutations[2] == vp_literal)
 						{
 							trimmedStr = strTrim(printBuf, sprintf(printBuf, "cmp %%r%d, $%s", firstSourceRegister, currentTAC->operands[2]));
 						}
@@ -446,17 +445,17 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			case tt_return:
 			{
 				// find where the return value is (it must be active in a register because it was just assigned!)
-				switch (currentTAC->operandTypes[0])
+				switch (currentTAC->operandPermutations[0])
 				{
-				case vt_literal:
+				case vp_literal:
 				{
 					trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%rr, $%s", currentTAC->operands[0]));
 					ASMblock_append(outputBlock, trimmedStr);
 				}
 				break;
 
-				case vt_var:
-				case vt_temp:
+				case vp_standard:
+				case vp_temp:
 				{
 					int sourceRegister = findActiveVariable(activeList, currentTAC->operands[0]);
 					if (sourceRegister != -1)
@@ -470,9 +469,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 					ASMblock_append(outputBlock, trimmedStr);
 				}
 				break;
-
-				case vt_null:
-					break;
 
 				default:
 					perror("unexpected type in return TAC!\n");

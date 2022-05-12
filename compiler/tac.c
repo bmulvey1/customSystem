@@ -118,6 +118,10 @@ struct TACLine *newTACLine(int index, enum TACType operation, struct ASTNode *co
 	wip->operandTypes[1] = vt_null;
 	wip->operandTypes[2] = vt_null;
 	wip->operandTypes[3] = vt_null;
+	wip->operandPermutations[0] = vp_standard;
+	wip->operandPermutations[1] = vp_standard;
+	wip->operandPermutations[2] = vp_standard;
+	wip->operandPermutations[3] = vp_standard;
 	wip->indirectionLevels[0] = 0;
 	wip->indirectionLevels[1] = 0;
 	wip->indirectionLevels[2] = 0;

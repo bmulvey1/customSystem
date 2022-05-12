@@ -41,6 +41,7 @@ struct variableEntry
 
 struct functionEntry
 {
+	enum variableTypes returnType;
 	struct symbolTable *table;
 };
 

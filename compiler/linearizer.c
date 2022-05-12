@@ -34,7 +34,7 @@ int linearizeDereference(struct symbolTable *table,
 	struct TACLine *thisDereference = newTACLine(currentTACIndex, tt_memr_1, it);
 
 	thisDereference->operands[0] = getTempString(tl, *tempNum);
-	thisDereference->operandTypes[0] = vt_temp;
+	thisDereference->operandPermutations[0] = vp_temp;
 	(*tempNum)++;
 
 	switch (it->type)
@@ -49,9 +49,12 @@ int linearizeDereference(struct symbolTable *table,
 		// recursively dereference nested dereferences
 	case t_dereference:
 		thisDereference->operands[1] = getTempString(tl, *tempNum);
-		thisDereference->operandTypes[1] = vt_temp;
+		thisDereference->operandPermutations[1] = vp_temp;
+
 		currentTACIndex = linearizeDereference(table, currentTACIndex, blockList, currentBlock, it->child, tempNum, tl);
-		thisDereference->indirectionLevels[1] = ((struct TACLine *)currentBlock->TACList->tail->data)->indirectionLevels[0];
+		struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
+		thisDereference->operandTypes[1] = recursiveDereference->operandTypes[0];
+		thisDereference->indirectionLevels[1] = recursiveDereference->indirectionLevels[0];
 
 		break;
 
@@ -73,18 +76,21 @@ int linearizeDereference(struct symbolTable *table,
 			break;
 
 		case t_literal:
-			thisDereference->operandTypes[1] = vt_literal;
+			thisDereference->operandTypes[1] = vt_var;
+			thisDereference->operandPermutations[1] = vp_literal;
 			LHSSize = 2;
 			break;
 
 		case t_dereference:
 			bkpt();
-			thisDereference->operandTypes[1] = vt_temp;
 			thisDereference->operands[1] = getTempString(tl, *tempNum);
+			thisDereference->operandPermutations[1] = vp_temp;
+
 			currentTACIndex = linearizeDereference(table, currentTACIndex, blockList, currentBlock, it->child->child, tempNum, tl);
-			struct TACLine *dereferenceLast = currentBlock->TACList->tail->data;
-			thisDereference->indirectionLevels[1] = dereferenceLast->indirectionLevels[0];
-			LHSSize = symbolTable_getSizeOfVariable(table, dereferenceLast->operandTypes[0]);
+			struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
+			thisDereference->operandTypes[1] = recursiveDereference->operandTypes[0];
+			thisDereference->indirectionLevels[1] = recursiveDereference->indirectionLevels[0];
+			LHSSize = symbolTable_getSizeOfVariable(table, recursiveDereference->operandTypes[0]);
 			break;
 
 		default:
@@ -101,21 +107,28 @@ int linearizeDereference(struct symbolTable *table,
 			{
 				struct TACLine *subtractInvert = newTACLine(currentTACIndex++, tt_mul, it);
 				subtractInvert->operands[0] = getTempString(tl, *tempNum);
+				subtractInvert->operandPermutations[0] = vp_temp;
 				(*tempNum)++;
-				subtractInvert->operandTypes[0] = vt_temp;
-				subtractInvert->operands[1] = it->child->sibling->value;
-				subtractInvert->operandTypes[1] = vt_var;
+				char *invertedVariableName = it->child->sibling->value;
+				enum variableTypes invertedVariableType = symbolTableLookup_var(table, invertedVariableName)->type;
+
+				subtractInvert->operandTypes[0] = invertedVariableType;
+				subtractInvert->operands[1] = invertedVariableName;
+				subtractInvert->operandTypes[1] = invertedVariableType;
+
 				subtractInvert->operands[2] = "-1";
-				subtractInvert->operandTypes[2] = vt_literal;
+				subtractInvert->operandTypes[2] = vt_var;
+				subtractInvert->operandPermutations[2] = vp_literal;
 
 				thisDereference->operands[2] = subtractInvert->operands[0];
-				thisDereference->operandTypes[2] = vt_temp;
+				thisDereference->operandTypes[2] = invertedVariableType;
 				BasicBlock_append(currentBlock, subtractInvert);
 			}
 			else
 			{
-				thisDereference->operands[2] = it->child->sibling->value;
-				thisDereference->operandTypes[2] = vt_var;
+				char *variableName = it->child->sibling->value;
+				thisDereference->operands[2] = variableName;
+				thisDereference->operandTypes[2] = symbolTableLookup_var(table, variableName)->type;
 			}
 
 			break;
@@ -127,7 +140,8 @@ int linearizeDereference(struct symbolTable *table,
 			thisDereference->operation = tt_memr_2;
 			int offset = atoi(it->child->sibling->value);
 			thisDereference->operands[2] = (char *)(long int)((offset * 2) * ((it->type == t_un_sub) ? -1 : 1));
-			thisDereference->operandTypes[2] = vt_literal;
+			thisDereference->operandTypes[2] = vt_var;
+			thisDereference->operandPermutations[2] = vp_literal;
 			break;
 
 		case t_un_add:
@@ -137,24 +151,31 @@ int linearizeDereference(struct symbolTable *table,
 			{
 				struct TACLine *subtractInvert = newTACLine(currentTACIndex++, tt_mul, it);
 				subtractInvert->operands[0] = getTempString(tl, *tempNum);
+				subtractInvert->operandPermutations[0] = vp_temp;
 				(*tempNum)++;
 				currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, it->child->sibling, tempNum, tl);
-				subtractInvert->operandTypes[0] = vt_temp;
+				struct TACLine *recursiveExpression = currentBlock->TACList->tail->data;
+
+				// set inverted types based on the expression result type
+				subtractInvert->operandTypes[0] = recursiveExpression->operandTypes[0];
 				subtractInvert->operands[1] = it->child->sibling->value;
-				subtractInvert->operandTypes[1] = vt_var;
+				subtractInvert->operandTypes[1] = recursiveExpression->operandTypes[0];
+
 				subtractInvert->operands[2] = "-1";
-				subtractInvert->operandTypes[2] = vt_literal;
+				subtractInvert->operandTypes[2] = vt_var;
+				subtractInvert->operandPermutations[2] = vp_literal;
 
 				thisDereference->operands[2] = subtractInvert->operands[0];
-				thisDereference->operandTypes[2] = vt_temp;
+				thisDereference->operandTypes[2] = subtractInvert->operandTypes[0];
 				BasicBlock_append(currentBlock, subtractInvert);
 			}
 			else
 			{
 				thisDereference->operands[2] = getTempString(tl, *tempNum);
-				thisDereference->operandTypes[2] = vt_temp;
+				thisDereference->operandTypes[2] = vp_temp;
 				currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, it->child->sibling, tempNum, tl);
 			}
+			thisDereference->operandPermutations[2] = vp_temp;
 			break;
 
 		default:
@@ -168,11 +189,20 @@ int linearizeDereference(struct symbolTable *table,
 		exit(2);
 	}
 
+	thisDereference->operandTypes[0] = thisDereference->operandTypes[1];
+	thisDereference->operandPermutations[0] = thisDereference->operandPermutations[1];
+
 	thisDereference->index = currentTACIndex++;
 	int newIndirection = thisDereference->indirectionLevels[1];
 	if (newIndirection > 0)
 	{
 		newIndirection--;
+	}
+	else
+	{
+		printf("Warning - dereference of non-indirect expression or statement\n\t");
+		ASTNode_printHorizontal(it);
+		printf("\n\tLine %d, Col %d\n", it->sourceLine, it->sourceCol);
 	}
 
 	thisDereference->indirectionLevels[0] = newIndirection;
@@ -200,31 +230,42 @@ int linearizeArgumentPushes(struct symbolTable *table,
 		thisArgument = newTACLine(currentTACIndex++, tt_push, argRunner);
 		thisArgument->operandTypes[0] = vt_var;
 	case t_literal:
+	{
 		if (thisArgument == NULL)
 		{
 			thisArgument = newTACLine(currentTACIndex++, tt_push, argRunner);
-			thisArgument->operandTypes[0] = vt_literal;
+			thisArgument->operandTypes[0] = vt_var;
+			thisArgument->operandPermutations[0] = vp_literal;
 		}
 		thisArgument->operands[0] = argRunner->value;
-		break;
+	}
+	break;
 
 	case t_dereference:
+	{
 		currentTACIndex = linearizeDereference(table, currentTACIndex, blockList, currentBlock, argRunner->child, tempNum, tl);
 		thisArgument = newTACLine(currentTACIndex++, tt_push, argRunner);
-		thisArgument->operands[0] = ((struct TACLine *)currentBlock->TACList->tail->data)->operands[0];
-		thisArgument->operandTypes[0] = ((struct TACLine *)currentBlock->TACList->tail->data)->operandTypes[0];
-		thisArgument->indirectionLevels[0] = ((struct TACLine *)currentBlock->TACList->tail->data)->indirectionLevels[0];
-		break;
+		struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
+		thisArgument->operands[0] = recursiveDereference->operands[0];
+		thisArgument->operandTypes[0] = recursiveDereference->operandTypes[0];
+		thisArgument->indirectionLevels[0] = recursiveDereference->indirectionLevels[0];
+		thisArgument->operandPermutations[0] = recursiveDereference->operandPermutations[0];
+	}
+	break;
 
 	case t_un_add:
 	case t_un_sub:
-		char *pushOperand0 = getTempString(tl, *tempNum);
-
+	{
 		currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, argRunner, tempNum, tl);
+		struct TACLine *recursiveExpression = currentBlock->TACList->tail->data;
+
 		thisArgument = newTACLine(currentTACIndex++, tt_push, argRunner);
-		thisArgument->operands[0] = pushOperand0;
-		thisArgument->operandTypes[0] = vt_temp;
-		break;
+		thisArgument->operands[0] = recursiveExpression->operands[0];
+		thisArgument->operandTypes[0] = recursiveExpression->operandTypes[0];
+		thisArgument->indirectionLevels[0] = recursiveExpression->indirectionLevels[0];
+		thisArgument->operandPermutations[0] = recursiveExpression->operandPermutations[0];
+	}
+	break;
 
 	default:
 		perror("Error - Unexpected argument node type\n");
@@ -256,17 +297,74 @@ int linearizeFunctionCall(struct symbolTable *table,
 
 	struct TACLine *calltac = newTACLine(currentTACIndex++, tt_call, it);
 	calltac->operands[0] = operand0;
-	calltac->operandTypes[0] = vt_temp;
+	// no type check because it contains the name of the function itself
 
 	char *functionName = it->child->value;
 	calltac->operands[1] = functionName;
 
+	calltac->operandTypes[0] = symbolTableLookup_fun(table, functionName)->returnType;
 	// TODO: set variabletype based on function return type, error if void function
 
 	// struct functionEntry *calledFunction = symbolTableLookup_fun(table, functionName);
 	// calltac->operandTypes[1] = calledFunction->returnType;
 
 	BasicBlock_append(currentBlock, calltac);
+	return currentTACIndex;
+}
+
+// linearize any subexpression which results in the use of a temporary variable
+int linearizeSubExpression(struct symbolTable *table,
+						   int currentTACIndex,
+						   struct LinkedList *blockList,
+						   struct BasicBlock *currentBlock,
+						   struct ASTNode *it,
+						   int *tempNum,
+						   struct tempList *tl,
+						   struct TACLine *parentExpression,
+						   int operandIndex)
+{
+	parentExpression->operands[operandIndex] = getTempString(tl, *tempNum);
+	parentExpression->operandPermutations[operandIndex] = vp_temp;
+	switch (it->type)
+	{
+
+	// handle recording return types from function calls here
+	case t_call:
+	{
+		currentTACIndex = linearizeFunctionCall(table, currentTACIndex, blockList, currentBlock, it->child, tempNum, tl);
+		struct TACLine *recursiveFunctionCall = currentBlock->TACList->tail->data;
+
+		parentExpression->operandTypes[1] = recursiveFunctionCall->operandTypes[0];
+		parentExpression->indirectionLevels[1] = recursiveFunctionCall->indirectionLevels[1];
+	}
+	break;
+
+	case t_compOp:
+	case t_un_add:
+	case t_un_sub:
+	{
+		currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, it->child, tempNum, tl);
+		struct TACLine *recursiveExpression = currentBlock->TACList->tail->data;
+
+		parentExpression->operandTypes[operandIndex] = recursiveExpression->operandTypes[1];
+		parentExpression->indirectionLevels[operandIndex] = recursiveExpression->indirectionLevels[0];
+	}
+	break;
+
+	case t_dereference:
+	{
+		currentTACIndex = linearizeDereference(table, currentTACIndex, blockList, currentBlock, it->child->child, tempNum, tl);
+		struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
+
+		parentExpression->operandTypes[operandIndex] = recursiveDereference->operandTypes[0];
+		parentExpression->indirectionLevels[operandIndex] = recursiveDereference->indirectionLevels[0];
+	}
+	break;
+
+	default:
+		perror("Unexpected type seen while linearizing subexpression!\n");
+		exit(2);
+	}
 	return currentTACIndex;
 }
 
@@ -287,7 +385,7 @@ int linearizeExpression(struct symbolTable *table,
 	if (it->type != t_compOp)
 	{
 		thisExpression->operands[0] = getTempString(tl, *tempNum);
-		thisExpression->operandTypes[0] = vt_temp;
+		thisExpression->operandPermutations[0] = vp_temp;
 		// increment count of temp variables, the parse of this expression will be written to a temp
 		(*tempNum)++;
 	}
@@ -306,10 +404,13 @@ int linearizeExpression(struct symbolTable *table,
 		else
 		{
 			thisExpression->operands[1] = getTempString(tl, *tempNum);
-			thisExpression->operandTypes[1] = vt_temp;
+			thisExpression->operandPermutations[1] = vp_temp;
 
 			currentTACIndex = linearizeDereference(table, currentTACIndex, blockList, currentBlock, it->child, tempNum, tl);
-			thisExpression->indirectionLevels[1] = ((struct TACLine *)currentBlock->TACList->tail->data)->indirectionLevels[0];
+			struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
+
+			thisExpression->indirectionLevels[1] = recursiveDereference->indirectionLevels[0];
+			thisExpression->operandTypes[1] = recursiveDereference->operandTypes[0];
 		}
 
 		thisExpression->index = currentTACIndex++;
@@ -321,53 +422,36 @@ int linearizeExpression(struct symbolTable *table,
 	// handle the LHS of the operation
 	switch (it->child->type)
 	{
-
-	// handle recording return types from function calls here
 	case t_call:
-		thisExpression->operands[1] = getTempString(tl, *tempNum);
-		thisExpression->operandTypes[1] = vt_temp;
-
-		currentTACIndex = linearizeFunctionCall(table, currentTACIndex, blockList, currentBlock, it->child, tempNum, tl);
-		break;
-
 	case t_compOp:
 	case t_un_add:
 	case t_un_sub:
-		thisExpression->operands[1] = getTempString(tl, *tempNum);
-		thisExpression->operandTypes[1] = vt_temp;
-
-		currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, it->child, tempNum, tl);
-		thisExpression->indirectionLevels[1] = ((struct TACLine *)currentBlock->TACList->tail->data)->indirectionLevels[0];
-		break;
+	case t_dereference:
+	{
+		currentTACIndex = linearizeSubExpression(table, currentTACIndex, blockList, currentBlock, it->child, tempNum, tl, thisExpression, 1);
+	}
+	break;
 
 	case t_name:
+	{
 		thisExpression->operands[1] = it->child->value;
-		thisExpression->operandTypes[1] = vt_var;
 		struct variableEntry *theVariable = symbolTableLookup_var(table, it->child->value);
-		if (theVariable == NULL)
-		{
-			printf("Error - use of variable [%s] before declaration\n", it->child->value);
-			exit(1);
-		}
+		thisExpression->operandTypes[1] = theVariable->type;
 		thisExpression->indirectionLevels[1] = theVariable->indirectionLevel;
-		break;
+	}
+	break;
 
 	case t_literal:
+	{
 		thisExpression->operands[1] = it->child->value;
-		thisExpression->operandTypes[1] = vt_literal;
+		thisExpression->operandTypes[1] = vt_var;
+		thisExpression->operandPermutations[1] = vp_literal;
 		// indirection levels set to 0 by default
-		break;
-
-	case t_dereference:
-		thisExpression->operands[1] = getTempString(tl, *tempNum);
-		thisExpression->operandTypes[1] = vt_temp;
-
-		currentTACIndex = linearizeDereference(table, currentTACIndex, blockList, currentBlock, it->child->child, tempNum, tl);
-		thisExpression->indirectionLevels[0] = ((struct TACLine *)currentBlock->TACList->tail->data)->indirectionLevels[0];
-		break;
+	}
+	break;
 
 	default:
-		perror("Unexpected type seen while linearizing expression! Expected variable or literal\n");
+		perror("Unexpected type seen while linearizing expression LHS! Expected variable, literal, or subexpression\n");
 		exit(2);
 	}
 
@@ -395,45 +479,35 @@ int linearizeExpression(struct symbolTable *table,
 	switch (it->child->sibling->type)
 	{
 	case t_call:
-		thisExpression->operands[2] = getTempString(tl, *tempNum);
-		thisExpression->operandTypes[2] = vt_temp;
-
-		currentTACIndex = linearizeFunctionCall(table, currentTACIndex, blockList, currentBlock, it->child->sibling, tempNum, tl);
-		break;
-
 	case t_compOp:
 	case t_un_add:
 	case t_un_sub:
-		thisExpression->operands[2] = getTempString(tl, *tempNum);
-		thisExpression->operandTypes[2] = vt_temp;
-		// figure out what to prepend to, then set the return expression TACLine to the head of the block
-		currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, it->child->sibling, tempNum, tl);
-		thisExpression->indirectionLevels[2] = ((struct TACLine *)currentBlock->TACList->tail->data)->indirectionLevels[0];
-		break;
+	case t_dereference:
+	{
+		currentTACIndex = linearizeSubExpression(table, currentTACIndex, blockList, currentBlock, it->child->sibling, tempNum, tl, thisExpression, 2);
+	}
+	break;
 
 	case t_name:
-		thisExpression->operands[2] = it->child->sibling->value;
-		thisExpression->operandTypes[2] = vt_var;
-		thisExpression->indirectionLevels[2] = symbolTableLookup_var(table, it->child->sibling->value)->indirectionLevel;
-
-		break;
+	{
+		thisExpression->operands[2] = it->child->value;
+		struct variableEntry *theVariable = symbolTableLookup_var(table, it->child->sibling->value);
+		thisExpression->operandTypes[2] = theVariable->type;
+		thisExpression->indirectionLevels[2] = theVariable->indirectionLevel;
+	}
+	break;
 
 	case t_literal:
+	{
 		thisExpression->operands[2] = it->child->sibling->value;
-		thisExpression->operandTypes[2] = vt_literal;
+		thisExpression->operandTypes[2] = vt_var;
+		thisExpression->operandPermutations[2] = vp_literal;
 		// indirection levels set to 0 by default
-		break;
-
-	case t_dereference:
-		thisExpression->operands[2] = getTempString(tl, *tempNum);
-		thisExpression->operandTypes[2] = vt_temp;
-
-		currentTACIndex = linearizeDereference(table, currentTACIndex, blockList, currentBlock, it->child->sibling->child, tempNum, tl);
-		thisExpression->indirectionLevels[2] = ((struct TACLine *)currentBlock->TACList->tail->data)->indirectionLevels[0];
-		break;
+	}
+	break;
 
 	default:
-		perror("Unexpected type seen while linearizing expression!\n Expected variable or literal\n");
+		perror("Unexpected type seen while linearizing expression RHS! Expected variable, literal, or subexpression\n");
 		exit(2);
 	}
 
@@ -463,12 +537,17 @@ int linearizeAssignment(struct symbolTable *table,
 		switch (it->child->sibling->type)
 		{
 		case t_literal:
-			assignment->operandTypes[1] = vt_literal;
+			assignment->operandTypes[1] = vt_var;
+			assignment->operandPermutations[1] = vp_literal;
 			break;
 
 		case t_name:
-			assignment->operandTypes[1] = vt_var;
-			break;
+		{
+			struct variableEntry *theVariable = symbolTableLookup_var(table, it->child->sibling->value);
+			assignment->operandTypes[1] = theVariable->type;
+			assignment->indirectionLevels[1] = theVariable->indirectionLevel;
+		}
+		break;
 
 		default:
 			perror("Error parsing simple assignment - unexpected type on RHS\n");
@@ -514,8 +593,9 @@ int linearizeAssignment(struct symbolTable *table,
 	{
 		struct TACLine *finalAssignment = NULL;
 		RHS->operands[0] = getTempString(tl, *tempNum);
+		RHS->operandPermutations[0] = vp_temp;
 		(*tempNum)++;
-		RHS->operandTypes[0] = vt_temp;
+		RHS->operandTypes[0] = RHS->operandTypes[0];
 		RHS->indirectionLevels[0] = RHS->indirectionLevels[1];
 		switch (it->child->type)
 		{
@@ -527,17 +607,21 @@ int linearizeAssignment(struct symbolTable *table,
 			{
 			case t_name:
 			case t_dereference:
+			{
 				currentTACIndex = linearizeDereference(table, currentTACIndex, blockList, currentBlock, dereferencedExpression, tempNum, tl);
 				struct TACLine *thisDereference = currentBlock->TACList->tail->data;
 				finalAssignment = newTACLine(currentTACIndex++, tt_memw_1, dereferencedExpression);
 				finalAssignment->operands[1] = RHS->operands[0];
+				finalAssignment->operandPermutations[1] = RHS->operandPermutations[0];
 				finalAssignment->operandTypes[1] = RHS->operandTypes[0];
 				finalAssignment->indirectionLevels[1] = RHS->indirectionLevels[0];
 
 				finalAssignment->operands[0] = thisDereference->operands[0];
+				finalAssignment->operandPermutations[0] = thisDereference->operandPermutations[0];
 				finalAssignment->operandTypes[0] = thisDereference->operandTypes[0];
 				finalAssignment->indirectionLevels[0] = thisDereference->indirectionLevels[0];
-				break;
+			}
+			break;
 
 			case t_un_add:
 			case t_un_sub:
@@ -548,34 +632,40 @@ int linearizeAssignment(struct symbolTable *table,
 				switch (dereferencedRHS->type)
 				{
 				case t_literal:
+				{
 					finalAssignment = newTACLine(currentTACIndex++, tt_memw_2, dereferencedRHS);
 					finalAssignment->operands[1] = (char *)(long int)atoi(dereferencedRHS->value);
-					finalAssignment->operandTypes[1] = vt_literal;
+					finalAssignment->operandPermutations[1] = vp_literal;
+					finalAssignment->operandTypes[1] = vt_var;
 					finalAssignment->indirectionLevels[1] = 0;
-					break;
+				}
+				break;
 
 				case t_name:
+				{
 					finalAssignment = newTACLine(currentTACIndex++, tt_memw_3, dereferencedRHS);
 					struct variableEntry *theVariable = symbolTableLookup_var(table, dereferencedRHS->value);
 					finalAssignment->operands[1] = dereferencedRHS->value;
 					finalAssignment->operandTypes[1] = theVariable->type;
 					finalAssignment->indirectionLevels[1] = theVariable->indirectionLevel;
-					break;
+				}
+				break;
 
 				// all other arithmetic goes here
 				case t_un_add:
 				case t_un_sub:
-					{
+				{
 					currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, dereferencedRHS, tempNum, tl);
 					struct TACLine *finalArithmeticLine = currentBlock->TACList->tail->data;
 					finalAssignment = newTACLine(currentTACIndex++, tt_memw_3, dereferencedRHS);
-					
+
 					// struct variableEntry *theVariable = symbolTableLookup_var(table, dereferencedRHS->value);
 					finalAssignment->operands[1] = finalArithmeticLine->operands[0];
+					finalAssignment->operandPermutations[1] = finalArithmeticLine->operandPermutations[0];
 					finalAssignment->operandTypes[1] = finalArithmeticLine->operandTypes[0];
 					finalAssignment->indirectionLevels[1] = finalArithmeticLine->indirectionLevels[0];
-					}
-					break;
+				}
+				break;
 
 				default:
 					perror("Error - Unexpected type on RHS of pointer write arithmetic\n");
@@ -587,21 +677,14 @@ int linearizeAssignment(struct symbolTable *table,
 				switch (dereferencedExpression->child->type)
 				{
 				case t_name:
+				{
 					struct variableEntry *lhsVariable = symbolTableLookup_var(table, dereferencedExpression->child->value);
 					finalAssignment->operands[0] = dereferencedExpression->child->value;
 					finalAssignment->operandTypes[0] = lhsVariable->type;
 					finalAssignment->indirectionLevels[0] = lhsVariable->indirectionLevel;
 					lhsSize = symbolTable_getSizeOfVariable(table, lhsVariable->type);
-					break;
-
-					/*
-					case t_literal:
-						finalAssignment->operands[0] = dereferencedExpression->child->value;
-						finalAssignment->operandTypes[0] = vt_literal;
-						finalAssignment->indirectionLevels[0] = 0;
-						lhsSize = 2;
-						break;
-					*/
+				}
+				break;
 
 				default:
 					perror("Error - Illegal type on LHS of assignment expression\n\tPointer write operations can only bind rightwards\n");
@@ -611,8 +694,10 @@ int linearizeAssignment(struct symbolTable *table,
 				switch (finalAssignment->operation)
 				{
 				case tt_memw_2:
+				{
 					finalAssignment->operands[1] = (char *)((long int)lhsSize * (long int)(finalAssignment->operands[1]));
-					finalAssignment->operandTypes[1] = vt_literal;
+					finalAssignment->operandPermutations[1] = vp_literal;
+					finalAssignment->operandTypes[1] = vt_var;
 					finalAssignment->indirectionLevels[1] = 0;
 
 					// make offset value negative if subtracting
@@ -622,13 +707,17 @@ int linearizeAssignment(struct symbolTable *table,
 					}
 
 					finalAssignment->operands[2] = RHS->operands[0];
+					finalAssignment->operandPermutations[2] = RHS->operandPermutations[0];
 					finalAssignment->operandTypes[2] = RHS->operandTypes[0];
 					finalAssignment->indirectionLevels[2] = RHS->indirectionLevels[0];
-					break;
+				}
+				break;
 
 				case tt_memw_3:
+				{
 					finalAssignment->operands[2] = (char *)(long int)lhsSize;
-					finalAssignment->operandTypes[2] = vt_literal;
+					finalAssignment->operandPermutations[2] = vp_literal;
+					finalAssignment->operandTypes[2] = vt_var;
 					finalAssignment->indirectionLevels[2] = 0;
 
 					// make scale value negative if subtracting
@@ -638,9 +727,11 @@ int linearizeAssignment(struct symbolTable *table,
 					}
 
 					finalAssignment->operands[3] = RHS->operands[0];
+					finalAssignment->operandPermutations[3] = RHS->operandPermutations[0];
 					finalAssignment->operandTypes[3] = RHS->operandTypes[0];
 					finalAssignment->indirectionLevels[3] = RHS->indirectionLevels[0];
-					break;
+				}
+				break;
 
 				default:
 					perror("Error - Unexpected final assignment TAC type\n");
@@ -943,31 +1034,46 @@ struct LinearizationResult *linearizeStatementList(struct symbolTable *table,
 		{
 			char *returned;
 			enum variableTypes returnedType;
+			enum variablePermutations returnedPermutation;
 
 			switch (runner->child->type)
 			{
 			case t_name:
+			{
 				returned = runner->child->value;
-				returnedType = vt_var;
-				break;
+				returnedType = symbolTableLookup_var(table, returned)->type;
+				returnedPermutation = vp_standard;
+			}
+			break;
 
 			case t_literal:
+			{
 				returned = runner->child->value;
-				returnedType = vt_literal;
-				break;
+				returnedType = vt_var;
+				returnedPermutation = vp_literal;
+			}
+			break;
 
 			case t_dereference:
+			{
 				returned = getTempString(tl, *tempNum);
-				returnedType = vt_temp;
 				currentTACIndex = linearizeDereference(table, currentTACIndex, blockList, currentBlock, runner->child->child, tempNum, tl);
-				break;
+				struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
+				returnedType = recursiveDereference->operandTypes[0];
+				returnedPermutation = recursiveDereference->operandPermutations[0];
+			}
+			break;
 
 			case t_un_add:
 			case t_un_sub:
+			{
 				returned = getTempString(tl, *tempNum);
-				returnedType = vt_temp;
 				currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, runner->child, tempNum, tl);
-				break;
+				struct TACLine *recursiveExpression = currentBlock->TACList->tail->data;
+				returnedType = recursiveExpression->operandTypes[0];
+				returnedPermutation = recursiveExpression->operandPermutations[0];
+			}
+			break;
 
 			default:
 				perror("Error - Unexpected type within return expression\n");
@@ -976,6 +1082,7 @@ struct LinearizationResult *linearizeStatementList(struct symbolTable *table,
 			}
 			struct TACLine *returnTac = newTACLine(currentTACIndex++, tt_return, runner);
 			returnTac->operands[0] = returned;
+			returnTac->operandPermutations[0] = returnedPermutation;
 			returnTac->operandTypes[0] = returnedType;
 			BasicBlock_append(currentBlock, returnTac);
 		}
