@@ -210,6 +210,7 @@ void symTab_insertArgument(struct symbolTable *table, char *name, enum variableT
 void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolTable *subTable)
 {
 	struct functionEntry *newFunction = newFunctionEntry(subTable);
+	newFunction->returnType = vt_var; // hardcoded... for now ;)
 	symTabInsert(table, name, newFunction, e_function);
 }
 

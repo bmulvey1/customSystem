@@ -24,10 +24,12 @@ fun print(var n){
 }
 
 fun fib(var i){
-	if(i < 2){
+	var two = 2;
+	var one = 1;
+	if(i < two){
 		return i;
 	}else{
-		return fib(i - 1) + fib(i - 1);
+		return fib(i - one) + fib(i - two);
 	}
 }
 
@@ -44,7 +46,6 @@ fun test(){
 }
 
 /*
-
 
 fun ptest(){
 	var **p = mm_malloc(8);

@@ -282,7 +282,25 @@ void printTACLine(struct TACLine *it)
 	{
 		printf(" ");
 	}
-	printf("\t%d %d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2], it->operandTypes[3]);
+	printf("\t");
+	for (int i = 0; i < 4; i++)
+	{
+		printf("%d", it->operandTypes[i]);
+		switch(it->operandPermutations[i]){
+			case vp_standard:
+				printf("  ");
+				break;
+
+			case vp_temp:
+				printf("T ");
+				break;
+
+			case vp_literal:
+				printf("L ");
+				break;
+		}
+	}
+	// printf("\t%d %d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2], it->operandTypes[3]);
 	// printf("\t%d %d %d", it->indirectionLevels[0], it->indirectionLevels[1], it->indirectionLevels[2]);
 
 	// width += printf("%s", it->reorderable ? " - Reorderable" : "");

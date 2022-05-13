@@ -297,6 +297,8 @@ int linearizeFunctionCall(struct symbolTable *table,
 
 	struct TACLine *calltac = newTACLine(currentTACIndex++, tt_call, it);
 	calltac->operands[0] = operand0;
+	calltac->operandPermutations[0] = vp_temp;
+
 	// no type check because it contains the name of the function itself
 
 	char *functionName = it->child->value;
@@ -331,11 +333,11 @@ int linearizeSubExpression(struct symbolTable *table,
 	// handle recording return types from function calls here
 	case t_call:
 	{
-		currentTACIndex = linearizeFunctionCall(table, currentTACIndex, blockList, currentBlock, it->child, tempNum, tl);
+		currentTACIndex = linearizeFunctionCall(table, currentTACIndex, blockList, currentBlock, it, tempNum, tl);
 		struct TACLine *recursiveFunctionCall = currentBlock->TACList->tail->data;
 
-		parentExpression->operandTypes[1] = recursiveFunctionCall->operandTypes[0];
-		parentExpression->indirectionLevels[1] = recursiveFunctionCall->indirectionLevels[1];
+		parentExpression->operandTypes[operandIndex] = recursiveFunctionCall->operandTypes[0];
+		parentExpression->indirectionLevels[operandIndex] = recursiveFunctionCall->indirectionLevels[1];
 	}
 	break;
 
@@ -343,7 +345,7 @@ int linearizeSubExpression(struct symbolTable *table,
 	case t_un_add:
 	case t_un_sub:
 	{
-		currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, it->child, tempNum, tl);
+		currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, it, tempNum, tl);
 		struct TACLine *recursiveExpression = currentBlock->TACList->tail->data;
 
 		parentExpression->operandTypes[operandIndex] = recursiveExpression->operandTypes[1];
@@ -353,7 +355,7 @@ int linearizeSubExpression(struct symbolTable *table,
 
 	case t_dereference:
 	{
-		currentTACIndex = linearizeDereference(table, currentTACIndex, blockList, currentBlock, it->child->child, tempNum, tl);
+		currentTACIndex = linearizeDereference(table, currentTACIndex, blockList, currentBlock, it->child, tempNum, tl);
 		struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
 
 		parentExpression->operandTypes[operandIndex] = recursiveDereference->operandTypes[0];
@@ -511,6 +513,12 @@ int linearizeExpression(struct symbolTable *table,
 		exit(2);
 	}
 
+	if (thisExpression->operation != tt_cmp)
+	{
+		// TODO (with type system) - properly determine type of expression when different operands
+		thisExpression->operandTypes[0] = vt_var;
+	}
+
 	thisExpression->index = currentTACIndex++;
 	BasicBlock_append(currentBlock, thisExpression);
 	return currentTACIndex;
@@ -559,6 +567,7 @@ int linearizeAssignment(struct symbolTable *table,
 	else
 	// otherwise there is some sort of expression, which will need to be broken down into multiple lines of TAC
 	{
+		// TODO: use linearizesubexpression?
 		switch (it->child->sibling->type)
 		{
 		case t_dereference:

@@ -852,19 +852,25 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
 
 			case tt_assign:
 				updateOrInsertLifetime(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
-				updateOrInsertLifetime(lifetimes, thisLine->operands[1], thisLine->operandTypes[1], TACIndex);
+				if (thisLine->operandPermutations[1] != vp_literal)
+				{
+					updateOrInsertLifetime(lifetimes, thisLine->operands[1], thisLine->operandTypes[1], TACIndex);
+				}
 				break;
 
 			// single operand in slot 0
 			case tt_push:
 			case tt_return:
-				switch (thisLine->operandTypes[0])
+				if (thisLine->operandPermutations[0] != vp_literal)
 				{
-				case vt_var:
-					updateOrInsertLifetime(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
-					break;
+					switch (thisLine->operandTypes[0])
+					{
+					case vt_var:
+						updateOrInsertLifetime(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
+						break;
 
-				default:
+					default:
+					}
 				}
 				break;
 
@@ -879,12 +885,17 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
 			case tt_memw_3:
 				for (int i = 0; i < 4; i++)
 				{
-					switch (thisLine->operandTypes[i])
+					// lifetimes for every permutation except literal
+					if (thisLine->operandPermutations[i] != vp_literal)
 					{
-					case vt_var:
-						updateOrInsertLifetime(lifetimes, thisLine->operands[i], thisLine->operandTypes[i], TACIndex);
-						break;
-					default:
+						// and any type except null
+						switch (thisLine->operandTypes[i])
+						{
+						case vt_var:
+							updateOrInsertLifetime(lifetimes, thisLine->operands[i], thisLine->operandTypes[i], TACIndex);
+							break;
+						default:
+						}
 					}
 				}
 				break;

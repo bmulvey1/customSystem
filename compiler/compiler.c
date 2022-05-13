@@ -232,21 +232,26 @@ void checkUninitializedUsage(struct symbolTable *table)
 				continue;
 
 			case tt_push:
-				switch (ir->operandTypes[0])
-				{
-				case vt_var:
-					struct variableEntry *pushed = symbolTableLookup_var(table, ir->operands[0]);
-					if (pushed == NULL)
-					{
-						printf("Error - use of undeclared variable [%s]\n", ir->operands[0]);
-						// printf("\tLine %d, Col %d\n", ir->correspondingTree->sourceLine, ir->correspondingTree->sourceCol);
-						exit(1);
-					}
-					break;
 
-				default:
-					perror("Unexpected type in IR line for push\n");
-					exit(2);
+				if (ir->operandPermutations == vp_standard)
+				{
+					switch (ir->operandTypes[0])
+					{
+					case vt_var:
+						struct variableEntry *pushed = symbolTableLookup_var(table, ir->operands[0]);
+						if (pushed == NULL)
+						{
+							printf("Error - use of undeclared variable [%s]\n", ir->operands[0]);
+							// printf("\tLine %d, Col %d\n", ir->correspondingTree->sourceLine, ir->correspondingTree->sourceCol);
+							exit(1);
+						}
+
+						break;
+
+					default:
+						perror("Unexpected type in IR line for push\n");
+						exit(2);
+					}
 				}
 				continue;
 
@@ -257,57 +262,64 @@ void checkUninitializedUsage(struct symbolTable *table)
 			// check operands 2, 3, and 4
 			for (int j = 3; j > 0; j--)
 			{
-				switch (ir->operandTypes[j])
+				if (ir->operandTypes[j] != vt_null)
 				{
-				case vt_var:
-					struct symTabEntry *it = symbolTableLookup(table, ir->operands[j]);
-					if (it == NULL)
+					switch (ir->operandPermutations[j])
 					{
-						struct ASTNode *n = ir->correspondingTree;
-						printf("Error - use of undeclared variable [%s]\n\tLine %d, Col %d\n", ir->operands[0], n->sourceLine, n->sourceCol);
-						exit(1);
+					case vp_standard:
+						struct symTabEntry *it = symbolTableLookup(table, ir->operands[j]);
+						if (it == NULL)
+						{
+							struct ASTNode *n = ir->correspondingTree;
+							printf("Error - use of undeclared variable [%s]\n\tLine %d, Col %d\n", ir->operands[0], n->sourceLine, n->sourceCol);
+							exit(1);
+						}
+						if (!((struct variableEntry *)it->entry)->isAssigned)
+						{
+							struct ASTNode *n = ir->correspondingTree;
+							printTACLine(ir);
+							printf("\n");
+							printf("Error - use of variable [%s] before assignment!\n\tLine %d, Col %d\n\n", ir->operands[j], n->sourceLine, n->sourceCol);
+							exit(1);
+						}
+						break;
+					default:
 					}
-					if (!((struct variableEntry *)it->entry)->isAssigned)
-					{
-						struct ASTNode *n = ir->correspondingTree;
-						printTACLine(ir);
-						printf("\n");
-						printf("Error - use of variable [%s] before assignment!\n\tLine %d, Col %d\n\n", ir->operands[j], n->sourceLine, n->sourceCol);
-						exit(1);
-					}
-					break;
-				default:
 				}
 			}
 
-			switch (ir->operandTypes[0])
+			if (ir->operandTypes[0] != vt_null)
 			{
-			case vt_var:
-				struct symTabEntry *it = symbolTableLookup(table, ir->operands[0]);
-				if (it == NULL)
+				switch (ir->operandPermutations[0])
 				{
-					printf("Error - use of undeclared variable [%s]\n", ir->operands[0]);
-					exit(1);
-				}
-				struct variableEntry *theVariable = it->entry;
-				if (theVariable->declaredAt > ir->index || theVariable->declaredAt == -1)
-				{
-					printf("Declared at %d, index %d\n", theVariable->declaredAt, ir->index);
-					printTACLine(ir);
-					struct ASTNode *n = ir->correspondingTree;
-					if (n == NULL)
+				// check only standard type, not temp or literal
+				case vp_standard:
+					struct symTabEntry *it = symbolTableLookup(table, ir->operands[0]);
+					if (it == NULL)
 					{
 						printf("Error - use of undeclared variable [%s]\n", ir->operands[0]);
 						exit(1);
 					}
-					printf("Error - use of undeclared variable [%s]\n\tLine %d, Col %d\n", ir->operands[0], n->sourceLine, n->sourceCol);
-					exit(1);
-				}
-				theVariable->isAssigned = 1;
-				theVariable->assignedAt = ir->index;
-				break;
+					struct variableEntry *theVariable = it->entry;
+					if (theVariable->declaredAt > ir->index || theVariable->declaredAt == -1)
+					{
+						printf("Declared at %d, index %d\n", theVariable->declaredAt, ir->index);
+						printTACLine(ir);
+						struct ASTNode *n = ir->correspondingTree;
+						if (n == NULL)
+						{
+							printf("Error - use of undeclared variable [%s]\n", ir->operands[0]);
+							exit(1);
+						}
+						printf("Error - use of undeclared variable [%s]\n\tLine %d, Col %d\n", ir->operands[0], n->sourceLine, n->sourceCol);
+						exit(1);
+					}
+					theVariable->isAssigned = 1;
+					theVariable->assignedAt = ir->index;
+					break;
 
-			default:
+				default:
+				}
 			}
 		}
 	}
