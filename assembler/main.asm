@@ -38,19 +38,19 @@ fib_0:
 	jmp fib_done
 fib_2:
 		;introduce var .t2 to %r4
-	sub %r4, %r1, %r2
+	sub %r4, %r1, %r3
 	push %r4
 		;introduce var .t1 to %r4
 	call fib
 	mov %r4, %rr
-		;introduce var .t4 to %r2
-	sub %r2, %r1, %r3
-	push %r2
-		;introduce var .t3 to %r2
+		;introduce var .t4 to %r3
+	sub %r3, %r1, %r2
+	push %r3
+		;introduce var .t3 to %r3
 	call fib
-	mov %r2, %rr
+	mov %r3, %rr
 		;introduce var .t0 to %r1
-	add %r1, %r4, %r2
+	add %r1, %r4, %r3
 	mov %rr, %r1
 	jmp fib_done
 fib_1:

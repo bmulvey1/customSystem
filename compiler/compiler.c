@@ -233,7 +233,7 @@ void checkUninitializedUsage(struct symbolTable *table)
 
 			case tt_push:
 
-				if (ir->operandPermutations == vp_standard)
+				if (ir->operandPermutations[0] == vp_standard)
 				{
 					switch (ir->operandTypes[0])
 					{

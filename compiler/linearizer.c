@@ -492,7 +492,7 @@ int linearizeExpression(struct symbolTable *table,
 
 	case t_name:
 	{
-		thisExpression->operands[2] = it->child->value;
+		thisExpression->operands[2] = it->child->sibling->value;
 		struct variableEntry *theVariable = symbolTableLookup_var(table, it->child->sibling->value);
 		thisExpression->operandTypes[2] = theVariable->type;
 		thisExpression->indirectionLevels[2] = theVariable->indirectionLevel;
