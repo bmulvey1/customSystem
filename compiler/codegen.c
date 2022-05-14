@@ -105,16 +105,19 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 				thisReg->lastUsed++;
 				for (int i = 0; i < 3; i++)
 				{
-					switch (currentTAC->operandTypes[i])
+					if (currentTAC->operandPermutations[i] != vp_literal)
 					{
-					case vt_var:
-						if (!strcmp(thisReg->lifetime->variable, currentTAC->operands[i]))
-							thisReg->lastUsed = 0;
+						switch (currentTAC->operandTypes[i])
+						{
+						case vt_var:
+							if (!strcmp(thisReg->lifetime->variable, currentTAC->operands[i]))
+								thisReg->lastUsed = 0;
 
-						break;
+							break;
 
-					default:
-						break;
+						default:
+							break;
+						}
 					}
 				}
 			}
@@ -211,11 +214,43 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			case tt_mul:
 			case tt_div:
 			{
-				int source1Register = findOrPlaceOperand(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
-				int source2Register = findOrPlaceOperand(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
-				destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+				// operand 1 is a literal
+				if (currentTAC->operandPermutations[1] == vp_literal)
+				{
+					// operand 1 and 2 are literals
+					if (currentTAC->operandPermutations[2] == vp_literal)
+					{
+						perror("Error - arithmetic between 2 literals\n");
+						exit(2);
+					}
+					// only operand 1 is a literal
+					else
+					{
+						perror("Error - arithmetic with literal as first operand\n");
+						exit(2);
+					}
+				}
+				// operand 1 is not a literal
+				else
+				{
+					// operand 2 is a literal
+					if (currentTAC->operandPermutations[2] == vp_literal)
+					{
+						int source1Register = findOrPlaceOperand(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
+						destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
 
-				trimmedStr = strTrim(printBuf, sprintf(printBuf, "%s %%r%d, %%r%d, %%r%d", getAsmOp(currentTAC->operation), destinationRegister, source1Register, source2Register));
+						trimmedStr = strTrim(printBuf, sprintf(printBuf, "%si %%r%d, %%r%d, $%s", getAsmOp(currentTAC->operation), destinationRegister, source1Register, currentTAC->operands[2]));
+					}
+					// neither operand is a literal
+					else
+					{
+						int source1Register = findOrPlaceOperand(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
+						int source2Register = findOrPlaceOperand(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
+						destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+
+						trimmedStr = strTrim(printBuf, sprintf(printBuf, "%s %%r%d, %%r%d, %%r%d", getAsmOp(currentTAC->operation), destinationRegister, source1Register, source2Register));
+					}
+				}
 
 				ASMblock_append(outputBlock, trimmedStr);
 			}
@@ -255,7 +290,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 				int baseIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 				int offsetIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
 				int scale = (int)(long int)currentTAC->operands[3];
-				trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d, %%r%d(%%r%d, %d)", dest, offsetIndex, baseIndex, scale));
+				trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d, %%r%d(%%r%d, $%d)", dest, offsetIndex, baseIndex, scale));
 				ASMblock_append(outputBlock, trimmedStr);
 			}
 			break;

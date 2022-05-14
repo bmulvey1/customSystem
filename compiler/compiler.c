@@ -232,7 +232,6 @@ void checkUninitializedUsage(struct symbolTable *table)
 				continue;
 
 			case tt_push:
-
 				if (ir->operandPermutations[0] == vp_standard)
 				{
 					switch (ir->operandTypes[0])
@@ -245,7 +244,6 @@ void checkUninitializedUsage(struct symbolTable *table)
 							// printf("\tLine %d, Col %d\n", ir->correspondingTree->sourceLine, ir->correspondingTree->sourceCol);
 							exit(1);
 						}
-
 						break;
 
 					default:
@@ -253,7 +251,23 @@ void checkUninitializedUsage(struct symbolTable *table)
 						exit(2);
 					}
 				}
-				continue;
+				break;
+
+			case tt_call:
+				printTACLine(ir);
+				printf("CALL\n");
+				if(ir->operandTypes[0] != vt_null && ir->operandPermutations[0] == vp_standard){
+					struct variableEntry *callResult = symbolTableLookup_var(table, ir->operands[0]);
+					if(!callResult->isAssigned){
+						callResult->assignedAt = ir->index;
+						callResult->isAssigned = 1;
+					}
+						printf("%s is assigned at %d\n", ir->operands[0], ir->index);
+
+				}else{
+					printf("that null\n");
+				}
+				break;
 
 			default:
 				break;

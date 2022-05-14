@@ -100,7 +100,9 @@ int linearizeDereference(struct symbolTable *table,
 		}
 		thisDereference->operation = tt_memr_3;
 		thisDereference->operands[3] = (char *)(long int)LHSSize; // scale
-		switch (it->child->sibling->type)						  // offset
+		thisDereference->operandTypes[3] = vt_var;
+		thisDereference->operandPermutations[3] = vp_literal;
+		switch (it->child->sibling->type) // offset
 		{
 		case t_name:
 			if (it->type == t_un_sub)
@@ -190,7 +192,7 @@ int linearizeDereference(struct symbolTable *table,
 	}
 
 	thisDereference->operandTypes[0] = thisDereference->operandTypes[1];
-	thisDereference->operandPermutations[0] = thisDereference->operandPermutations[1];
+	// thisDereference->operandPermutations[0] = thisDereference->operandPermutations[1];
 
 	thisDereference->index = currentTACIndex++;
 	int newIndirection = thisDereference->indirectionLevels[1];
@@ -287,7 +289,13 @@ int linearizeFunctionCall(struct symbolTable *table,
 						  struct tempList *tl)
 {
 	char *operand0 = getTempString(tl, *tempNum);
-	(*tempNum)++;
+	char *functionName = it->child->value;
+	struct functionEntry *calledFunction = symbolTableLookup_fun(table, functionName);
+
+	if (calledFunction->returnType != vt_null)
+	{
+		(*tempNum)++;
+	}
 
 	// push arguments iff they exist
 	if (it->child->child != NULL)
@@ -297,14 +305,19 @@ int linearizeFunctionCall(struct symbolTable *table,
 
 	struct TACLine *calltac = newTACLine(currentTACIndex++, tt_call, it);
 	calltac->operands[0] = operand0;
+	
+	// always set the return permutation to temp
+	// null vs non-null type will be the handler for whether the return value exists
 	calltac->operandPermutations[0] = vp_temp;
 
 	// no type check because it contains the name of the function itself
 
-	char *functionName = it->child->value;
 	calltac->operands[1] = functionName;
 
-	calltac->operandTypes[0] = symbolTableLookup_fun(table, functionName)->returnType;
+	if (calledFunction->returnType != vt_null)
+	{
+		calltac->operandTypes[0] = calledFunction->returnType;
+	}
 	// TODO: set variabletype based on function return type, error if void function
 
 	// struct functionEntry *calledFunction = symbolTableLookup_fun(table, functionName);
@@ -327,15 +340,19 @@ int linearizeSubExpression(struct symbolTable *table,
 {
 	parentExpression->operands[operandIndex] = getTempString(tl, *tempNum);
 	parentExpression->operandPermutations[operandIndex] = vp_temp;
+
 	switch (it->type)
 	{
-
 	// handle recording return types from function calls here
 	case t_call:
 	{
 		currentTACIndex = linearizeFunctionCall(table, currentTACIndex, blockList, currentBlock, it, tempNum, tl);
 		struct TACLine *recursiveFunctionCall = currentBlock->TACList->tail->data;
 
+		// TODO: check return type (or at least that function returns something)
+
+		// using a returned value will always be a temp
+		parentExpression->operandPermutations[operandIndex] = vp_temp;
 		parentExpression->operandTypes[operandIndex] = recursiveFunctionCall->operandTypes[0];
 		parentExpression->indirectionLevels[operandIndex] = recursiveFunctionCall->indirectionLevels[1];
 	}
@@ -391,6 +408,7 @@ int linearizeExpression(struct symbolTable *table,
 		// increment count of temp variables, the parse of this expression will be written to a temp
 		(*tempNum)++;
 	}
+
 	// support dereference and reference operations separately
 	// since these have only one operand
 	if (it->type == t_dereference)
@@ -419,6 +437,7 @@ int linearizeExpression(struct symbolTable *table,
 		BasicBlock_append(currentBlock, thisExpression);
 		return currentTACIndex;
 	}
+
 
 	// if we fall through to here, the expression is some sort of unary operation
 	// handle the LHS of the operation
@@ -546,6 +565,7 @@ int linearizeAssignment(struct symbolTable *table,
 		{
 		case t_literal:
 			assignment->operandTypes[1] = vt_var;
+			assignment->operandTypes[0] = vt_var;
 			assignment->operandPermutations[1] = vp_literal;
 			break;
 
@@ -553,6 +573,7 @@ int linearizeAssignment(struct symbolTable *table,
 		{
 			struct variableEntry *theVariable = symbolTableLookup_var(table, it->child->sibling->value);
 			assignment->operandTypes[1] = theVariable->type;
+			assignment->operandTypes[0] = theVariable->type;
 			assignment->indirectionLevels[1] = theVariable->indirectionLevel;
 		}
 		break;
@@ -567,7 +588,6 @@ int linearizeAssignment(struct symbolTable *table,
 	else
 	// otherwise there is some sort of expression, which will need to be broken down into multiple lines of TAC
 	{
-		// TODO: use linearizesubexpression?
 		switch (it->child->sibling->type)
 		{
 		case t_dereference:
@@ -707,7 +727,7 @@ int linearizeAssignment(struct symbolTable *table,
 					finalAssignment->operands[1] = (char *)((long int)lhsSize * (long int)(finalAssignment->operands[1]));
 					finalAssignment->operandPermutations[1] = vp_literal;
 					finalAssignment->operandTypes[1] = vt_var;
-					finalAssignment->indirectionLevels[1] = 0;
+					// finalAssignment->indirectionLevels[1] = 0; // extraneous
 
 					// make offset value negative if subtracting
 					if (dereferencedExpression->type == t_un_sub)
@@ -1066,10 +1086,10 @@ struct LinearizationResult *linearizeStatementList(struct symbolTable *table,
 			case t_dereference:
 			{
 				returned = getTempString(tl, *tempNum);
+				returnedPermutation = vp_temp;
 				currentTACIndex = linearizeDereference(table, currentTACIndex, blockList, currentBlock, runner->child->child, tempNum, tl);
 				struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
 				returnedType = recursiveDereference->operandTypes[0];
-				returnedPermutation = recursiveDereference->operandPermutations[0];
 			}
 			break;
 
@@ -1077,10 +1097,10 @@ struct LinearizationResult *linearizeStatementList(struct symbolTable *table,
 			case t_un_sub:
 			{
 				returned = getTempString(tl, *tempNum);
+				returnedPermutation = vp_temp;
 				currentTACIndex = linearizeExpression(table, currentTACIndex, blockList, currentBlock, runner->child, tempNum, tl);
 				struct TACLine *recursiveExpression = currentBlock->TACList->tail->data;
 				returnedType = recursiveExpression->operandTypes[0];
-				returnedPermutation = recursiveExpression->operandPermutations[0];
 			}
 			break;
 
