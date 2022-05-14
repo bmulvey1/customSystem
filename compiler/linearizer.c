@@ -64,6 +64,7 @@ int linearizeDereference(struct symbolTable *table,
 		{
 			struct variableEntry *theVariable = symbolTableLookup_var(table, it->child->value);
 			thisDereference->operandTypes[1] = theVariable->type;
+			thisDereference->indirectionLevels[1] = theVariable->indirectionLevel;
 			LHSSize = symbolTable_getSizeOfVariable(table, theVariable->type);
 		}
 		break;
@@ -108,25 +109,29 @@ int linearizeDereference(struct symbolTable *table,
 				subtractInvert->operandPermutations[0] = vp_temp;
 				(*tempNum)++;
 				char *invertedVariableName = it->child->sibling->value;
-				enum variableTypes invertedVariableType = symbolTableLookup_var(table, invertedVariableName)->type;
+				struct variableEntry *invertedVariable = symbolTableLookup_var(table, invertedVariableName);
 
-				subtractInvert->operandTypes[0] = invertedVariableType;
+				subtractInvert->operandTypes[0] = invertedVariable->type;
 				subtractInvert->operands[1] = invertedVariableName;
-				subtractInvert->operandTypes[1] = invertedVariableType;
+				subtractInvert->operandTypes[1] = invertedVariable->type;
 
 				subtractInvert->operands[2] = "-1";
 				subtractInvert->operandTypes[2] = vt_var;
 				subtractInvert->operandPermutations[2] = vp_literal;
 
 				thisDereference->operands[2] = subtractInvert->operands[0];
-				thisDereference->operandTypes[2] = invertedVariableType;
+				thisDereference->operandTypes[2] = invertedVariable->type;
+				thisDereference->indirectionLevels[2] = invertedVariable->indirectionLevel;
 				BasicBlock_append(currentBlock, subtractInvert);
 			}
 			else
 			{
 				char *variableName = it->child->sibling->value;
 				thisDereference->operands[2] = variableName;
-				thisDereference->operandTypes[2] = symbolTableLookup_var(table, variableName)->type;
+				struct variableEntry *theVariable = symbolTableLookup_var(table, variableName);
+				thisDereference->operandTypes[2] = theVariable->type;
+				thisDereference->indirectionLevels[2] = theVariable->indirectionLevel;
+
 			}
 
 			break;

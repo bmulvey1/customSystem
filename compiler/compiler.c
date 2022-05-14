@@ -362,7 +362,7 @@ int main(int argc, char **argv)
 	struct symbolTable *theTable = walkAST(program);
 	printf("\n");
 
-	// printSymTab(theTable, 1);
+	printSymTab(theTable, 1);
 
 	printf("Linearizing code to basic blocks\n");
 	linearizeProgram(program, theTable);
