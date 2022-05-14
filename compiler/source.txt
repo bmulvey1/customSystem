@@ -23,6 +23,7 @@ fun print(var n){
 	};
 }
 
+/*
 fun ptest(){
 	var **p = mm_malloc(8);
 	var i = 0;
@@ -32,6 +33,7 @@ fun ptest(){
 		i = i + 1;
 	}
 }
+*/
 
 fun doublePointer(){
 	var **array = mm_malloc(10); // allocate an array for 5 pointers

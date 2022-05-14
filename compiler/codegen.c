@@ -13,9 +13,9 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 	// print out the variable lifetimes as a horizontal graph
 	// printf("\n");
 	// printLifetimesGraph(lifetimes);
-	printf("Generate code for function %s\n", table->name);
-	printLifetimesGraph(lifetimes);
-	printf("\n");
+	printf("Generate code for function %s", table->name);
+	// printLifetimesGraph(lifetimes);
+	// printf("\n");
 
 	int *registerLoads = malloc((REGISTER_COUNT + 1) * sizeof(int)); // count of TAC steps with different numbers of registers free
 	for (int i = 0; i < REGISTER_COUNT; i++)
@@ -95,8 +95,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			struct TACLine *currentTAC = TACRunner->data;
 			TACIndex = currentTAC->index;
 			expireOldIntervals(activeList, inactiveList, spilledList, TACIndex);
-			printTACLine(currentTAC);
-			printf("\n");
 
 			// increment last used values of all active registers or reset if variable used in this step
 			for (int i = 0; i < activeList->size; i++)
@@ -283,9 +281,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
 			case tt_memr_3:
 			{
-
-				printTACLine(currentTAC);
-				printf("\n");
 				int dest = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
 				int baseIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 				int offsetIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);

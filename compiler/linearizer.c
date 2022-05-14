@@ -18,7 +18,6 @@ int linearizeASMBlock(int currentTACIndex,
 	}
 	return currentTACIndex;
 }
-void bkpt() {}
 int linearizeDereference(struct symbolTable *table,
 						 int currentTACIndex,
 						 struct LinkedList *blockList,
@@ -27,10 +26,6 @@ int linearizeDereference(struct symbolTable *table,
 						 int *tempNum,
 						 struct tempList *tl)
 {
-	printf("CALL TO LINEARIZE DEREFERENCE WITH TREE OF:\n\t");
-	ASTNode_printHorizontal(it);
-	printf("\n");
-	bkpt();
 	struct TACLine *thisDereference = newTACLine(currentTACIndex, tt_memr_1, it);
 
 	thisDereference->operands[0] = getTempString(tl, *tempNum);
@@ -66,23 +61,23 @@ int linearizeDereference(struct symbolTable *table,
 		switch (it->child->type)
 		{
 		case t_name:
+		{
 			struct variableEntry *theVariable = symbolTableLookup_var(table, it->child->value);
-			if (theVariable == NULL)
-			{
-				printf("Error - use of variable [%s] before declaration\n", it->child->value);
-			}
 			thisDereference->operandTypes[1] = theVariable->type;
 			LHSSize = symbolTable_getSizeOfVariable(table, theVariable->type);
-			break;
+		}
+		break;
 
 		case t_literal:
+		{
 			thisDereference->operandTypes[1] = vt_var;
 			thisDereference->operandPermutations[1] = vp_literal;
 			LHSSize = 2;
-			break;
+		}
+		break;
 
 		case t_dereference:
-			bkpt();
+		{
 			thisDereference->operands[1] = getTempString(tl, *tempNum);
 			thisDereference->operandPermutations[1] = vp_temp;
 
@@ -91,7 +86,8 @@ int linearizeDereference(struct symbolTable *table,
 			thisDereference->operandTypes[1] = recursiveDereference->operandTypes[0];
 			thisDereference->indirectionLevels[1] = recursiveDereference->indirectionLevels[0];
 			LHSSize = symbolTable_getSizeOfVariable(table, recursiveDereference->operandTypes[0]);
-			break;
+		}
+		break;
 
 		default:
 			ASTNode_printHorizontal(it);
@@ -160,8 +156,10 @@ int linearizeDereference(struct symbolTable *table,
 
 				// set inverted types based on the expression result type
 				subtractInvert->operandTypes[0] = recursiveExpression->operandTypes[0];
-				subtractInvert->operands[1] = it->child->sibling->value;
+				// subtractInvert->operands[1] = it->child->sibling->value; // use expression operand instead?
+				subtractInvert->operands[1] = recursiveExpression->operands[0];
 				subtractInvert->operandTypes[1] = recursiveExpression->operandTypes[0];
+				subtractInvert->indirectionLevels[1] = recursiveExpression->indirectionLevels[0];
 
 				subtractInvert->operands[2] = "-1";
 				subtractInvert->operandTypes[2] = vt_var;
@@ -202,9 +200,12 @@ int linearizeDereference(struct symbolTable *table,
 	}
 	else
 	{
+		printf("\n%s - ", thisDereference->operands[1]);
 		printf("Warning - dereference of non-indirect expression or statement\n\t");
 		ASTNode_printHorizontal(it);
 		printf("\n\tLine %d, Col %d\n", it->sourceLine, it->sourceCol);
+		printTACLine(thisDereference);
+		printf("\n");
 	}
 
 	thisDereference->indirectionLevels[0] = newIndirection;
@@ -305,7 +306,7 @@ int linearizeFunctionCall(struct symbolTable *table,
 
 	struct TACLine *calltac = newTACLine(currentTACIndex++, tt_call, it);
 	calltac->operands[0] = operand0;
-	
+
 	// always set the return permutation to temp
 	// null vs non-null type will be the handler for whether the return value exists
 	calltac->operandPermutations[0] = vp_temp;
@@ -438,7 +439,6 @@ int linearizeExpression(struct symbolTable *table,
 		return currentTACIndex;
 	}
 
-
 	// if we fall through to here, the expression is some sort of unary operation
 	// handle the LHS of the operation
 	switch (it->child->type)
@@ -552,8 +552,6 @@ int linearizeAssignment(struct symbolTable *table,
 						int *tempNum,
 						struct tempList *tl)
 {
-	ASTNode_printHorizontal(it);
-	printf("\n");
 	// if this assignment is simply setting one thing to another
 	if (it->child->sibling->child == NULL)
 	{
@@ -612,7 +610,6 @@ int linearizeAssignment(struct symbolTable *table,
 	struct TACLine *RHS = currentBlock->TACList->tail->data;
 	if (it->child->type == t_name)
 	{
-		printf("lhs is name\n");
 		struct variableEntry *assignedVariable = symbolTableLookup_var(table, it->child->value);
 		RHS->operands[0] = it->child->value;
 		RHS->operandTypes[0] = assignedVariable->type;

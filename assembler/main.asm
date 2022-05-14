@@ -21,45 +21,6 @@ print_0:
 print_done:
 	pop %r1
 	ret 2
-#d "ptest"
-ptest:
-	push %r5
-	push %r4
-	push %r3
-	push %r2
-	push %r1
-ptest_0:
-	push $8
-	call mm_malloc
-	mov %r1, %rr
-		;introduce var i to %r2
-	mov %r2, $0
-	jmp ptest_2
-ptest_2:
-	cmpi %r2, $4
-	jge ptest_1
-	push $9
-		;introduce var .t2 to %r3
-	call mm_malloc
-	mov %r3, %rr
-	mov %r2(%r1, $2), %r3
-		;introduce var .t4 to %r3
-	addi %r3, %r2, $48
-		;introduce var .t6 to %r4
-	mov %r4, %r2(%r1, $2)
-		;introduce var .t5 to %r5
-	mov %r5, (%r4)
-	mov (%r5), %r3
-	addi %r2, %r2, $1
-	jmp ptest_2
-ptest_1:
-ptest_done:
-	pop %r1
-	pop %r2
-	pop %r3
-	pop %r4
-	pop %r5
-	ret 0
 #d "doublePointer"
 doublePointer:
 	push %r5

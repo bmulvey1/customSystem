@@ -511,9 +511,7 @@ int main(int argc, char *argv[])
             uint8_t RD = operands >> 6 & 0b11111;
             uint8_t RO = operands >> 1 & 0b11111;
             uint8_t scale = consumeByte(registers[ip]);
-            printf("source: %d dest: %d offset: %d\n", RS, RD, RO);
-            printf("source: %d dest: %d offset: %d scale: %d\n", registers[RS], registers[RD], registers[RO], scale);
-            
+
             uint16_t address = registers[RD] + (scale * registers[RO]);
             writeByte(address, registers[RS] >> 8);
             writeByte(address + 1, registers[RS] & 0b11111111);

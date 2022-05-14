@@ -17,152 +17,6 @@ int compareBasicBlockStartIndices(struct BasicBlock *a, struct BasicBlock *b)
 	return ((struct TACLine *)a->TACList->head->data)->index < ((struct TACLine *)b->TACList->head->data)->index;
 }
 
-// this thing causes constant problems
-// probably makes sense to do this externally to the compiler
-void prettyPrintBasicBlocks(struct symbolTable *theTable)
-{
-	printf("Basic Blocks for %s\n", theTable->name);
-	for (int i = 0; i < theTable->size; i++)
-	{
-		if (theTable->entries[i]->type == e_function)
-		{
-			struct functionEntry *thisEntry = theTable->entries[i]->entry;
-
-			struct Stack *blockStack = Stack_new();
-			for (struct LinkedListNode *runner = thisEntry->table->BasicBlockList->tail; runner != NULL; runner = runner->prev)
-			{
-				struct BasicBlock *thisBlock = runner->data;
-				if (thisBlock->containsEffectiveCode)
-					Stack_push(blockStack, thisBlock);
-			}
-
-			for (struct LinkedListNode *runner = thisEntry->table->BasicBlockList->head; runner != NULL; runner = runner->next)
-				printBasicBlock(runner->data, 0);
-
-			int blockCount = blockStack->size;
-			struct LinkedListNode **printArray = malloc(blockCount * sizeof(struct BasicBlock *));
-			int printArraySize = 0;
-			char **blockTitles = malloc(blockCount * sizeof(char *));
-			for (int i = 0; i < blockCount; i++)
-			{
-				printArray[i] = NULL;
-				blockTitles[i] = NULL;
-			}
-
-			for (int i = 0; i < blockStack->size; i++)
-				for (int j = 0; j < blockStack->size - i - 1; j++)
-					if (compareBasicBlockStartIndices(blockStack->data[j], blockStack->data[j + 1]))
-					{
-						void *temp = blockStack->data[j];
-						blockStack->data[j] = blockStack->data[j + 1];
-						blockStack->data[j + 1] = temp;
-					}
-
-			int TACIndex = -1;
-
-			// printf("THERE ARE %d blocks\n", blockCount);
-			while (blockStack->size > 0 || printArraySize > 0)
-			// while (1)
-			{
-				// if it's time to bring in the next basic block
-				// printf("TACINDEX %d\n", TACIndex);
-
-				while (blockStack->size > 0)
-				{
-					struct BasicBlock *peekedBlock = Stack_peek(blockStack);
-
-					if (peekedBlock->TACList->head == NULL)
-					{
-						Stack_pop(blockStack);
-						continue;
-					}
-					if (((struct TACLine *)peekedBlock->TACList->head->data)->index <= TACIndex + 1)
-					{
-						for (int i = 0; i < blockCount; i++)
-							if (printArray[i] == NULL)
-							{
-								struct BasicBlock *introducedBlock = Stack_pop(blockStack);
-								blockTitles[i] = malloc(16);
-								sprintf(blockTitles[i], "Block %d", introducedBlock->labelNum);
-								printArray[i] = introducedBlock->TACList->head;
-
-								// printf("[BASIC BLOCK %d]\n", introducedBlock->labelNum);
-								// printf("introduce block %d (start index of %d) to array index %d\n", introducedBlock->labelNum, ((struct TACLine *)printArray[i]->data)->index, i);
-
-								if (i > printArraySize)
-									printArraySize = i;
-
-								break;
-							}
-					}
-					else
-						break;
-				}
-				for (int i = 0; i <= printArraySize; i++)
-				{
-					if (printArray[i] == NULL && blockTitles[i] != NULL)
-					{
-						printf("                        |");
-					}
-					else
-					{
-						while (printArray[i] != NULL && !TACLine_isEffective(printArray[i]->data))
-						{
-							printArray[i] = printArray[i]->next;
-						}
-					}
-
-					if (printArray[i] != NULL)
-					{
-						if (((struct TACLine *)printArray[i]->data)->index == TACIndex)
-						{
-							printTACLine(printArray[i]->data);
-							printf("|");
-							printArray[i] = printArray[i]->next;
-						}
-						else
-						{
-							if (blockTitles[i] != NULL)
-							{
-								printf("%16s        |", blockTitles[i]);
-								free(blockTitles[i]);
-								blockTitles[i] = NULL;
-							}
-							/*else
-							{
-								printf("                        ");
-							}*/
-						}
-					}
-					else
-					{
-						printf("------------------------|");
-					}
-				}
-
-				printf("\n");
-
-				printArraySize = 0;
-				for (int i = blockCount - 1; i >= 0; i--)
-				{
-					if (printArray[i] != NULL)
-					{
-						printArraySize = i + 1;
-						break;
-					}
-				}
-
-				TACIndex++;
-			}
-
-			free(printArray);
-			free(blockTitles);
-			Stack_free(blockStack);
-		}
-	}
-	printf("\n\n");
-}
-
 void printBasicBlocks(struct symbolTable *theTable)
 {
 	printf("Basic Blocks for %s\n", theTable->name);
@@ -215,8 +69,8 @@ void checkUninitializedUsage(struct symbolTable *table)
 		for (; tr != NULL; tr = tr->next)
 		{
 			ir = tr->data;
-			printTACLine(ir);
-			printf("\t%d\n", (ir->correspondingTree == NULL) ? -1 : (ir->correspondingTree->sourceLine));
+			// printTACLine(ir);
+			// printf("\t%d\n", (ir->correspondingTree == NULL) ? -1 : (ir->correspondingTree->sourceLine));
 			switch (ir->operation)
 			{
 			case tt_declare:
@@ -227,7 +81,6 @@ void checkUninitializedUsage(struct symbolTable *table)
 					printf("Error - redeclaration of variable [%s]\n", ir->operands[0]);
 					exit(1);
 				}
-				printf("declare %s at %d\n", ir->operands[0], ir->index);
 				declared->declaredAt = ir->index;
 				continue;
 
@@ -254,18 +107,14 @@ void checkUninitializedUsage(struct symbolTable *table)
 				break;
 
 			case tt_call:
-				printTACLine(ir);
-				printf("CALL\n");
-				if(ir->operandTypes[0] != vt_null && ir->operandPermutations[0] == vp_standard){
+				if (ir->operandTypes[0] != vt_null && ir->operandPermutations[0] == vp_standard)
+				{
 					struct variableEntry *callResult = symbolTableLookup_var(table, ir->operands[0]);
-					if(!callResult->isAssigned){
+					if (!callResult->isAssigned)
+					{
 						callResult->assignedAt = ir->index;
 						callResult->isAssigned = 1;
 					}
-						printf("%s is assigned at %d\n", ir->operands[0], ir->index);
-
-				}else{
-					printf("that null\n");
 				}
 				break;
 
@@ -291,8 +140,8 @@ void checkUninitializedUsage(struct symbolTable *table)
 						if (!((struct variableEntry *)it->entry)->isAssigned)
 						{
 							struct ASTNode *n = ir->correspondingTree;
-							printTACLine(ir);
-							printf("\n");
+							// printTACLine(ir);
+							// printf("\n");
 							printf("Error - use of variable [%s] before assignment!\n\tLine %d, Col %d\n\n", ir->operands[j], n->sourceLine, n->sourceCol);
 							exit(1);
 						}
@@ -317,8 +166,6 @@ void checkUninitializedUsage(struct symbolTable *table)
 					struct variableEntry *theVariable = it->entry;
 					if (theVariable->declaredAt > ir->index || theVariable->declaredAt == -1)
 					{
-						printf("Declared at %d, index %d\n", theVariable->declaredAt, ir->index);
-						printTACLine(ir);
 						struct ASTNode *n = ir->correspondingTree;
 						if (n == NULL)
 						{
@@ -520,8 +367,8 @@ int main(int argc, char **argv)
 	printf("Linearizing code to basic blocks\n");
 	linearizeProgram(program, theTable);
 
-	printBasicBlocks(theTable);
-	printf("\n\n");
+	// printBasicBlocks(theTable);
+	// printf("\n\n");
 
 	FILE *outFile = fopen(argv[2], "wb");
 	// struct Lifetime *theseLifetimes = findLifetimes(theTable);
