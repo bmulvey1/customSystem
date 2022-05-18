@@ -17,6 +17,7 @@ code:
 	;call test
 	hlt
 };
+
 fun print(var n){
 	asm{
 		out %r1
@@ -35,6 +36,7 @@ fun ptest(){
 }
 */
 
+/*
 fun doublePointer(){
 	var **array = mm_malloc(10); // allocate an array for 5 pointers
 	print(array);
@@ -91,12 +93,12 @@ fun getBlockIsAllocated(var *blkPtr){
 
 fun getBlockSize(var *blkPtr){
 	return *(blkPtr - 2);
-}
+}*/
 
 fun getBlockNext(var *blkPtr){
 	return (blkPtr + *(blkPtr - 2) + 4);
 }
-
+/*
 fun mm_init(var size){
 	var *dataAt = 2;
 	var *blkPtr = (*dataAt) + 4;
@@ -133,4 +135,5 @@ fun mm_malloc(var size){
 		#d "end_text"
 	};
 }
+*/
 $$

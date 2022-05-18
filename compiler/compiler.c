@@ -367,8 +367,8 @@ int main(int argc, char **argv)
 	printf("Linearizing code to basic blocks\n");
 	linearizeProgram(program, theTable);
 
-	// printBasicBlocks(theTable);
-	// printf("\n\n");
+	printBasicBlocks(theTable);
+	printf("\n\n");
 
 	FILE *outFile = fopen(argv[2], "wb");
 	// struct Lifetime *theseLifetimes = findLifetimes(theTable);

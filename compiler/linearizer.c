@@ -131,21 +131,26 @@ int linearizeDereference(struct symbolTable *table,
 				struct variableEntry *theVariable = symbolTableLookup_var(table, variableName);
 				thisDereference->operandTypes[2] = theVariable->type;
 				thisDereference->indirectionLevels[2] = theVariable->indirectionLevel;
-
 			}
 
 			break;
 
 		// if literal, just use addressing mode base + offset
 		case t_literal:
+		{
 			// thisDereference->operands[1] = thisDereference->operands[2];
 			// thisDereference->operandTypes[1] = thisDereference->operandTypes[2];
 			thisDereference->operation = tt_memr_2;
+
+			// invalidate the previously set 4th operand, will be unused
+			thisDereference->operandTypes[3] = vt_null;
+
 			int offset = atoi(it->child->sibling->value);
 			thisDereference->operands[2] = (char *)(long int)((offset * 2) * ((it->type == t_un_sub) ? -1 : 1));
 			thisDereference->operandTypes[2] = vt_var;
 			thisDereference->operandPermutations[2] = vp_literal;
-			break;
+		}
+		break;
 
 		case t_un_add:
 		case t_un_sub:
