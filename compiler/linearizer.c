@@ -18,6 +18,7 @@ int linearizeASMBlock(int currentTACIndex,
 	}
 	return currentTACIndex;
 }
+
 int linearizeDereference(struct symbolTable *table,
 						 int currentTACIndex,
 						 struct LinkedList *blockList,
@@ -548,6 +549,103 @@ int linearizeExpression(struct symbolTable *table,
 		thisExpression->operandTypes[0] = vt_var;
 	}
 
+	// automatically scale pointer arithmetic
+	// op1 is a pointer, op2 isn't
+	if (thisExpression->indirectionLevels[1] > 0 && thisExpression->indirectionLevels[2] == 0)
+	{
+		switch (thisExpression->operandPermutations[2])
+		{
+		case vp_literal:
+			// TODO: dynamically multiply here, fix memory leak
+			char *scaledLiteral = malloc(16);
+			sprintf(scaledLiteral, "%d", atoi(thisExpression->operands[2]) * 2);
+			thisExpression->operands[2] = scaledLiteral;
+			thisExpression->indirectionLevels[2] = thisExpression->indirectionLevels[1];
+			break;
+
+		case vp_standard:
+		case vp_temp:
+			struct TACLine *scaleMultiply = newTACLine(currentTACIndex++, tt_mul, it);
+			scaleMultiply->operands[0] = getTempString(tl, *tempNum);
+			(*tempNum)++;
+			scaleMultiply->operandPermutations[0] = vp_temp;
+			scaleMultiply->operandTypes[0] = thisExpression->operandTypes[2];
+
+			// scale multiplication result has same indirection level as the operand being scaled to
+			scaleMultiply->indirectionLevels[0] = thisExpression->indirectionLevels[1];
+
+			// transfer the scaled operand out of the main expression
+			scaleMultiply->operands[1] = thisExpression->operands[2];
+			scaleMultiply->operandPermutations[1] = thisExpression->operandPermutations[2];
+			scaleMultiply->operandTypes[1] = thisExpression->operandTypes[2];
+
+			// transfer the temp into the main expression
+			thisExpression->operands[2] = scaleMultiply->operands[0];
+			thisExpression->operandTypes[2] = scaleMultiply->operandTypes[0];
+			thisExpression->operandPermutations[2] = scaleMultiply->operandPermutations[0];
+			thisExpression->indirectionLevels[2] = scaleMultiply->indirectionLevels[0];
+
+			// TODO: auto scale by size of pointer and operand with types
+			// TODO: scaling memory leak
+			char *scalingLiteral = malloc(16);
+			sprintf(scalingLiteral, "%d", 2);
+			scaleMultiply->operands[2] = scalingLiteral;
+			scaleMultiply->operandPermutations[2] = vp_literal;
+			scaleMultiply->operandTypes[2] = vt_var;
+			BasicBlock_append(currentBlock, scaleMultiply);
+			break;
+		}
+	}
+	else
+	{
+		if (thisExpression->indirectionLevels[2] > 0 && thisExpression->indirectionLevels[1] == 0)
+		{
+			switch (thisExpression->operandPermutations[1])
+			{
+			case vp_literal:
+				// TODO: dynamically multiply here, fix memory leak
+				char *scaledLiteral = malloc(16);
+				sprintf(scaledLiteral, "%d", atoi(thisExpression->operands[1]) * 2);
+				thisExpression->operands[1] = scaledLiteral;
+				thisExpression->operands[1] = scaledLiteral;
+				thisExpression->indirectionLevels[1] = thisExpression->indirectionLevels[2];
+				break;
+
+			case vp_standard:
+			case vp_temp:
+				struct TACLine *scaleMultiply;
+				scaleMultiply = newTACLine(currentTACIndex++, tt_mul, it);
+				scaleMultiply->operands[0] = getTempString(tl, *tempNum);
+				(*tempNum)++;
+				scaleMultiply->operandPermutations[0] = vp_temp;
+				scaleMultiply->operandTypes[0] = thisExpression->operandTypes[2];
+
+				// scale multiplication result has same indirection level as the operand being scaled to
+				scaleMultiply->indirectionLevels[0] = thisExpression->indirectionLevels[2];
+
+				// transfer the scaled operand out of the main expression
+				scaleMultiply->operands[1] = thisExpression->operands[1];
+				scaleMultiply->operandPermutations[1] = thisExpression->operandPermutations[1];
+				scaleMultiply->operandTypes[1] = thisExpression->operandTypes[1];
+
+				// transfer the temp into the main expression
+				thisExpression->operands[1] = scaleMultiply->operands[0];
+				thisExpression->operandTypes[1] = scaleMultiply->operandTypes[0];
+				thisExpression->operandPermutations[1] = scaleMultiply->operandPermutations[0];
+				thisExpression->indirectionLevels[1] = scaleMultiply->indirectionLevels[0];
+
+				// TODO: auto scale by size of pointer and operand with types
+				// TODO: scaling memory leak
+				char *scalingLiteral = malloc(16);
+				sprintf(scalingLiteral, "%d", 2);
+				scaleMultiply->operands[2] = scalingLiteral;
+				scaleMultiply->operandPermutations[2] = vp_literal;
+				scaleMultiply->operandTypes[2] = vt_var;
+				BasicBlock_append(currentBlock, scaleMultiply);
+			}
+		}
+	}
+
 	thisExpression->index = currentTACIndex++;
 	BasicBlock_append(currentBlock, thisExpression);
 	return currentTACIndex;
@@ -867,13 +965,16 @@ int linearizeDeclaration(struct symbolTable *table,
 		exit(2);
 	}
 
+	int dereferenceLevel = 0;
 	while (it->child->type == t_dereference)
 	{
+		dereferenceLevel++;
 		it = it->child;
 	}
 
 	declarationLine->operands[0] = it->child->value;
 	declarationLine->operandTypes[0] = declaredType;
+	declarationLine->indirectionLevels[0] = dereferenceLevel;
 	BasicBlock_append(currentBlock, declarationLine);
 	return currentTACIndex;
 }

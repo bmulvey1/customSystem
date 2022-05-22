@@ -876,6 +876,8 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
 
 			case tt_add:
 			case tt_subtract:
+			case tt_mul:
+			case tt_div:
 			case tt_cmp:
 			case tt_memr_1:
 			case tt_memr_2:

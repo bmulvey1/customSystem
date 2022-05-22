@@ -90,13 +90,8 @@ void checkUninitializedUsage(struct symbolTable *table)
 					switch (ir->operandTypes[0])
 					{
 					case vt_var:
-						struct variableEntry *pushed = symbolTableLookup_var(table, ir->operands[0]);
-						if (pushed == NULL)
-						{
-							printf("Error - use of undeclared variable [%s]\n", ir->operands[0]);
-							// printf("\tLine %d, Col %d\n", ir->correspondingTree->sourceLine, ir->correspondingTree->sourceCol);
-							exit(1);
-						}
+						// lookup_var breaks and exits if variable is undeclared
+						/*struct variableEntry *pushed = */symbolTableLookup_var(table, ir->operands[0]);
 						break;
 
 					default:
@@ -130,14 +125,9 @@ void checkUninitializedUsage(struct symbolTable *table)
 					switch (ir->operandPermutations[j])
 					{
 					case vp_standard:
-						struct symTabEntry *it = symbolTableLookup(table, ir->operands[j]);
-						if (it == NULL)
-						{
-							struct ASTNode *n = ir->correspondingTree;
-							printf("Error - use of undeclared variable [%s]\n\tLine %d, Col %d\n", ir->operands[0], n->sourceLine, n->sourceCol);
-							exit(1);
-						}
-						if (!((struct variableEntry *)it->entry)->isAssigned)
+						struct variableEntry *it = symbolTableLookup_var(table, ir->operands[j]);
+						
+						if (!it->isAssigned)
 						{
 							struct ASTNode *n = ir->correspondingTree;
 							// printTACLine(ir);
@@ -157,13 +147,8 @@ void checkUninitializedUsage(struct symbolTable *table)
 				{
 				// check only standard type, not temp or literal
 				case vp_standard:
-					struct symTabEntry *it = symbolTableLookup(table, ir->operands[0]);
-					if (it == NULL)
-					{
-						printf("Error - use of undeclared variable [%s]\n", ir->operands[0]);
-						exit(1);
-					}
-					struct variableEntry *theVariable = it->entry;
+					struct variableEntry *theVariable = symbolTableLookup_var(table, ir->operands[0]);
+					
 					if (theVariable->declaredAt > ir->index || theVariable->declaredAt == -1)
 					{
 						struct ASTNode *n = ir->correspondingTree;
