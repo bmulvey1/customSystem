@@ -13,9 +13,9 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 	// print out the variable lifetimes as a horizontal graph
 	// printf("\n");
 	// printLifetimesGraph(lifetimes);
-	printf("Generate code for function %s\n", table->name);
-	printLifetimesGraph(lifetimes);
-	printf("\n");
+	printf("Generate code for function %s", table->name);
+	// printLifetimesGraph(lifetimes);
+	// printf("\n");
 
 	int *registerLoads = malloc((REGISTER_COUNT + 1) * sizeof(int)); // count of TAC steps with different numbers of registers free
 	for (int i = 0; i < REGISTER_COUNT; i++)
@@ -35,15 +35,16 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 	{
 		struct Register *wip = malloc(sizeof(struct Register));
 		wip->lifetime = NULL;
-		wip->index = (REGISTER_COUNT - 1) - i;
+		// remember not to use the zero register
+		wip->index = (REGISTER_COUNT)-i;
 		Stack_push(inactiveList, wip);
 	}
 
 	// iterate each TAC line
 	int TACIndex = 0;
 	int currentLifetimeIndex = 0;
-	char *outputLine;
-	char *finalOutputLine;
+	char printBuf[129];
+	char *trimmedStr;
 	struct Stack *savedStateStack = Stack_new();
 	char touchedRegisters[REGISTER_COUNT];
 	for (int i = 0; i < REGISTER_COUNT; i++)
@@ -55,9 +56,8 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 	while (blockRunner != NULL)
 	{
 		struct BasicBlock *thisBlock = blockRunner->data;
-		outputLine = malloc(64);
-		sprintf(outputLine, "%s_%d:", table->name, thisBlock->labelNum);
-		ASMblock_append(outputBlock, outputLine);
+		trimmedStr = strTrim(printBuf, sprintf(printBuf, "%s_%d:", table->name, thisBlock->labelNum));
+		ASMblock_append(outputBlock, trimmedStr);
 
 		// find all variables active at TAC index 0
 		// this will allow function arguments to be introduced correctly
@@ -77,19 +77,14 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
 			// assign this variable to the next free register
 			int destinationIndex = assignRegister(activeList, inactiveList, this);
-			outputLine = malloc(64);
-			sprintf(outputLine, ";introduce var %s to %%r%d", this->variable, destinationIndex);
-			ASMblock_append(outputBlock, outputLine);
+			// trimmedStr = strTrim(printBuf, sprintf(outputLine, ";introduce var %s to %%r%d", this->variable, destinationIndex));
+			// ASMblock_append(outputBlock, outputLine);
 			// place the value into the register if this is an argument (value starts on the stack)
 			if (this->variable[0] != '.' && symbolTableLookup(table, this->variable)->type == e_argument)
 			{
-				outputLine = malloc(20);
 				struct variableEntry *theArgument = symbolTableLookup(table, this->variable)->entry;
-				sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationIndex, theArgument->stackOffset);
-				finalOutputLine = malloc(128);
-				sprintf(finalOutputLine, "%s ;place argument %s", outputLine, this->variable);
-				free(outputLine);
-				ASMblock_append(outputBlock, finalOutputLine);
+				trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d, %d(%%bp)", destinationIndex, theArgument->stackOffset));
+				ASMblock_append(outputBlock, trimmedStr);
 			}
 		}
 
@@ -100,8 +95,6 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			struct TACLine *currentTAC = TACRunner->data;
 			TACIndex = currentTAC->index;
 			expireOldIntervals(activeList, inactiveList, spilledList, TACIndex);
-			printTACLine(currentTAC);
-			printf("\n");
 
 			// increment last used values of all active registers or reset if variable used in this step
 			for (int i = 0; i < activeList->size; i++)
@@ -110,22 +103,22 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 				thisReg->lastUsed++;
 				for (int i = 0; i < 3; i++)
 				{
-					switch (currentTAC->operandTypes[i])
+					if (currentTAC->operandPermutations[i] != vp_literal)
 					{
-					case vt_var:
-					case vt_temp:
-						if (!strcmp(thisReg->lifetime->variable, currentTAC->operands[i]))
-							thisReg->lastUsed = 0;
+						switch (currentTAC->operandTypes[i])
+						{
+						case vt_var:
+							if (!strcmp(thisReg->lifetime->variable, currentTAC->operands[i]))
+								thisReg->lastUsed = 0;
 
-						break;
+							break;
 
-					default:
-						break;
+						default:
+							break;
+						}
 					}
 				}
 			}
-
-			char *printedTAC;
 
 			switch (currentTAC->operation)
 			{
@@ -160,19 +153,15 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 
 						// assign this variable to the next free register
 						int destinationIndex = assignRegister(activeList, inactiveList, this);
-						outputLine = malloc(64);
-						sprintf(outputLine, "\t;introduce var %s to %%r%d", this->variable, destinationIndex);
-						ASMblock_append(outputBlock, outputLine);
+						trimmedStr = strTrim(printBuf, sprintf(printBuf, "\t;introduce var %s to %%r%d", this->variable, destinationIndex));
+						ASMblock_append(outputBlock, trimmedStr);
 						// place the value into the register if this is an argument (value starts on the stack)
 						if (this->variable[0] != '.' && symbolTableLookup(table, this->variable)->type == e_argument)
 						{
-							outputLine = malloc(20);
 							struct variableEntry *theArgument = symbolTableLookup(table, this->variable)->entry;
-							sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationIndex, theArgument->stackOffset);
-							finalOutputLine = malloc(128);
-							sprintf(finalOutputLine, "%s ;place argument %s", outputLine, this->variable);
-							free(outputLine);
-							ASMblock_append(outputBlock, finalOutputLine);
+							trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d, %d(%%bp)", destinationIndex, theArgument->stackOffset));
+							// trimmedStr = strTrim(printBuf, sprintf(printBuf, "%s ;place argument %s", outputLine, this->variable);
+							ASMblock_append(outputBlock, trimmedStr);
 						}
 					}
 				}
@@ -181,6 +170,14 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 				break;
 			}
 
+			/*
+			 * double check spill space because some functions in regalloc may spill variables on their own
+			 * TODO: consider just making this the only check, any reason it wouldn't work?
+			 *
+			 */
+			if (spilledList->size * 2 > maxSpillSpace)
+				maxSpillSpace = spilledList->size * 2;
+
 			int destinationRegister;
 			int firstSourceRegister;
 			int secondSourceRegister;
@@ -188,31 +185,25 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			{
 			case tt_assign:
 			{
-				outputLine = malloc(20);
-				finalOutputLine = malloc(64);
 				destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
-				if (currentTAC->operandTypes[1] == vt_literal)
+				if (currentTAC->operandPermutations[1] == vp_literal)
 				{
-					sprintf(outputLine, "mov %%r%d, $%s", destinationRegister, currentTAC->operands[1]);
+					trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d, $%s", destinationRegister, currentTAC->operands[1]));
 				}
 				else
 				{
 					firstSourceRegister = findActiveVariable(activeList, currentTAC->operands[1]);
 					if (firstSourceRegister != -1)
 					{
-						sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
+						trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister));
 					}
 					else
 					{
-						sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationRegister, findSpilledVariable(spilledList, currentTAC->operands[1]));
+						trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d, %d(%%bp)", destinationRegister, findSpilledVariable(spilledList, currentTAC->operands[1])));
 					}
 				}
 				// ASMblock_append(outputBlock, outputLine);
-				printedTAC = sPrintTACLine(currentTAC);
-				sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
-				free(outputLine);
-				free(printedTAC);
-				ASMblock_append(outputBlock, finalOutputLine);
+				ASMblock_append(outputBlock, trimmedStr);
 			}
 			break;
 
@@ -221,117 +212,61 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			case tt_mul:
 			case tt_div:
 			{
-				outputLine = malloc(20);
-				finalOutputLine = malloc(64);
-				destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
-
-				if (strcmp(currentTAC->operands[0], currentTAC->operands[1]))
-					firstSourceRegister = findActiveVariable(activeList, currentTAC->operands[1]);
-				else
-					firstSourceRegister = destinationRegister;
-
-				if (strcmp(currentTAC->operands[0], currentTAC->operands[2]))
-					secondSourceRegister = findActiveVariable(activeList, currentTAC->operands[2]);
-				else
-					secondSourceRegister = destinationRegister;
-
-				// both source operands are variables in registers
-				if (firstSourceRegister != -1 && secondSourceRegister != -1)
+				// operand 1 is a literal
+				if (currentTAC->operandPermutations[1] == vp_literal)
 				{
-					if (firstSourceRegister == secondSourceRegister)
+					// operand 1 and 2 are literals
+					if (currentTAC->operandPermutations[2] == vp_literal)
 					{
-						if (firstSourceRegister == destinationRegister)
-						{
-							sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(currentTAC->operation), destinationRegister, destinationRegister);
-						}
-						else
-						{
-							sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
-							ASMblock_append(outputBlock, outputLine);
-							outputLine = malloc(20);
-							sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(currentTAC->operation), secondSourceRegister, secondSourceRegister);
-						}
+						perror("Error - arithmetic between 2 literals\n");
+						exit(2);
 					}
+					// only operand 1 is a literal
 					else
 					{
-						sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
-						ASMblock_append(outputBlock, outputLine);
-						outputLine = malloc(20);
-						sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(currentTAC->operation), destinationRegister, secondSourceRegister);
+						perror("Error - arithmetic with literal as first operand\n");
+						exit(2);
 					}
 				}
+				// operand 1 is not a literal
 				else
 				{
-					// first source exists in register, second is spilled or a literal
-					if (firstSourceRegister != -1 && secondSourceRegister == -1)
+					// operand 2 is a literal
+					if (currentTAC->operandPermutations[2] == vp_literal)
 					{
-						sprintf(outputLine, "mov %%r%d, %%r%d", destinationRegister, firstSourceRegister);
-						ASMblock_append(outputBlock, outputLine);
-						outputLine = malloc(20);
-						if (currentTAC->operandTypes[2] == vt_literal)
-						{
-							sprintf(outputLine, "%s %%r%d, $%s", getAsmOp(currentTAC->operation), destinationRegister, currentTAC->operands[2]);
-						}
-						else
-						{
-							sprintf(outputLine, "%s %%r%d, %d(%%bp)", getAsmOp(currentTAC->operation), destinationRegister, findSpilledVariable(spilledList, currentTAC->operands[2]));
-						}
+						int source1Register = findOrPlaceOperand(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
+						destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+
+						trimmedStr = strTrim(printBuf, sprintf(printBuf, "%si %%r%d, %%r%d, $%s", getAsmOp(currentTAC->operation), destinationRegister, source1Register, currentTAC->operands[2]));
 					}
-					// second source exists in register, first is spilled
-					else if (firstSourceRegister == -1 && secondSourceRegister != -1)
-					{
-						if (currentTAC->operandTypes[1] == vt_literal)
-						{
-							sprintf(outputLine, "mov %%r%d, $%s", destinationRegister, currentTAC->operands[1]);
-							ASMblock_append(outputBlock, outputLine);
-						}
-						else
-						{
-							sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationRegister, findSpilledVariable(spilledList, currentTAC->operands[1]));
-							ASMblock_append(outputBlock, outputLine);
-						}
-						outputLine = malloc(20);
-						sprintf(outputLine, "%s %%r%d, %%r%d", getAsmOp(currentTAC->operation), destinationRegister, secondSourceRegister);
-					}
-					// both sources are spilled - will break if both are literals but this should be checked earlier
+					// neither operand is a literal
 					else
 					{
-						sprintf(outputLine, "mov %%r%d, %d(%%bp)", destinationRegister, findSpilledVariable(spilledList, currentTAC->operands[1]));
-						ASMblock_append(outputBlock, outputLine);
-						outputLine = malloc(20);
-						if (currentTAC->operandTypes[2] == vt_literal)
-						{
-							sprintf(outputLine, "%s %%r%d, $%s", getAsmOp(currentTAC->operation), destinationRegister, currentTAC->operands[2]);
-						}
-						else
-						{
-							sprintf(outputLine, "%s %%r%d, %d(%%bp)", getAsmOp(currentTAC->operation), destinationRegister, findSpilledVariable(spilledList, currentTAC->operands[2]));
-						}
+						int source1Register = findOrPlaceOperand(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
+						int source2Register = findOrPlaceOperand(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
+						destinationRegister = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
+
+						trimmedStr = strTrim(printBuf, sprintf(printBuf, "%s %%r%d, %%r%d, %%r%d", getAsmOp(currentTAC->operation), destinationRegister, source1Register, source2Register));
 					}
 				}
-				printedTAC = sPrintTACLine(currentTAC);
-				sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
-				free(outputLine);
-				free(printedTAC);
-				ASMblock_append(outputBlock, finalOutputLine);
+
+				ASMblock_append(outputBlock, trimmedStr);
 			}
 			break;
 
 			case tt_memr_1:
 			{
-				finalOutputLine = malloc(48);
 				int destinationIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
 				int baseIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 
-				outputLine = malloc(16);
-				sprintf(outputLine, "mov %%r%d, (%%r%d)", destinationIndex, baseIndex);
+				trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d, (%%r%d)", destinationIndex, baseIndex));
 
-				printedTAC = sPrintTACLine(currentTAC);
-				sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
-				free(outputLine);
-				free(printedTAC);
+				// printedTAC = sPrintTACLine(currentTAC);
+				// sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
+				// free(outputLine);
+				// free(printedTAC);
 
-				ASMblock_append(outputBlock, finalOutputLine);
+				ASMblock_append(outputBlock, trimmedStr);
 			}
 			break;
 
@@ -339,107 +274,71 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			{
 				int dest = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
 				int baseIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
-				outputLine = malloc(24);
-				sprintf(outputLine, "mov %%r%d, %d(%%r%d)", dest, (int)(long int)currentTAC->operands[2], baseIndex);
-				ASMblock_append(outputBlock, outputLine);
+				trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d, %d(%%r%d)", dest, (int)(long int)currentTAC->operands[2], baseIndex));
+				ASMblock_append(outputBlock, trimmedStr);
 			}
 			break;
 
 			case tt_memr_3:
 			{
-
-				printTACLine(currentTAC);
-				printf("\n");
 				int dest = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
 				int baseIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 				int offsetIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
 				int scale = (int)(long int)currentTAC->operands[3];
-				outputLine = malloc(32);
-				sprintf(outputLine, "mov %%r%d, %%r%d(%%r%d, %d)", dest, offsetIndex, baseIndex, scale);
-				ASMblock_append(outputBlock, outputLine);
+				trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d, %%r%d(%%r%d, $%d)", dest, offsetIndex, baseIndex, scale));
+				ASMblock_append(outputBlock, trimmedStr);
 			}
 			break;
 
 			case tt_memw_1:
 			{
-				finalOutputLine = malloc(48);
+
 				int destinationIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
 				int sourceIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 
-				outputLine = malloc(16);
-				sprintf(outputLine, "mov (%%r%d), %%r%d", destinationIndex, sourceIndex);
-
-				printedTAC = sPrintTACLine(currentTAC);
-				sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
-				free(outputLine);
-				free(printedTAC);
-
-				ASMblock_append(outputBlock, finalOutputLine);
+				trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov (%%r%d), %%r%d", destinationIndex, sourceIndex));
+				ASMblock_append(outputBlock, trimmedStr);
 			}
 			break;
 
 			case tt_memw_2:
 			{
-				finalOutputLine = malloc(64);
 				int baseIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
 				int sourceIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[2], outputBlock, table);
 
-				outputLine = malloc(32);
-				sprintf(outputLine, "mov %d(%%r%d), %%r%d", (int)(long int)currentTAC->operands[1], baseIndex, sourceIndex);
-				printedTAC = sPrintTACLine(currentTAC);
-				sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
-				free(outputLine);
-				free(printedTAC);
+				trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %d(%%r%d), %%r%d", (int)(long int)currentTAC->operands[1], baseIndex, sourceIndex));
 
-				ASMblock_append(outputBlock, finalOutputLine);
+				ASMblock_append(outputBlock, trimmedStr);
 			}
 			break;
 
 			case tt_memw_3:
 			{
-				printTACLine(currentTAC);
-				printf("\n");
-				finalOutputLine = malloc(64);
 				int baseIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
 				int offsetIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 				int sourceIndex = findOrPlaceAssignedVariable(activeList, inactiveList, spilledList, currentTAC->operands[3], outputBlock, table);
-				outputLine = malloc(32);
-				sprintf(outputLine, "mov %%r%d(%%r%d, $%d), %%r%d", offsetIndex, baseIndex, (int)(long int)currentTAC->operands[2], sourceIndex);
-
-				printedTAC = sPrintTACLine(currentTAC);
-				sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
-				free(outputLine);
-				free(printedTAC);
-
-				ASMblock_append(outputBlock, finalOutputLine);
-				/*
-				outputLine = malloc(24);
-				sprintf(outputLine, "mov %s(%s, %d), %s", currentTAC->operands[0], currentTAC->operands[1], (int)(long int)currentTAC->operands[2], currentTAC->operands[3]);
-
-				*/
-				// ASMblock_append(outputBlock, outputLine);
+				trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d(%%r%d, $%d), %%r%d", offsetIndex, baseIndex, (int)(long int)currentTAC->operands[2], sourceIndex));
+				ASMblock_append(outputBlock, trimmedStr);
 			}
 			break;
 
 			case tt_push:
 			{
-				switch (currentTAC->operandTypes[0])
+				switch (currentTAC->operandPermutations[0])
 				{
-				case vt_literal:
-					outputLine = malloc(24);
-					sprintf(outputLine, "push $%s", currentTAC->operands[0]);
+				case vp_literal:
+					trimmedStr = strTrim(printBuf, sprintf(printBuf, "push $%s", currentTAC->operands[0]));
 					break;
 
-				case vt_var:
-				case vt_temp:
+				case vp_standard:
+				case vp_temp:
 				{
 					int sourceRegister = findActiveVariable(activeList, currentTAC->operands[0]);
 					if (sourceRegister == -1)
 					{
 						sourceRegister = unSpillVariable(activeList, inactiveList, spilledList, currentTAC->operands[0], outputBlock, table);
 					}
-					outputLine = malloc(16);
-					sprintf(outputLine, "push %%r%d", sourceRegister);
+					trimmedStr = strTrim(printBuf, sprintf(printBuf, "push %%r%d", sourceRegister));
 				}
 				break;
 
@@ -447,44 +346,35 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 					perror("Unexpected TAC type in push TAC!");
 					exit(2);
 				}
-				ASMblock_append(outputBlock, outputLine);
+				ASMblock_append(outputBlock, trimmedStr);
 			}
 			break;
 
 			case tt_call:
 			{
-				outputLine = malloc(32);
-				sprintf(outputLine, "call %s", currentTAC->operands[1]);
-				ASMblock_append(outputBlock, outputLine);
+				trimmedStr = strTrim(printBuf, sprintf(printBuf, "call %s", currentTAC->operands[1]));
+				ASMblock_append(outputBlock, trimmedStr);
 
 				// the call returns a value
 				if (currentTAC->operands[0] != NULL)
 				{
-					outputLine = malloc(32);
 					int destinationRegister = findActiveVariable(activeList, currentTAC->operands[0]);
 					if (destinationRegister != -1)
 					{
-						sprintf(outputLine, "mov %%r%d, %%rr", destinationRegister);
+						trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d, %%rr", destinationRegister));
 					}
 					else
 					{
 						int destinationOffset = findSpilledVariable(spilledList, currentTAC->operands[0]);
-						sprintf(outputLine, "mov %d(%%sp), %%rr", destinationOffset);
+						trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %d(%%sp), %%rr", destinationOffset));
 					}
-					finalOutputLine = malloc(64);
-					printedTAC = sPrintTACLine(currentTAC);
-					sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
-					free(outputLine);
-					free(printedTAC);
-					ASMblock_append(outputBlock, finalOutputLine);
+					ASMblock_append(outputBlock, trimmedStr);
 				}
 			}
 			break;
 
 			case tt_cmp:
 			{
-				outputLine = malloc(20);
-				finalOutputLine = malloc(64);
 				firstSourceRegister = findActiveVariable(activeList, currentTAC->operands[1]);
 
 				secondSourceRegister = findActiveVariable(activeList, currentTAC->operands[2]);
@@ -494,11 +384,11 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 				{
 					if (firstSourceRegister == secondSourceRegister)
 					{
-						sprintf(outputLine, "cmp %%r%d, %%r%d", firstSourceRegister, firstSourceRegister);
+						trimmedStr = strTrim(printBuf, sprintf(printBuf, "cmp %%r%d, %%r%d", firstSourceRegister, firstSourceRegister));
 					}
 					else
 					{
-						sprintf(outputLine, "cmp %%r%d, %%r%d", firstSourceRegister, secondSourceRegister);
+						trimmedStr = strTrim(printBuf, sprintf(printBuf, "cmp %%r%d, %%r%d", firstSourceRegister, secondSourceRegister));
 					}
 				}
 				else
@@ -506,13 +396,13 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 					// first source exists in register, second is spilled or a literal
 					if (firstSourceRegister != -1 && secondSourceRegister == -1)
 					{
-						if (currentTAC->operandTypes[2] == vt_literal)
+						if (currentTAC->operandPermutations[2] == vp_literal)
 						{
-							sprintf(outputLine, "cmp %%r%d, $%s", firstSourceRegister, currentTAC->operands[2]);
+							trimmedStr = strTrim(printBuf, sprintf(printBuf, "cmpi %%r%d, $%s", firstSourceRegister, currentTAC->operands[2]));
 						}
 						else
 						{
-							sprintf(outputLine, "cmp %%r%d, %d(%%bp)", firstSourceRegister, findSpilledVariable(spilledList, currentTAC->operands[2]));
+							trimmedStr = strTrim(printBuf, sprintf(printBuf, "cmp %%r%d, %d(%%bp)", firstSourceRegister, findSpilledVariable(spilledList, currentTAC->operands[2])));
 						}
 					}
 					// second source exists in register, first is spilled
@@ -520,7 +410,7 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 					{
 						firstSourceRegister = unSpillVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 
-						sprintf(outputLine, "cmp %%r%d, %%r%d", firstSourceRegister, secondSourceRegister);
+						trimmedStr = strTrim(printBuf, sprintf(printBuf, "cmp %%r%d, %%r%d", firstSourceRegister, secondSourceRegister));
 					}
 
 					// both sources are spilled - will break if both are literals but this should be checked earlier
@@ -528,21 +418,17 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 					{
 						firstSourceRegister = unSpillVariable(activeList, inactiveList, spilledList, currentTAC->operands[1], outputBlock, table);
 
-						if (currentTAC->operandTypes[2] == vt_literal)
+						if (currentTAC->operandPermutations[2] == vp_literal)
 						{
-							sprintf(outputLine, "cmp %%r%d, $%s", firstSourceRegister, currentTAC->operands[2]);
+							trimmedStr = strTrim(printBuf, sprintf(printBuf, "cmp %%r%d, $%s", firstSourceRegister, currentTAC->operands[2]));
 						}
 						else
 						{
-							sprintf(outputLine, "cmp %%r%d, %d(%%bp)", firstSourceRegister, findSpilledVariable(spilledList, currentTAC->operands[2]));
+							trimmedStr = strTrim(printBuf, sprintf(printBuf, "cmp %%r%d, %d(%%bp)", firstSourceRegister, findSpilledVariable(spilledList, currentTAC->operands[2])));
 						}
 					}
 				}
-				printedTAC = sPrintTACLine(currentTAC);
-				sprintf(finalOutputLine, "%s;%s", outputLine, printedTAC);
-				free(outputLine);
-				free(printedTAC);
-				ASMblock_append(outputBlock, finalOutputLine);
+				ASMblock_append(outputBlock, trimmedStr);
 			}
 			break;
 
@@ -589,29 +475,28 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			case tt_return:
 			{
 				// find where the return value is (it must be active in a register because it was just assigned!)
-				switch (currentTAC->operandTypes[0])
+				switch (currentTAC->operandPermutations[0])
 				{
-				case vt_literal:
+				case vp_literal:
 				{
-					outputLine = malloc(24);
-					sprintf(outputLine, "mov %%rr, $%s", currentTAC->operands[0]);
+					trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%rr, $%s", currentTAC->operands[0]));
+					ASMblock_append(outputBlock, trimmedStr);
 				}
 				break;
 
-				case vt_var:
-				case vt_temp:
+				case vp_standard:
+				case vp_temp:
 				{
 					int sourceRegister = findActiveVariable(activeList, currentTAC->operands[0]);
 					if (sourceRegister != -1)
 					{
-						outputLine = malloc(16);
-						sprintf(outputLine, "mov %%rr, %%r%d", sourceRegister);
+						trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%rr, %%r%d", sourceRegister));
 					}
 					else
 					{
-						outputLine = malloc(24);
-						sprintf(outputLine, "mov %%rr, %d(%%bp)", findSpilledVariable(spilledList, currentTAC->operands[0]));
+						trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%rr, %d(%%bp)", findSpilledVariable(spilledList, currentTAC->operands[0])));
 					}
+					ASMblock_append(outputBlock, trimmedStr);
 				}
 				break;
 
@@ -619,10 +504,8 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 					perror("unexpected type in return TAC!\n");
 					exit(2);
 				}
-				ASMblock_append(outputBlock, outputLine);
-				outputLine = malloc(32);
-				sprintf(outputLine, "jmp %s_done", table->name);
-				ASMblock_append(outputBlock, outputLine);
+				trimmedStr = strTrim(printBuf, sprintf(printBuf, "jmp %s_done", table->name));
+				ASMblock_append(outputBlock, trimmedStr);
 
 				break;
 			}
@@ -641,25 +524,23 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			case tt_jne:
 			case tt_jmp:
 			{
-				outputLine = malloc(64);
-				sprintf(outputLine, "%s %s_%ld", getAsmOp(currentTAC->operation), table->name, (long int)currentTAC->operands[0]);
-				ASMblock_append(outputBlock, outputLine);
+				trimmedStr = strTrim(printBuf, sprintf(printBuf, "%s %s_%ld", getAsmOp(currentTAC->operation), table->name, (long int)currentTAC->operands[0]));
+				ASMblock_append(outputBlock, trimmedStr);
 				break;
 			}
 			break;
 
 			case tt_label:
-				outputLine = malloc(64);
-				sprintf(outputLine, ".%s_%ld:", table->name, (long int)currentTAC->operands[0]);
-				ASMblock_append(outputBlock, outputLine);
+				trimmedStr = strTrim(printBuf, sprintf(printBuf, ".%s_%ld:", table->name, (long int)currentTAC->operands[0]));
+				ASMblock_append(outputBlock, trimmedStr);
 				break;
 
 			case tt_asm:
 				// copy the line because it lives in dictionary
 				// freeing the operand itself in freeASM() will result in double free when freeing dictionary later
-				outputLine = malloc(strlen(currentTAC->operands[0]) + 1);
-				strcpy(outputLine, currentTAC->operands[0]);
-				ASMblock_append(outputBlock, outputLine);
+				strcpy(printBuf, currentTAC->operands[0]);
+				trimmedStr = strTrim(printBuf, strlen(printBuf));
+				ASMblock_append(outputBlock, trimmedStr);
 				break;
 
 			// skip declarations, these are handled by the register allocator
@@ -698,44 +579,37 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 		blockRunner = blockRunner->next;
 	}
 
-	outputLine = malloc(32);
-	sprintf(outputLine, "%s_done:", table->name);
-	ASMblock_append(outputBlock, outputLine);
+	trimmedStr = strTrim(printBuf, sprintf(printBuf, "%s_done:", table->name));
+	ASMblock_append(outputBlock, trimmedStr);
 
 	for (int i = 0; i < REGISTER_COUNT; i++)
 	{
 		if (touchedRegisters[i])
 		{
-			outputLine = malloc(16);
-			sprintf(outputLine, "push %%r%d", i);
-			ASMblock_prepend(outputBlock, outputLine);
-			outputLine = malloc(16);
-			sprintf(outputLine, "pop %%r%d", i);
-			ASMblock_append(outputBlock, outputLine);
+			trimmedStr = strTrim(printBuf, sprintf(printBuf, "push %%r%d", i));
+			ASMblock_prepend(outputBlock, trimmedStr);
+			trimmedStr = strTrim(printBuf, sprintf(printBuf, "pop %%r%d", i));
+			ASMblock_append(outputBlock, trimmedStr);
 		}
 	}
 
 	if (maxSpillSpace > 0)
 	{
-		outputLine = malloc(20);
-		sprintf(outputLine, "sub %%sp, $%d", maxSpillSpace);
-		ASMblock_prepend(outputBlock, outputLine);
+		trimmedStr = strTrim(printBuf, sprintf(printBuf, "subi %%sp, %%sp, $%d", maxSpillSpace));
+		ASMblock_prepend(outputBlock, trimmedStr);
 	}
 
-	outputLine = malloc(64);
-	sprintf(outputLine, "%s:", table->name);
-	ASMblock_prepend(outputBlock, outputLine);
+	trimmedStr = strTrim(printBuf, sprintf(printBuf, "%s:", table->name));
+	ASMblock_prepend(outputBlock, trimmedStr);
 
 	if (maxSpillSpace > 0)
 	{
-		outputLine = malloc(20);
-		sprintf(outputLine, "add %%sp, $%d", maxSpillSpace);
-		ASMblock_append(outputBlock, outputLine);
+		trimmedStr = strTrim(printBuf, sprintf(printBuf, "addi %%sp, %%sp, $%d", maxSpillSpace));
+		ASMblock_append(outputBlock, trimmedStr);
 	}
 
-	outputLine = malloc(20);
-	sprintf(outputLine, "ret %d", table->argStackSize);
-	ASMblock_append(outputBlock, outputLine);
+	trimmedStr = strTrim(printBuf, sprintf(printBuf, "ret %d", table->argStackSize));
+	ASMblock_append(outputBlock, trimmedStr);
 
 	int totalCodeSteps = 0;
 	for (int i = 0; i < REGISTER_COUNT; i++)

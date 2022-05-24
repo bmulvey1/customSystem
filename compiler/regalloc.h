@@ -4,7 +4,7 @@
 #include "asm.h"
 #include "tac.h"
 
-#define REGISTER_COUNT 7
+#define REGISTER_COUNT 10
 
 
 struct Lifetime
@@ -122,6 +122,13 @@ void resetRegisterStates(struct Stack *savedStateStack,
 						 int *currentLifetimeIndex);
 
 int findOrPlaceAssignedVariable(struct Stack *activeList,
+								struct Stack *inactiveList,
+								struct Stack *spilledList,
+								char *varName,
+								struct ASMblock *outputBlock,
+								struct symbolTable *table);
+
+int findOrPlaceOperand(struct Stack *activeList,
 								struct Stack *inactiveList,
 								struct Stack *spilledList,
 								char *varName,

@@ -106,10 +106,10 @@ char *getAsmOp(enum TACType t)
 	return "";
 }
 
-struct TACLine *newTACLine(int index, enum TACType operation)
+struct TACLine *newTACLine(int index, enum TACType operation, struct ASTNode *correspondingTree)
 {
 	struct TACLine *wip = malloc(sizeof(struct TACLine));
-	wip->correspondingTree = NULL;
+	wip->correspondingTree = correspondingTree;
 	wip->operands[0] = NULL;
 	wip->operands[1] = NULL;
 	wip->operands[2] = NULL;
@@ -118,6 +118,10 @@ struct TACLine *newTACLine(int index, enum TACType operation)
 	wip->operandTypes[1] = vt_null;
 	wip->operandTypes[2] = vt_null;
 	wip->operandTypes[3] = vt_null;
+	wip->operandPermutations[0] = vp_standard;
+	wip->operandPermutations[1] = vp_standard;
+	wip->operandPermutations[2] = vp_standard;
+	wip->operandPermutations[3] = vp_standard;
 	wip->indirectionLevels[0] = 0;
 	wip->indirectionLevels[1] = 0;
 	wip->indirectionLevels[2] = 0;
@@ -278,7 +282,26 @@ void printTACLine(struct TACLine *it)
 	{
 		printf(" ");
 	}
-	printf("\t%d %d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2], it->operandTypes[3]);
+	printf("\t");
+	for (int i = 0; i < 4; i++)
+	{
+		printf("[%d", it->operandTypes[i]);
+		switch(it->operandPermutations[i]){
+			case vp_standard:
+				printf("S");
+				break;
+
+			case vp_temp:
+				printf("T");
+				break;
+
+			case vp_literal:
+				printf("L");
+				break;
+		}
+		printf(" %d*]", it->indirectionLevels[i]);
+	}
+	// printf("\t%d %d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2], it->operandTypes[3]);
 	// printf("\t%d %d %d", it->indirectionLevels[0], it->indirectionLevels[1], it->indirectionLevels[2]);
 
 	// width += printf("%s", it->reorderable ? " - Reorderable" : "");

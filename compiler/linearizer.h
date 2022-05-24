@@ -50,7 +50,7 @@ int linearizeAssignment(struct symbolTable *table,
 						int *tempNum,
 						struct tempList *tl);
 
-struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp);
+struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp, struct ASTNode *correspondingTree);
 
 int linearizeDeclaration(struct symbolTable *table,
 						 int currentTACIndex,

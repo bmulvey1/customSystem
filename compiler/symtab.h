@@ -41,6 +41,7 @@ struct variableEntry
 
 struct functionEntry
 {
+	enum variableTypes returnType;
 	struct symbolTable *table;
 };
 
@@ -73,6 +74,8 @@ int symbolTableContains(struct symbolTable *table, char *name);
 struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name);
 
 struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *name);
+
+struct functionEntry *symbolTableLookup_fun(struct symbolTable *table, char *name);
 
 int symbolTable_getSizeOfVariable(struct symbolTable *table, enum variableTypes type);
 

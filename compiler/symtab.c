@@ -120,7 +120,7 @@ struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name)
 	return NULL;
 }
 
-// return the variableEntry for a given name, or NULL if nonexistent
+// return the variableEntry for a given name, or throw a use-before-declare error if nonexistent
 struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *name)
 {
 	struct symTabEntry *e = symbolTableLookup(table, name);
@@ -141,11 +141,19 @@ int symbolTable_getSizeOfVariable(struct symbolTable *table, enum variableTypes 
 	case vt_var:
 		return 2;
 
-	case vt_temp:
-		return 2;
-
 	default:
 		perror("Error - attempt to get size of unknown type!");
+		exit(1);
+	}
+}
+
+struct functionEntry *symbolTableLookup_fun(struct symbolTable *table, char *name){
+	struct symTabEntry *e = symbolTableLookup(table, name);
+
+	if(e != NULL)
+		return e->entry;
+	else{
+		printf("Error - Use of function [%s] before declaration\n", name);
 		exit(1);
 	}
 }
@@ -202,6 +210,7 @@ void symTab_insertArgument(struct symbolTable *table, char *name, enum variableT
 void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolTable *subTable)
 {
 	struct functionEntry *newFunction = newFunctionEntry(subTable);
+	newFunction->returnType = vt_var; // hardcoded... for now ;)
 	symTabInsert(table, name, newFunction, e_function);
 }
 

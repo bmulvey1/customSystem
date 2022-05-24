@@ -2,27 +2,31 @@
 #bits 8
 
 #ruledef reg{
-    r0 => 0x0
-    r1 => 0x1
-    r2 => 0x2
-    r3 => 0x3
-    r4 => 0x4
-    r5 => 0x5
-    r6 => 0x6
-    r7 => 0x7
-    r8 => 0x8
-    r9 => 0x9
-    r10 => 0xa
-    rr => 0xb ;return register
-    si => 0xc
-    di => 0xd
-    sp => 0xe
-    bp => 0xf
+    r0 => 0b00000 ; mips-style unwriteable, always reads 0
+    r1 => 0b00001
+    r2 => 0b00010
+    r3 => 0b00011
+    r4 => 0b00100
+    r5 => 0b00101
+    r6 => 0b00110
+    r7 => 0b00111
+    r8 => 0b01000
+    r9 => 0b01001
+    ra => 0b01010
+    rb => 0b01011
+    rc => 0b01100
+    rd => 0b01101
+    re => 0b01110
+    rf => 0b01111
+    rr => 0b10000 ;return register
+    sp => 0b10001
+    bp => 0b10010
+    ;13 registers to spare - status/flags/paging?
 }
 
 #ruledef{
 
-    nop             => 0x00
+    nop             => 0x01
 
     jmp {addr:i16}  => 0x10 @ addr
     je  {addr:i16}  => 0x11 @ addr
@@ -35,102 +39,67 @@
     jle {addr:i16}  => 0x16 @ addr
 
 
-    ; simple arithmetic
-    add %{rd: reg}, %{rs: reg}                       => 0x40 @ rs @ rd
-    sub %{rd: reg}, %{rs: reg}                       => 0x41 @ rs @ rd
-    mul %{rd: reg}, %{rs: reg}                       => 0x42 @ rs @ rd
-    div %{rd: reg}, %{rs: reg}                       => 0x43 @ rs @ rd
-    shr %{rd: reg}, %{rs: reg}                       => 0x44 @ rs @ rd
-    shl %{rd: reg}, %{rs: reg}                       => 0x45 @ rs @ rd
-    inc %{rd: reg}                                   => 0x46 @ 0b0000 @ rd
-    dec %{rd: reg}                                   => 0x47 @ 0b0000 @ rd
-    and %{rd: reg}, %{rs: reg}                       => 0x48 @ rs @ rd
-    or  %{rd: reg}, %{rs: reg}                       => 0x49 @ rs @ rd
-    xor %{rd: reg}, %{rs: reg}                       => 0x4a @ rs @ rd
-    not %{rd: reg}                                   => 0x4b @ 0b0000 @ rd
-    cmp %{rd: reg}, %{rs: reg}                       => 0x4c @ rs @ rd
+    ; unsigned arithmetic
+    add %{rd: reg}, %{rs1: reg}, %{rs2: reg}        => 0x40 @ rd @ rs1 @ rs2 @ 0b0
+    sub %{rd: reg}, %{rs1: reg}, %{rs2: reg}        => 0x41 @ rd @ rs1 @ rs2 @ 0b0
+    mul %{rd: reg}, %{rs1: reg}, %{rs2: reg}        => 0x42 @ rd @ rs1 @ rs2 @ 0b0
+    div %{rd: reg}, %{rs1: reg}, %{rs2: reg}        => 0x43 @ rd @ rs1 @ rs2 @ 0b0
+    shr %{rd: reg}, %{rs1: reg}, %{rs2: reg}        => 0x44 @ rd @ rs1 @ rs2 @ 0b0
+    shl %{rd: reg}, %{rs1: reg}, %{rs2: reg}        => 0x45 @ rd @ rs1 @ rs2 @ 0b0
+    inc %{rd: reg}                                  => 0x46 @ rd @ 0b000
+    dec %{rd: reg}                                  => 0x47 @ rd @ 0b000
+    and %{rd: reg}, %{rs1: reg}, %{rs2: reg}        => 0x48 @ rd @ rs1 @rs2 @ 0b0
+    or  %{rd: reg}, %{rs1: reg}, %{rs2: reg}        => 0x49 @ rd @ rs1 @rs2 @ 0b0
+    xor %{rd: reg}, %{rs1: reg}, %{rs2: reg}        => 0x4a @ rd @ rs1 @rs2 @ 0b0
+    not %{rd: reg}, %{rs1: reg}                     => 0x4b @ rd @ rs1
+    cmp %{rs1: reg}, %{rs2: reg}                    => 0x4c @ 0b00000 @ rs1 @ rs2 @ 0b0
 
-    ; register indirect arithmetic
-    add %{rd: reg}, (%{rs:reg})                      => 0x50 @ rs @ rd
-    sub %{rd: reg}, (%{rs:reg})                      => 0x51 @ rs @ rd
-    mul %{rd: reg}, (%{rs:reg})                      => 0x52 @ rs @ rd
-    div %{rd: reg}, (%{rs:reg})                      => 0x53 @ rs @ rd
-    shr %{rd: reg}, (%{rs:reg})                      => 0x54 @ rs @ rd
-    shl %{rd: reg}, (%{rs:reg})                      => 0x55 @ rs @ rd
-    and %{rd: reg}, (%{rs:reg})                      => 0x58 @ rs @ rd
-    or  %{rd: reg}, (%{rs:reg})                      => 0x59 @ rs @ rd
-    xor %{rd: reg}, (%{rs:reg})                      => 0x5a @ rs @ rd
-    cmp %{rd: reg}, (%{rs:reg})                      => 0x5c @ rs @ rd
+        ; immediate
+    addi %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x50 @ rd @ rs1 @ 0b000000 @ imm
+    subi %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x51 @ rd @ rs1 @ 0b000000 @ imm
+    muli %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x52 @ rd @ rs1 @ 0b000000 @ imm
+    divi %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x53 @ rd @ rs1 @ 0b000000 @ imm
+    shri %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x54 @ rd @ rs1 @ 0b000000 @ imm
+    shli %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x55 @ rd @ rs1 @ 0b000000 @ imm
+    andi %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x58 @ rd @ rs1 @ 0b000000 @ imm
+    ori  %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x59 @ rd @ rs1 @ 0b000000 @ imm
+    xori %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x5a @ rd @ rs1 @ 0b000000 @ imm
+    cmpi %{rs1: reg}, ${imm: i16}                   => 0x5c @ 0b000 @ rs1 @ imm
 
-    ; register indirect with offset rs + imm
-    add %{rd:reg}, {imm: i8}(%{rs: reg})             => 0x60 @ rs @ rd @ imm
-    sub %{rd:reg}, {imm: i8}(%{rs: reg})             => 0x61 @ rs @ rd @ imm
-    mul %{rd:reg}, {imm: i8}(%{rs: reg})             => 0x62 @ rs @ rd @ imm
-    div %{rd:reg}, {imm: i8}(%{rs: reg})             => 0x63 @ rs @ rd @ imm
-    shr %{rd:reg}, {imm: i8}(%{rs: reg})             => 0x64 @ rs @ rd @ imm
-    shl %{rd:reg}, {imm: i8}(%{rs: reg})             => 0x65 @ rs @ rd @ imm
-    and %{rd:reg}, {imm: i8}(%{rs: reg})             => 0x68 @ rs @ rd @ imm
-    or  %{rd:reg}, {imm: i8}(%{rs: reg})             => 0x69 @ rs @ rd @ imm
-    xor %{rd:reg}, {imm: i8}(%{rs: reg})             => 0x6a @ rs @ rd @ imm
-    cmp %{rd:reg}, {imm: i8}(%{rs: reg})             => 0x6c @ rs @ rd @ imm
-    
-    ; register indirect with scale (ro * scale) + rs
-    add %{rd:reg}, %{ro:reg}(%{rs: reg},{scl: i8})   => 0x70 @ rs @ rd @ 0b0000 @ ro @ scl
-    sub %{rd:reg}, %{ro:reg}(%{rs: reg},{scl: i8})   => 0x71 @ rs @ rd @ 0b0000 @ ro @ scl
-    mul %{rd:reg}, %{ro:reg}(%{rs: reg},{scl: i8})   => 0x72 @ rs @ rd @ 0b0000 @ ro @ scl
-    div %{rd:reg}, %{ro:reg}(%{rs: reg},{scl: i8})   => 0x73 @ rs @ rd @ 0b0000 @ ro @ scl
-    shr %{rd:reg}, %{ro:reg}(%{rs: reg},{scl: i8})   => 0x74 @ rs @ rd @ 0b0000 @ ro @ scl
-    shl %{rd:reg}, %{ro:reg}(%{rs: reg},{scl: i8})   => 0x75 @ rs @ rd @ 0b0000 @ ro @ scl
-    and %{rd:reg}, %{ro:reg}(%{rs: reg},{scl: i8})   => 0x78 @ rs @ rd @ 0b0000 @ ro @ scl
-    or  %{rd:reg}, %{ro:reg}(%{rs: reg},{scl: i8})   => 0x79 @ rs @ rd @ 0b0000 @ ro @ scl
-    xor %{rd:reg}, %{ro:reg}(%{rs: reg},{scl: i8})   => 0x7a @ rs @ rd @ 0b0000 @ ro @ scl
-    cmp %{rd:reg}, %{ro:reg}(%{rs: reg},{scl: i8})   => 0x7c @ rs @ rd @ 0b0000 @ ro @ scl
-    
-    ; immediate arithmetic
-    add %{rd: reg}, ${imm: i16}                      => 0x80 @ 0b0000 @ rd @ imm
-    sub %{rd: reg}, ${imm: i16}                      => 0x81 @ 0b0000 @ rd @ imm
-    mul %{rd: reg}, ${imm: i16}                      => 0x82 @ 0b0000 @ rd @ imm
-    div %{rd: reg}, ${imm: i16}                      => 0x83 @ 0b0000 @ rd @ imm
-    shr %{rd: reg}, ${imm: i16}                      => 0x84 @ 0b0000 @ rd @ imm
-    shl %{rd: reg}, ${imm: i16}                      => 0x85 @ 0b0000 @ rd @ imm
-    and %{rd: reg}, ${imm: i16}                      => 0x88 @ 0b0000 @ rd @ imm
-    or  %{rd: reg}, ${imm: i16}                      => 0x89 @ 0b0000 @ rd @ imm
-    xor %{rd: reg}, ${imm: i16}                      => 0x8a @ 0b0000 @ rd @ imm
-    cmp %{rd: reg}, ${imm: i16}                      => 0x8c @ 0b0000 @ rd @ imm
 
     ; data movement (byte)
-    movb %{rd: reg}, %{rs:reg}                       => 0xa0 @ rs @ rd
-    movb %{rd:reg}, (%{rs:reg})                      => 0xa1 @ rs @ rd
-    movb (%{rd:reg}), %{rs:reg}                      => 0xa2 @ rs @ rd
-    movb %{rd:reg}, {off:i8}(%{rs:reg})              => 0xa3 @ rs @ rd @ off
-    movb {off:i8}(%{rd:reg}), %{rs:reg}              => 0xa4 @ rs @ rd @ off
-    movb %{rd: reg}, %{ro: reg}(%{rs: reg},{scl:i8}) => 0xa5 @ rs @ rd @ 0b0000 @ ro @ scl
-    movb %{ro: reg}(%{rd: reg},{scl:i8}), %{rs: reg} => 0xa6 @ rs @ rd @ 0b0000 @ ro @ scl
-    movb %{rd: reg}, ${imm: i8}                      => 0xa7 @ 0b0000 @ rd @ imm
+    movb %{rd: reg}, %{rs: reg}                                 => 0xa0 @ rs @ rd
+    movb %{rd: reg}, (%{rbase: reg})                            => 0xa1 @ rd @ rbase
+    movb (%{rbase: reg}), %{rs: reg}                            => 0xa2 @ rbase @ rs
+    movb %{rd: reg}, {off:i16}(%{rbase: reg})                   => 0xa3 @ rd @ rbase @ off
+    movb {off:i16}(%{rbase: reg}), %{rs: reg}                   => 0xa4 @ rs @ rbase @ off
+    movb %{rd: reg}, %{roffset: reg}(%{rbase: reg},{scl: i8})   => 0xa5 @ rd @ rbase @ roffset @ scl
+    movb %{roffset: reg}(%{rbase: reg},{scl:i8}), %{rs: reg}    => 0xa6 @ rs @ rbase @ roffset @ scl
+    movb %{rd: reg}, ${imm: i8}                                 => 0xa7 @ 0b0000 @ rd @ imm
 
     ; data movement (word)
-    mov %{rd: reg}, %{rs:reg}                        => 0xa8 @ rs @ rd
-    mov %{rd:reg}, (%{rs:reg})                       => 0xa9 @ rs @ rd
-    mov (%{rd:reg}), %{rs:reg}                       => 0xaa @ rs @ rd
-    mov %{rd:reg}, {off:i8}(%{rs:reg})               => 0xab @ rs @ rd @ off
-    mov {off:i8}(%{rd:reg}), %{rs:reg}               => 0xac @ rs @ rd @ off
-    mov %{rd: reg}, %{ro: reg}(%{rs: reg}, {scl:i8})  => 0xad @ rs @ rd @ 0b0000 @ ro @ scl
-    mov %{ro: reg}(%{rd: reg}, ${scl:i8}), %{rs: reg}  => 0xae @ rs @ rd @ 0b0000 @ ro @ scl
-    mov %{rd: reg}, ${imm: i16}                      => 0xaf @ 0b0000 @ rd @ imm
+    mov %{rd: reg}, %{rs: reg}                               => 0xa8 @ rs @ rd @ 0b000000
+    mov %{rd: reg}, (%{rs: reg})                             => 0xa9 @ rs @ rd @ 0b000000
+    mov (%{rd: reg}), %{rs: reg}                             => 0xaa @ rs @ rd @ 0b000000
+    mov %{rd: reg}, {off:i16}(%{rs: reg})                    => 0xab @ rs @ rd @ 0b000000 @ off
+    mov {off:i16}(%{rd: reg}), %{rs: reg}                    => 0xac @ rs @ rd @ 0b000000 @ off
+    mov %{rd: reg}, %{ro: reg}(%{rs: reg}, ${scl:i8})        => 0xad @ rs @ rd @ ro @ 0b0 @ scl
+    mov %{ro: reg}(%{rd: reg}, ${scl:i8}), %{rs: reg}        => 0xae @ rs @ rd @ ro @ 0b0 @ scl
+    mov %{rd: reg}, ${imm: i16}                              => 0xaf @ 0b000 @ rd @ imm
 
-    push %{rs:reg}                          => 0xc0 @ 0b0000 @ rs
-    push (%{rs:reg})                        => 0xc1 @ 0b0000 @ rs
-    push {off:i8}(%{rs:reg})                => 0xc2 @ 0b0000 @ rs @ off
-    push %{ro: reg}(%{rs: reg},{scl:i8})    => 0xc3 @ ro @ rs @ scl
+    push %{rs: reg}                          => 0xc0 @ 0b000 @ rs
+    ;push (%{rs: reg})                        => 0xc1 @ 0b0000 @ rs
+    ;push {off:i16}(%{rs: reg})                => 0xc2 @ 0b0000 @ rs @ off
+    ;push %{ro: reg}(%{rs: reg},{scl:i8})    => 0xc3 @ ro @ rs @ scl
     push ${imm: i16}                         => 0xc4 @ imm
 
-    pop %{rd: reg}                          => 0xcf @ 0b0000 @ rd
+    pop %{rd: reg}                          => 0xcf @ 0b000 @ rd
     call {address: i16}                     => 0xd0 @ address
     ret                                     => 0xd1
     ; wipe 'argw' number of bytes off the stack from arguments
-    ret {argw: i8}                          => 0xd2 @ argw
+    ret {argw: i16}                          => 0xd2 @ argw
 
-    out %{rs: reg}                          => 0xd3 @ 0b0000 @ rs
+    out %{rs: reg}                          => 0xd3 @ 0b000 @ rs
 
     hlt => 0xff
 
