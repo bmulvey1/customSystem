@@ -1,0 +1,32 @@
+bits = 16;
+
+% file = matfile('division.mat', 'Writable', true);
+results = zeros(2^bits, 2^bits, 'uint16');
+disp('start loop')
+for i = 0:1:2^bits - 1
+   for j = 0:1:2^bits - 1
+       
+       if i == j
+          results(i+1, j+1) = cast(1,'uint16');
+       elseif i < j
+           if j < 2*i
+               results(i+1, j+1) = cast(1, 'uint16');
+           else
+               results(i+1, j+1) = cast(0, 'uint16');
+           end
+       else
+           if 
+            results(i+1, j+1) = cast(i/j, 'uint16');
+       end
+       
+       %if i ~= j
+       %    tmp = i/j;
+       %    if tmp == Inf
+       %       tmp = 0; 
+       %    end
+       %    results(i+1, j+1) = cast(tmp, 'uint16');
+       %elseif j <= 2*i
+       %    results(i+1, j+1) = cast(1, 'uint16');
+       %end
+   end
+end
