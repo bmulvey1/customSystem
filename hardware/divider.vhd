@@ -27,7 +27,7 @@ begin
             end if;
         else
             for i in 1 to 16 loop
-                if unsigned(to_bitvector(A) sll i) = unsigned(B) then
+                if unsigned(to_bitvector(A) srl i) = unsigned(B) then
                     r <= std_logic_vector(2 ** i);
                 end if;
             end loop;
