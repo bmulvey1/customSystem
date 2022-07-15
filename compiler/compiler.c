@@ -91,7 +91,7 @@ void checkUninitializedUsage(struct symbolTable *table)
 					{
 					case vt_var:
 						// lookup_var breaks and exits if variable is undeclared
-						/*struct variableEntry *pushed = */symbolTableLookup_var(table, ir->operands[0]);
+						/*struct variableEntry *pushed = */ symbolTableLookup_var(table, ir->operands[0]);
 						break;
 
 					default:
@@ -126,7 +126,7 @@ void checkUninitializedUsage(struct symbolTable *table)
 					{
 					case vp_standard:
 						struct variableEntry *it = symbolTableLookup_var(table, ir->operands[j]);
-						
+
 						if (!it->isAssigned)
 						{
 							struct ASTNode *n = ir->correspondingTree;
@@ -148,7 +148,7 @@ void checkUninitializedUsage(struct symbolTable *table)
 				// check only standard type, not temp or literal
 				case vp_standard:
 					struct variableEntry *theVariable = symbolTableLookup_var(table, ir->operands[0]);
-					
+
 					if (theVariable->declaredAt > ir->index || theVariable->declaredAt == -1)
 					{
 						struct ASTNode *n = ir->correspondingTree;
@@ -161,7 +161,10 @@ void checkUninitializedUsage(struct symbolTable *table)
 						exit(1);
 					}
 					theVariable->isAssigned = 1;
-					theVariable->assignedAt = ir->index;
+					if (ir->index < theVariable->assignedAt)
+					{
+						theVariable->assignedAt = ir->index;
+					}
 					break;
 
 				default:

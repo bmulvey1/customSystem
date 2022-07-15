@@ -14,8 +14,7 @@ code:
 	;call mm_init
 	;call doublePointer
 	;push $4660
-	;call test
-	call ptest
+	call test
 	hlt
 };
 
@@ -26,10 +25,26 @@ fun print(var n){
 }
 
 
-fun ptest(){
-	var *i = 512;
-	while(i < 524){
-		*i = 4660;
+fun fibonacci(var *start, var num){
+	var *end = start + num;
+	var *cur = start;	
+	*cur = 0;
+	*(cur + 1) = 1;
+	cur = cur + 2;
+	while(cur < end){
+		*cur = *(cur - 1) + *(cur - 2);
+		cur = cur + 1;
+	}
+	return *(start + num - 1);
+}
+
+
+fun test(){
+	var i = 1;
+	while(i < 20)
+	{
+		var result = fibonacci(512, i);
+		print(result);
 		i = i + 1;
 	}
 }
