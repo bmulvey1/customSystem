@@ -64,7 +64,6 @@ fun gradient()
 
 	}
 	i = 0;
-	
 }
 
 /*

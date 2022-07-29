@@ -152,7 +152,7 @@ void trimWhitespace(char trackPos)
 
 char lookahead()
 {
-	trimWhitespace(0);
+	trimWhitespace(1);
 	char r = lookahead_dumb(1);
 	return r;
 }
