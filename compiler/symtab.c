@@ -129,8 +129,7 @@ struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *nam
 		return e->entry;
 	else
 		{
-			printf("Error - Use of variable [%s] before declaration\n", name);
-			exit(1);
+			ErrorAndExit(ERROR_CODE, "Error - Use of variable [%s] before declaration\n", name);
 		}
 }
 
@@ -142,8 +141,7 @@ int symbolTable_getSizeOfVariable(struct symbolTable *table, enum variableTypes 
 		return 2;
 
 	default:
-		perror("Error - attempt to get size of unknown type!");
-		exit(1);
+		ErrorAndExit(ERROR_CODE, "Error - attempt to get size of unknown type!");
 	}
 }
 
@@ -153,8 +151,7 @@ struct functionEntry *symbolTableLookup_fun(struct symbolTable *table, char *nam
 	if(e != NULL)
 		return e->entry;
 	else{
-		printf("Error - Use of function [%s] before declaration\n", name);
-		exit(1);
+		ErrorAndExit(ERROR_CODE, "Error - Use of function [%s] before declaration\n", name);
 	}
 }
 
@@ -162,8 +159,7 @@ void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum sy
 {
 	if (symbolTableContains(table, name))
 	{
-		printf("Error defining symbol [%s] - name already exists!\n", name);
-		exit(1);
+		ErrorAndExit(ERROR_CODE, "Error defining symbol [%s] - name already exists!\n", name);
 	}
 	struct symTabEntry *wip = malloc(sizeof(struct symTabEntry));
 	wip->name = name;
@@ -353,8 +349,7 @@ void walkStatement(struct ASTNode *it, struct symbolTable *wip)
 			symTab_insertVariable(wip, varName, vt_var, indirectionLevel);
 		else
 		{
-			printf("Error - redeclaration of symbol [%s]\n", varName);
-			exit(1);
+			ErrorAndExit(ERROR_CODE, "Error - redeclaration of symbol [%s]\n", varName);
 		}
 
 		break;
@@ -412,8 +407,8 @@ void walkStatement(struct ASTNode *it, struct symbolTable *wip)
 		break;
 
 	default:
-		printf("Error walking AST for function %s - expected 'var', name, or function call, saw %s with value of [%s]\n", it->child->value, getTokenName(it->type), it->value);
-		exit(1);
+		// TODO: should this really be an internal error?
+		ErrorAndExit(ERROR_INTERNAL, "Error walking AST for function %s - expected 'var', name, or function call, saw %s with value of [%s]\n", it->child->value, getTokenName(it->type), it->value);
 	}
 }
 
@@ -440,8 +435,8 @@ void walkFunction(struct ASTNode *it, struct symbolTable *wip)
 					break;
 
 				default:
-					printf("Unexpected argument type while walking function!\n");
-					exit(1);
+					// TODO: should this really be an internal error?
+					ErrorAndExit(ERROR_INTERNAL, "Unexpected argument type while walking function!\n");
 					break;
 				}
 
@@ -460,8 +455,7 @@ void walkFunction(struct ASTNode *it, struct symbolTable *wip)
 						break;
 
 					default:
-						perror("unexpected token as child of argument definition!");
-						exit(1);
+						ErrorAndExit(ERROR_INTERNAL, "Unexpected token as child of argument definition!");
 					}
 					runner = runner->child;
 				}
@@ -554,8 +548,7 @@ struct symbolTable *walkAST(struct ASTNode *it)
 			break;
 
 		default:
-			printf("Error walking AST - expected 'v' or function declaration\n");
-			exit(1);
+			ErrorAndExit(ERROR_INTERNAL, "Error walking AST - expected 'v' or function declaration\nInstead, got %s with type %d\n", runner->value, runner->type);
 			break;
 		}
 		runner = runner->sibling;

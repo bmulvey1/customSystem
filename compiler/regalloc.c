@@ -29,8 +29,7 @@ void updateOrInsertLifetime(struct LinkedList *ltList,
 		// may be helpful when adding/troubleshooting new TAC generation
 		if (thisLt->type != type)
 		{
-			printf("Error - type mismatch between identically named variables [%s] expected %d, saw %d!\n", variable, thisLt->type, type);
-			exit(1);
+			ErrorAndExit(ERROR_CODE, "Error - type mismatch between identically named variables [%s] expected %d, saw %d!\n", variable, thisLt->type, type);
 		}
 		if (newEnd > thisLt->end)
 			thisLt->end = newEnd;
@@ -400,8 +399,7 @@ int unSpillVariable(struct Stack *activeList,
 		}
 	}
 
-	printf("Error - unable to unspill variable [%s] - not on stack!\n", varName);
-	exit(1);
+	ErrorAndExit(ERROR_INTERNAL, "Error - unable to unspill variable [%s] - not on stack!\n", varName);
 }
 
 // find which register a variable lives in, returning -1 if not currently active in a register
@@ -428,8 +426,7 @@ int findSpilledVariable(struct Stack *spilledLilst, char *varName)
 		}
 	}
 
-	printf("Error - unable to find inactive variable [%s] - not on stack!\n", varName);
-	exit(1);
+	ErrorAndExit(ERROR_INTERNAL, "Error - unable to find inactive variable [%s] - not on stack!\n", varName);
 }
 
 void printLifetimesGraph(struct LinkedList *lifetimeList)
@@ -761,8 +758,7 @@ int findOrPlaceAssignedVariable(struct Stack *activeList,
 
 	if (l == NULL)
 	{
-		perror("Error finding/placing assigned variable - lifetime not found!\n");
-		exit(2);
+		ErrorAndExit(ERROR_INTERNAL, "Error finding/placing assigned variable - lifetime not found!\n");
 	}
 
 	if (inactiveList->size == 0)

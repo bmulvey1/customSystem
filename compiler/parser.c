@@ -31,14 +31,12 @@ char *token_names[] = {
 	"call",
 	"EOF"};
 
-void error(char *production, char *info)
+void ParserError(char *production, char *info)
 {
 	printf("Error while parsing %s\n", production);
 	printf("Error at line %d, col %d\n", curLine, curCol);
 	printf("%s\n", info);
-	printf("Parse buffer when error occurred: [%s]\n", buffer);
-
-	exit(1);
+	ErrorAndExit(ERROR_CODE, "Parse buffer when error occurred: [%s]\n", buffer);
 }
 
 // return 'count' characters ahead
@@ -115,7 +113,7 @@ void trimWhitespace(char trackPos)
 						// disallow nesting of block comments
 					case '/':
 						if (lookahead_dumb(1) == '*')
-							error("comment", "Error - nested block comments not allowed");
+							ParserError("comment", "Error - nested block comments not allowed");
 
 						break;
 
@@ -262,7 +260,7 @@ enum token scan(char trackPos)
 		{
 			// simple error checking for letters in literals
 			if (currentToken == t_literal && isalpha(inChar))
-				error("literal", "Error - alphabetical character in literal!");
+				ParserError("literal", "Error - alphabetical character in literal!");
 		}
 
 		// if the next input char is whitespace or a single-character token, we're done with this token
@@ -306,7 +304,7 @@ struct ASTNode *match(enum token t, struct Dictionary *dict)
 	if (result != t)
 	{
 		printf("Expected token %s, got %s\n", token_names[t], token_names[result]);
-		error("match", "Error matching a token!");
+		ParserError("match", "Error matching a token!");
 	}
 
 	struct ASTNode *matched = ASTNode_new(result, DictionaryLookupOrInsert(dict, buffer));
@@ -322,7 +320,7 @@ void consume(enum token t)
 	if (result != t)
 	{
 		printf("Expected token %s, got %s\n", token_names[t], token_names[result]);
-		error("consume", "Error consuming a token!");
+		ParserError("consume", "Error consuming a token!");
 	}
 }
 
@@ -398,7 +396,7 @@ struct ASTNode *parseTLD(struct Dictionary *dict)
 	}
 	break;
 	default:
-		error("top level declaration", "Expected function or variable");
+		ParserError("Top level declaration", "Expected function or variable");
 		exit(1);
 	}
 	return TLD;
@@ -450,7 +448,7 @@ struct ASTNode *parseStatementList(struct Dictionary *dict)
 			break;
 
 		default:
-			error("statement", "expected 'var', 'if', 'while', '}', or name");
+			ParserError("statement", "expected 'var', 'if', 'while', '}', or name");
 		}
 	}
 
@@ -517,7 +515,7 @@ struct ASTNode *parseStatement(struct Dictionary *dict)
 			break;
 
 		default:
-			error("statement", "expected '(' or '=' after name");
+			ParserError("statement", "expected '(' or '=' after name");
 		}
 		consume(t_semicolon);
 	}
@@ -558,7 +556,7 @@ struct ASTNode *parseStatement(struct Dictionary *dict)
 		break;
 
 	default:
-		error("statement", "expected 'var', 'if', 'while', '}', or name");
+		ParserError("statement", "expected 'var', 'if', 'while', '}', or name");
 	}
 	// printf("Done parsing statement- heres what we got\n");
 	// printAST(statement, 0);
@@ -615,8 +613,7 @@ struct ASTNode *parseExpression(struct Dictionary *dict)
 	}
 	else
 	{
-		error("expression", "expected literal or name");
-		exit(1);
+		ParserError("expression", "expected literal or name");
 	}
 
 	// now, figure out whether there is a right side
@@ -658,7 +655,7 @@ struct ASTNode *parseExpression(struct Dictionary *dict)
 
 	default:
 		printf("\n[%c]\n", lookahead());
-		error("expression", "expected unary operator or terminator");
+		ParserError("expression", "expected unary operator or terminator");
 	}
 
 	// printf("done parsing expression - here's what we got:\n");
@@ -813,7 +810,7 @@ struct ASTNode *parseWhileLoop(struct Dictionary *dict)
 		consume(t_rCurly);
 	}
 	else
-		error("while loop", "Expected '{' after 'while([condition])'");
+		ParserError("while loop", "Expected '{' after 'while([condition])'");
 
 	// printf("done parsing if statement - here's what we got!\n");
 	// printAST(ifStatement, 0);

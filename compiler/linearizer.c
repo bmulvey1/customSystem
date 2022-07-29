@@ -93,8 +93,7 @@ int linearizeDereference(struct symbolTable *table,
 
 		default:
 			ASTNode_printHorizontal(it);
-			perror("Illegal type on LHS of dereferenced expression\n");
-			exit(2);
+			ErrorAndExit(ERROR_INTERNAL, "Illegal type on LHS of dereferenced expression\n");
 		}
 		thisDereference->operation = tt_memr_3;
 		thisDereference->operands[3] = (char *)(long int)LHSSize; // scale
@@ -190,14 +189,12 @@ int linearizeDereference(struct symbolTable *table,
 			break;
 
 		default:
-			perror("Malformed parse tree in RHS of dereference arithmetic!\n");
-			exit(1);
+			ErrorAndExit(ERROR_INTERNAL, "Malformed parse tree in RHS of dereference arithmetic!\n");
 		}
 		break;
 
 	default:
-		perror("Malformed parse tree when linearizing dereference!\n");
-		exit(2);
+		ErrorAndExit(ERROR_INTERNAL, "Malformed parse tree when linearizing dereference!\n");
 	}
 
 	thisDereference->operandTypes[0] = thisDereference->operandTypes[1];
@@ -282,8 +279,7 @@ int linearizeArgumentPushes(struct symbolTable *table,
 	break;
 
 	default:
-		perror("Error - Unexpected argument node type\n");
-		exit(2);
+		ErrorAndExit(ERROR_INTERNAL, "Error - Unexpected argument node type\n");
 	}
 	if (thisArgument != NULL)
 		BasicBlock_append(currentBlock, thisArgument);
@@ -393,8 +389,7 @@ int linearizeSubExpression(struct symbolTable *table,
 	break;
 
 	default:
-		perror("Unexpected type seen while linearizing subexpression!\n");
-		exit(2);
+		ErrorAndExit(ERROR_INTERNAL, "Unexpected type seen while linearizing subexpression!\n");
 	}
 	return currentTACIndex;
 }
@@ -483,8 +478,7 @@ int linearizeExpression(struct symbolTable *table,
 	break;
 
 	default:
-		perror("Unexpected type seen while linearizing expression LHS! Expected variable, literal, or subexpression\n");
-		exit(2);
+		ErrorAndExit(ERROR_INTERNAL, "Unexpected type seen while linearizing expression LHS! Expected variable, literal, or subexpression\n");
 	}
 
 	// assign the TAC operation based on the operator at hand
@@ -539,8 +533,8 @@ int linearizeExpression(struct symbolTable *table,
 	break;
 
 	default:
-		perror("Unexpected type seen while linearizing expression RHS! Expected variable, literal, or subexpression\n");
-		exit(2);
+		// TODO: should this really be an internal error?
+		ErrorAndExit(ERROR_INTERNAL, "Unexpected type seen while linearizing expression RHS! Expected variable, literal, or subexpression\n");
 	}
 
 	if (thisExpression->operation != tt_cmp)
@@ -697,8 +691,7 @@ int linearizeAssignment(struct symbolTable *table,
 		break;
 
 		default:
-			perror("Error parsing simple assignment - unexpected type on RHS\n");
-			exit(2);
+			ErrorAndExit(ERROR_INTERNAL, "Error parsing simple assignment - unexpected type on RHS\n");
 		}
 
 		BasicBlock_append(currentBlock, assignment);
@@ -722,8 +715,7 @@ int linearizeAssignment(struct symbolTable *table,
 			break;
 
 		default:
-			perror("Error linearizing expression - malformed parse tree (expected unOp or call)\n");
-			exit(2);
+			ErrorAndExit(ERROR_INTERNAL, "Error linearizing expression - malformed parse tree (expected unOp or call)\n");
 		}
 	}
 
@@ -827,8 +819,7 @@ int linearizeAssignment(struct symbolTable *table,
 				break;
 
 				default:
-					perror("Error - Unexpected type on RHS of pointer write arithmetic\n");
-					exit(2);
+					ErrorAndExit(ERROR_INTERNAL, "Error - Unexpected type on RHS of pointer write arithmetic\n");
 				}
 
 				int lhsSize = 0;
@@ -846,8 +837,7 @@ int linearizeAssignment(struct symbolTable *table,
 				break;
 
 				default:
-					perror("Error - Illegal type on LHS of assignment expression\n\tPointer write operations can only bind rightwards\n");
-					exit(2);
+					ErrorAndExit(ERROR_CODE, "Error - Illegal type on LHS of assignment expression\n\tPointer write operations can only bind rightwards\n");
 				}
 
 				switch (finalAssignment->operation)
@@ -893,26 +883,19 @@ int linearizeAssignment(struct symbolTable *table,
 				break;
 
 				default:
-					perror("Error - Unexpected final assignment TAC type\n");
-					exit(2);
+					ErrorAndExit(ERROR_INTERNAL, "Error - Unexpected final assignment TAC type\n");
 				}
 			}
 			break;
 
 			default:
-				printf("Error - Unexpected type within dereference on LHS of assignment expression\n\t");
-				ASTNode_printHorizontal(dereferencedExpression);
-				printf("\n");
-				exit(2);
+				ErrorAndExit(ERROR_INTERNAL, "Error - Unexpected type within dereference on LHS of assignment expression\n\t");
 			}
 		}
 		break;
 
 		default:
-			printf("Error - Unexpected type on LHS of assignment expression\n\t");
-			ASTNode_printHorizontal(it->child);
-			printf("\n");
-			exit(2);
+			ErrorAndExit(ERROR_INTERNAL, "Error - Unexpected type on LHS of assignment expression\n\t");
 		}
 		BasicBlock_append(currentBlock, finalAssignment);
 	}
@@ -937,9 +920,7 @@ struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp, struc
 			break;
 
 		default:
-			perror("Error - Unexpected value in comparison operator node\n");
-			exit(2);
-			break;
+			ErrorAndExit(ERROR_INTERNAL, "Error - Unexpected value in comparison operator node\n");
 		}
 		break;
 
@@ -955,9 +936,7 @@ struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp, struc
 			break;
 
 		default:
-			perror("Error - Unexpected value in comparison operator node\n");
-			exit(2);
-			break;
+			ErrorAndExit(ERROR_INTERNAL, "Error - Unexpected value in comparison operator node\n");
 		}
 		break;
 
@@ -986,8 +965,7 @@ int linearizeDeclaration(struct symbolTable *table,
 		break;
 
 	default:
-		perror("Unexpected type seen while linearizing declaration!");
-		exit(2);
+		ErrorAndExit(ERROR_INTERNAL, "Unexpected type seen while linearizing declaration!");
 	}
 
 	int dereferenceLevel = 0;
@@ -1171,8 +1149,7 @@ struct LinearizationResult *linearizeStatementList(struct symbolTable *table,
 				break;
 
 			default:
-				perror("Error linearizing statement - malformed parse tree under 'var' node\n");
-				exit(2);
+				ErrorAndExit(ERROR_INTERNAL, "Error linearizing statement - malformed parse tree under 'var' node\n");
 			}
 		}
 		break;
@@ -1238,9 +1215,7 @@ struct LinearizationResult *linearizeStatementList(struct symbolTable *table,
 			break;
 
 			default:
-				perror("Error - Unexpected type within return expression\n");
-				exit(2);
-				break;
+				ErrorAndExit(ERROR_INTERNAL, "Error - Unexpected type within return expression\n");
 			}
 			struct TACLine *returnTac = newTACLine(currentTACIndex++, tt_return, runner);
 			returnTac->operands[0] = returned;
@@ -1317,8 +1292,7 @@ struct LinearizationResult *linearizeStatementList(struct symbolTable *table,
 		break;
 
 		default:
-			perror("Error - Unexpected node type when linearizing statement\n");
-			exit(2);
+			ErrorAndExit(ERROR_INTERNAL, "Error - Unexpected node type when linearizing statement\n");
 		}
 		runner = runner->sibling;
 	}
@@ -1400,9 +1374,7 @@ void linearizeProgram(struct ASTNode *it, struct symbolTable *table)
 
 		// ignore everything else (for now) - no global vars, etc...
 		default:
-			perror("Error - Unexpected statement type at global scope\n");
-			exit(2);
-			break;
+			ErrorAndExit(ERROR_INTERNAL, "Error - Unexpected statement type at global scope\n");
 		}
 		runner = runner->sibling;
 	}

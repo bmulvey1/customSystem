@@ -78,8 +78,7 @@ void checkUninitializedUsage(struct symbolTable *table)
 				struct variableEntry *declared = symbolTableLookup(table, ir->operands[0])->entry;
 				if (declared->declaredAt > 0)
 				{
-					printf("Error - redeclaration of variable [%s]\n", ir->operands[0]);
-					exit(1);
+					ErrorAndExit(ERROR_CODE, "Error - redeclaration of variable [%s]\n", ir->operands[0]);
 				}
 				declared->declaredAt = ir->index;
 				continue;
@@ -95,8 +94,7 @@ void checkUninitializedUsage(struct symbolTable *table)
 						break;
 
 					default:
-						perror("Unexpected type in IR line for push\n");
-						exit(2);
+						ErrorAndExit(ERROR_INTERNAL, "Unexpected type in IR line for push\n");
 					}
 				}
 				break;
@@ -132,8 +130,7 @@ void checkUninitializedUsage(struct symbolTable *table)
 							struct ASTNode *n = ir->correspondingTree;
 							// printTACLine(ir);
 							// printf("\n");
-							printf("Error - use of variable [%s] before assignment!\n\tLine %d, Col %d\n\n", ir->operands[j], n->sourceLine, n->sourceCol);
-							exit(1);
+							ErrorAndExit(ERROR_CODE, "Error - use of variable [%s] before assignment!\n\tLine %d, Col %d\n\n", ir->operands[j], n->sourceLine, n->sourceCol);
 						}
 						break;
 					default:
@@ -154,11 +151,9 @@ void checkUninitializedUsage(struct symbolTable *table)
 						struct ASTNode *n = ir->correspondingTree;
 						if (n == NULL)
 						{
-							printf("Error - use of undeclared variable [%s]\n", ir->operands[0]);
-							exit(1);
+							ErrorAndExit(1, "Error - use of undeclared variable [%s]\n", ir->operands[0]);
 						}
-						printf("Error - use of undeclared variable [%s]\n\tLine %d, Col %d\n", ir->operands[0], n->sourceLine, n->sourceCol);
-						exit(1);
+						ErrorAndExit(1, "Error - use of undeclared variable [%s]\n\tLine %d, Col %d\n", ir->operands[0], n->sourceLine, n->sourceCol);
 					}
 					theVariable->isAssigned = 1;
 					if (ir->index < theVariable->assignedAt)
@@ -328,13 +323,11 @@ int main(int argc, char **argv)
 {
 	if (argc < 2)
 	{
-		printf("Error - please specify an input and output file!\n");
-		exit(1);
+		ErrorAndExit(ERROR_INVOCATION, "Error - please specify an input and output file!\n");
 	}
 	else if (argc < 3)
 	{
-		printf("Error - please specify an output file!\n");
-		exit(1);
+		ErrorAndExit(ERROR_INVOCATION, "Error - please specify an output file!\n");
 	}
 	printf("Parsing program from %s\n", argv[1]);
 

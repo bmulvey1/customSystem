@@ -4,6 +4,16 @@
 
 #pragma once
 
+enum CompilerErrors
+{
+	ERROR_INVOCATION, 	// user has made an error with arguments or other parameters
+	ERROR_CODE,			// there is an error in the code which prevents a complete compilation
+	ERROR_INTERNAL,
+};
+
+
+#define ErrorAndExit(code, fmt, ...) printf(fmt, ##__VA_ARGS__); printf("Bailing from file %s, line %d\n\n", __FILE__, __LINE__); exit(code)
+
 /*
  * Dictionary for tracking strings
  * Economizes heap space by only storing strings once each
