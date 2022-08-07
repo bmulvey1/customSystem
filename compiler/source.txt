@@ -5,6 +5,43 @@ Mild pointer optimizations - use of offset(base, scale): 7483
 
 */
 
+
+fun scopeTest(var a)
+{
+	var i = 0;
+	{
+		// first nested scope
+		var j = 0;
+		{
+			// second nested scope;
+			var k = 123;
+		}
+	}
+
+	
+
+	{
+		// second scope
+		var j = 123;
+	}
+
+	{
+		// second scope
+		var j = 123;
+	}
+
+	{
+		// second scope
+		var j = 123;
+	}
+
+	
+}
+
+/*
+
+//should execute 3438 instructions
+//will make a nice grid in the hex editor of memdump at address 512
 asm{
 	#include "CPU.asm"
 	entry code
@@ -65,29 +102,5 @@ fun gradient()
 	i = 0;
 }
 
-/*
-fun fibonacci(var *start, var num){
-	var *end = start + num;
-	var *cur = start;	
-	*cur = 0;
-	*(cur + 1) = 1;
-	cur = cur + 2;
-	while(cur < end){
-		*cur = *(cur - 1) + *(cur - 2);
-		cur = cur + 1;
-	}
-	return *(start + num - 1);
-}
-
-
-fun test(){
-	var i = 1;
-	while(i < 20)
-	{
-		var result = fibonacci(512, i);
-		print(result);
-		i = i + 1;
-	}
-}
 */
 $$

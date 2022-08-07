@@ -31,7 +31,7 @@ struct ASTNode *parseTLD(struct Dictionary *dict);
 
 struct ASTNode *parseAssignment(struct ASTNode *name, struct Dictionary *dict);
 
-struct ASTNode *parseStatementList(struct Dictionary *dict);
+struct ASTNode *parseScope(struct Dictionary *dict);
 
 struct ASTNode *parseStatement(struct Dictionary *dict);
 

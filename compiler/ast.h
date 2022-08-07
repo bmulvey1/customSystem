@@ -28,6 +28,7 @@ enum token
 	t_lCurly,
 	t_rCurly,
 	t_call,
+	t_scope,
 	t_EOF,
 };
 

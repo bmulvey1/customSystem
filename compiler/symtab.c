@@ -62,7 +62,6 @@ struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
 struct variableEntry *newVariableEntry(int indirectionLevel, enum variableTypes type)
 {
 	struct variableEntry *wip = malloc(sizeof(struct variableEntry));
-	wip->global = 0;
 	wip->stackOffset = 0;
 	wip->indirectionLevel = indirectionLevel;
 	wip->type = type;
@@ -79,6 +78,13 @@ struct functionEntry *newFunctionEntry(struct symbolTable *table)
 	return wip;
 }
 
+struct scopeEntry *newScopeEntry(struct symbolTable *table)
+{
+	struct scopeEntry *wip = malloc(sizeof(struct scopeEntry));
+	wip->table = table;
+	return wip;
+}
+
 struct symbolTable *newSymbolTable(char *name)
 {
 	struct symbolTable *wip = malloc(sizeof(struct symbolTable));
@@ -89,6 +95,7 @@ struct symbolTable *newSymbolTable(char *name)
 	wip->name = name;
 	wip->localStackSize = 0;
 	wip->argStackSize = 0;
+	wip->childScopeCount = 0;
 	// generate a single templist at the top level symTab
 	// leave all others as NULL to avoid duplication
 	wip->tl = NULL;
@@ -128,9 +135,9 @@ struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *nam
 	if (e != NULL)
 		return e->entry;
 	else
-		{
-			ErrorAndExit(ERROR_CODE, "Error - Use of variable [%s] before declaration\n", name);
-		}
+	{
+		ErrorAndExit(ERROR_CODE, "Error - Use of variable [%s] before declaration\n", name);
+	}
 }
 
 int symbolTable_getSizeOfVariable(struct symbolTable *table, enum variableTypes type)
@@ -145,12 +152,14 @@ int symbolTable_getSizeOfVariable(struct symbolTable *table, enum variableTypes 
 	}
 }
 
-struct functionEntry *symbolTableLookup_fun(struct symbolTable *table, char *name){
+struct functionEntry *symbolTableLookup_fun(struct symbolTable *table, char *name)
+{
 	struct symTabEntry *e = symbolTableLookup(table, name);
 
-	if(e != NULL)
+	if (e != NULL)
 		return e->entry;
-	else{
+	else
+	{
 		ErrorAndExit(ERROR_CODE, "Error - Use of function [%s] before declaration\n", name);
 	}
 }
@@ -210,6 +219,15 @@ void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolT
 	symTabInsert(table, name, newFunction, e_function);
 }
 
+// currently just does basically the same thing as insertFunction
+// since scopes are similar to functions in terms of data structures
+// this could change later, so leaving this for easy support
+void symTab_insertScope(struct symbolTable *table, char *name, struct symbolTable *scope)
+{
+	struct scopeEntry *newScope = newScopeEntry(scope);
+	symTabInsert(table, name, newScope, e_scope);
+}
+
 void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
 {
 	for (int i = 0; i < depth; i++)
@@ -238,14 +256,7 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
 		case e_variable:
 		{
 			struct variableEntry *theVariable = it->entries[i]->entry;
-			if (theVariable->global)
-			{
-				printf("> global variable");
-			}
-			else
-			{
-				printf("> variable");
-			}
+			printf("> variable");
 
 			for (int i = 0; i < theVariable->indirectionLevel; i++)
 			{
@@ -262,6 +273,15 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
 			printSymTabRec(theFunction->table, depth + 1, printTAC);
 			// if (printTAC)
 			// printTACBlock(theFunction->table->codeBlock, depth);
+			printf("\n");
+		}
+		break;
+
+		case e_scope:
+		{
+			struct scopeEntry *theScope = it->entries[i]->entry;
+			printf("> scope [%s]: %d symbols\n", it->entries[i]->name, theScope->table->size);
+			printSymTabRec(theScope->table, depth + 1, printTAC);
 			printf("\n");
 		}
 		break;
@@ -293,6 +313,11 @@ void freeSymTab(struct symbolTable *it)
 		case e_function:
 			freeSymTab(((struct functionEntry *)currentEntry->entry)->table);
 			free((struct functionEntry *)currentEntry->entry);
+			break;
+
+		case e_scope:
+			freeSymTab(((struct scopeEntry *)currentEntry->entry)->table);
+			free(currentEntry->name);
 			break;
 		}
 		// free(it->name);
@@ -412,18 +437,117 @@ void walkStatement(struct ASTNode *it, struct symbolTable *wip)
 	}
 }
 
+void walkScope(struct ASTNode *it, struct symbolTable *wip, char isMainScope)
+{
+	printf("\nEntering scope\n");
+	struct Stack *scopeNums = Stack_new();
+	// start at the parent (ultimately do nothing if this is one level down from global)
+	struct symbolTable *hierarchyRunner = wip;
+	char *functionName = hierarchyRunner->name;
+	// while there is a parent scope, we should label it'
+	while (hierarchyRunner != NULL)
+	{
+		Stack_push(scopeNums, &hierarchyRunner->childScopeCount);
+		if (hierarchyRunner->parentScope != NULL)
+		{
+			functionName = hierarchyRunner->parentScope->name;
+		}
+		hierarchyRunner = hierarchyRunner->parentScope;
+	}
+	char *thisScopeName;
+	if (isMainScope)
+	{
+		printf("is main scope!\n");
+		thisScopeName = functionName;
+	}
+	else
+	{
+		printf("isn't main scope\n");
+		thisScopeName = malloc((3 * scopeNums->size) + strlen(functionName) + 1);
+		thisScopeName[0] = '\0';
+		sprintf(thisScopeName, "%s", functionName);
+		for (int i = 0; i < scopeNums->size; i++)
+		{
+			sprintf(thisScopeName + strlen(thisScopeName), "_%02x", *(unsigned char *)scopeNums->data[i]);
+		}
+	}
+	printf("have %d nested scopes\n", scopeNums->size);
+	printf("this scope is named [%s]\n", thisScopeName);
+
+
+
+	struct symbolTable *thisScopeTable = newSymbolTable(thisScopeName);
+	symTab_insertScope(wip, thisScopeName, thisScopeTable);
+	struct ASTNode *scopeRunner = it->child;
+	while (scopeRunner != NULL)
+	{
+		switch (scopeRunner->type)
+		{
+			// nested scopes!
+		case t_scope:
+			walkScope(scopeRunner, thisScopeTable, 0);
+			break;
+
+			// function call/return can't create new symbols so ignore
+		case t_call:
+		case t_return:
+			break;
+
+		case t_if:
+			// having fun yet?
+			struct ASTNode *ifRunner = scopeRunner->child->sibling->child;
+			while (ifRunner != NULL)
+			{
+				walkStatement(ifRunner, thisScopeTable);
+				ifRunner = ifRunner->sibling;
+			}
+
+			// no, really! (if an else block exists, walk that too)
+			if (scopeRunner->child->sibling->sibling != NULL)
+			{
+				ifRunner = scopeRunner->child->sibling->sibling->child->child;
+				while (ifRunner != NULL)
+				{
+					walkStatement(ifRunner, thisScopeTable);
+					ifRunner = ifRunner->sibling;
+				}
+			}
+
+			break;
+
+		case t_while:
+			struct ASTNode *whileRunner = scopeRunner->child->sibling->child;
+			while (whileRunner != NULL)
+			{
+				walkStatement(whileRunner, thisScopeTable);
+				whileRunner = whileRunner->sibling;
+			}
+			break;
+
+		// otherwise we are looking at the body of the function, which is a statement list
+		default:
+			walkStatement(scopeRunner, thisScopeTable);
+			break;
+		}
+		scopeRunner = scopeRunner->sibling;
+	}
+
+	wip->childScopeCount++;
+}
+
 void walkFunction(struct ASTNode *it, struct symbolTable *wip)
 {
 	struct ASTNode *functionRunner = it->child;
 	char *functionName = functionRunner->value;
-	struct symbolTable *subTable = newSymbolTable(functionName);
-	subTable->parentScope = wip;
+	struct symbolTable *funcTable = newSymbolTable(functionName);
+	funcTable->parentScope = wip;
 	while (functionRunner != NULL)
 	{
 		switch (functionRunner->type)
 		{
 		// looking at function name, which will have argument variables as children
 		case t_name:
+		{
 			struct ASTNode *argumentRunner = functionRunner->child;
 			while (argumentRunner != NULL)
 			{
@@ -460,55 +584,67 @@ void walkFunction(struct ASTNode *it, struct symbolTable *wip)
 					runner = runner->child;
 				}
 
-				symTab_insertArgument(subTable, runner->value, theType, indirectionLevel);
+				symTab_insertArgument(funcTable, runner->value, theType, indirectionLevel);
 
 				argumentRunner = argumentRunner->sibling;
 			}
-			break;
+		}
+		break;
 
-		// function call/return can't create new symbols so ignore
-		case t_call:
-		case t_return:
-			break;
+		case t_scope:
+		{
+			walkScope(functionRunner, funcTable, 1);
+		}
+		break;
 
-		case t_if:
-			// having fun yet?
-			struct ASTNode *ifRunner = functionRunner->child->sibling->child;
-			while (ifRunner != NULL)
-			{
-				walkStatement(ifRunner, subTable);
-				ifRunner = ifRunner->sibling;
-			}
+		default:
+			ErrorAndExit(ERROR_INTERNAL, "Malformed AST within function - expected function name and main scope only!\nMalformed node was of type %s with value [%s]\n", getTokenName(functionRunner->type), functionRunner->value);
 
-			// no, really! (if an else block exists, walk that too)
-			if (functionRunner->child->sibling->sibling != NULL)
-			{
-				ifRunner = functionRunner->child->sibling->sibling->child->child;
+			/*
+			// function call/return can't create new symbols so ignore
+			case t_call:
+			case t_return:
+				break;
+
+			case t_if:
+				// having fun yet?
+				struct ASTNode *ifRunner = functionRunner->child->sibling->child;
 				while (ifRunner != NULL)
 				{
 					walkStatement(ifRunner, subTable);
 					ifRunner = ifRunner->sibling;
 				}
-			}
 
-			break;
+				// no, really! (if an else block exists, walk that too)
+				if (functionRunner->child->sibling->sibling != NULL)
+				{
+					ifRunner = functionRunner->child->sibling->sibling->child->child;
+					while (ifRunner != NULL)
+					{
+						walkStatement(ifRunner, subTable);
+						ifRunner = ifRunner->sibling;
+					}
+				}
 
-		case t_while:
-			struct ASTNode *whileRunner = functionRunner->child->sibling->child;
-			while (whileRunner != NULL)
-			{
-				walkStatement(whileRunner, subTable);
-				whileRunner = whileRunner->sibling;
-			}
-			break;
+				break;
 
-		// otherwise we are looking at the body of the function, which is a statement list
-		default:
-			walkStatement(functionRunner, subTable);
+			case t_while:
+				struct ASTNode *whileRunner = functionRunner->child->sibling->child;
+				while (whileRunner != NULL)
+				{
+					walkStatement(whileRunner, subTable);
+					whileRunner = whileRunner->sibling;
+				}
+				break;
+
+			// otherwise we are looking at the body of the function, which is a statement list
+			default:
+				walkStatement(functionRunner, subTable);
+			*/
 		}
 		functionRunner = functionRunner->sibling;
 	}
-	symTab_insertFunction(wip, functionName, subTable);
+	symTab_insertFunction(wip, functionName, funcTable);
 }
 
 // given an AST node for a program, walk the AST and generate a symbol table for the entire thing
@@ -532,11 +668,6 @@ struct symbolTable *walkAST(struct ASTNode *it)
 			{
 				scraper = scraper->child;
 			}
-
-			struct variableEntry *theGlobal = symbolTableLookup(wip, scraper->value)->entry;
-			if (theGlobal->global == 0)
-				theGlobal->global = 1;
-
 			break;
 
 		case t_fun:

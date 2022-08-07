@@ -12,7 +12,8 @@ enum symTabEntryType
 {
 	e_variable,
 	e_function,
-	e_argument
+	e_argument,
+	e_scope,
 };
 
 struct tempList
@@ -36,7 +37,11 @@ struct variableEntry
 	int assignedAt;
 	int declaredAt;
 	char isAssigned;
-	char global;
+};
+
+struct scopeEntry
+{
+	struct symbolTable *table;
 };
 
 struct functionEntry
@@ -50,6 +55,10 @@ struct symbolTable
 	char *name;
 	struct symTabEntry **entries;
 	struct symbolTable *parentScope;
+
+	// only support 256 subscopes at any given level
+	// for allocation of names and sanity
+	char childScopeCount;
 	int size;
 	struct tempList *tl;
 	int localStackSize;
@@ -87,6 +96,8 @@ void symTab_insertArgument(struct symbolTable *table, char *name, enum variableT
 
 void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolTable *subTable);
 
+void symTab_insertScope(struct symbolTable *table, char *name, struct symbolTable *scope);
+
 void printSymTabRec(struct symbolTable *it, int depth, char printTAC);
 
 void printSymTab(struct symbolTable *it, char printTAC);
@@ -95,6 +106,8 @@ void freeSymTab(struct symbolTable *it);
 
 // AST walk functions
 void walkStatement(struct ASTNode *it, struct symbolTable *wip);
+
+void walkScope(struct ASTNode *it, struct symbolTable *wip, char isMainScope);
 
 void walkFunction(struct ASTNode *it, struct symbolTable *wip);
 

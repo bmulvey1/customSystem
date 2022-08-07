@@ -29,6 +29,7 @@ char *token_names[] = {
 	"l curly",
 	"r curly",
 	"call",
+	"scope",
 	"EOF"};
 
 void ParserError(char *production, char *info)
@@ -371,9 +372,8 @@ struct ASTNode *parseTLD(struct Dictionary *dict)
 		ASTNode_insertChild(functionname, argList);
 		ASTNode_insertChild(TLD, functionname);
 		consume(t_rParen);
-		consume(t_lCurly);
-		ASTNode_insertChild(TLD, parseStatementList(dict));
-		consume(t_rCurly);
+
+		ASTNode_insertChild(TLD, parseScope(dict));
 		break;
 
 	// var [variable name];
@@ -412,48 +412,26 @@ struct ASTNode *parseAssignment(struct ASTNode *name, struct Dictionary *dict)
 	return assign;
 }
 
-struct ASTNode *parseStatementList(struct Dictionary *dict)
+struct ASTNode *parseScope(struct Dictionary *dict)
 {
-	struct ASTNode *stmtList = NULL;
-	// loop until we see something that's not a statement
-	int parsing = 1;
-	while (parsing)
+	struct ASTNode *scope = ASTNode_new(t_scope, "scope");
+	consume(t_lCurly);
+	// parse statements until we see the end of this scope
+	while (lookahead() != '}')
 	{
-		struct ASTNode *stmt = NULL;
-		enum token nextToken = lookaheadToken();
-		switch (nextToken)
+		if (lookahead() == '{')
 		{
-
-		// v [variable name];
-		// v [variable name] = [expression];
-		// [variable name] = [expression];
-		// return [expression];
-		case t_asm:
-		case t_var:
-		case t_name:
-		case t_return:
-		case t_if:
-		case t_while:
-		case t_dereference:
-			stmt = parseStatement(dict);
-			if (stmtList == NULL)
-				stmtList = stmt;
-			else
-				ASTNode_insertSibling(stmtList, stmt);
-			break;
-
-		// currently this is the only token that can terminate a list
-		case t_rCurly:
-			parsing = 0;
-			break;
-
-		default:
-			ParserError("statement", "expected 'var', 'if', 'while', '}', or name");
+			ASTNode_insertChild(scope, parseScope(dict));
+		}
+		else
+		{
+			ASTNode_insertChild(scope, parseStatement(dict));
 		}
 	}
+	consume(t_rCurly);
 
 	// printf("done parsing statement list");
-	return stmtList;
+	return scope;
 }
 
 struct ASTNode *parseStatement(struct Dictionary *dict)
@@ -482,12 +460,12 @@ struct ASTNode *parseStatement(struct Dictionary *dict)
 		}
 		struct ASTNode *name = match(t_name, dict);
 
-			ASTNode_insertChild(type, name);
+		ASTNode_insertChild(type, name);
 
 		// check whether or not whether this is an assignment or just a declaration
 		if (lookaheadToken() == t_assign)
 		{
-			struct ASTNode *assignedName = malloc(sizeof (struct ASTNode));
+			struct ASTNode *assignedName = malloc(sizeof(struct ASTNode));
 			memcpy(assignedName, name, sizeof(struct ASTNode));
 			ASTNode_insertSibling(statement, parseAssignment(assignedName, dict));
 		}
@@ -757,9 +735,7 @@ struct ASTNode *parseIfStatement(struct Dictionary *dict)
 
 	if (lookahead() == '{')
 	{
-		consume(t_lCurly);
-		ASTNode_insertChild(doBlock, parseStatementList(dict));
-		consume(t_rCurly);
+		ASTNode_insertChild(doBlock, parseScope(dict));
 	}
 	else
 	{
@@ -783,9 +759,7 @@ struct ASTNode *parseElseStatement(struct Dictionary *dict)
 	ASTNode_insertChild(elseStatement, doBlock);
 	if (lookahead() == '{')
 	{
-		consume(t_lCurly);
-		ASTNode_insertChild(doBlock, parseStatementList(dict));
-		consume(t_rCurly);
+		ASTNode_insertChild(doBlock, parseScope(dict));
 	}
 	else
 	{
@@ -805,9 +779,7 @@ struct ASTNode *parseWhileLoop(struct Dictionary *dict)
 	ASTNode_insertChild(whileLoop, doBlock);
 	if (lookahead() == '{')
 	{
-		consume(t_lCurly);
-		ASTNode_insertChild(doBlock, parseStatementList(dict));
-		consume(t_rCurly);
+		ASTNode_insertChild(doBlock, parseScope(dict));
 	}
 	else
 		ParserError("while loop", "Expected '{' after 'while([condition])'");
