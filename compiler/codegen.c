@@ -1,6 +1,7 @@
 #include "codegen.h"
 
-struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
+/*
+struct ASMblock *generateCode(struct SymbolTable *table, FILE *outFile)
 {
 	struct ASMblock *outputBlock = newASMblock();
 	struct LinkedList *lifetimes = findLifetimes(table);
@@ -80,9 +81,9 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			// trimmedStr = strTrim(printBuf, sprintf(outputLine, ";introduce var %s to %%r%d", this->variable, destinationIndex));
 			// ASMblock_append(outputBlock, outputLine);
 			// place the value into the register if this is an argument (value starts on the stack)
-			if (this->variable[0] != '.' && symbolTableLookup(table, this->variable)->type == e_argument)
+			if (this->variable[0] != '.' && SymbolTableLookup(table, this->variable)->type == e_argument)
 			{
-				struct variableEntry *theArgument = symbolTableLookup(table, this->variable)->entry;
+				struct variableEntry *theArgument = SymbolTableLookup(table, this->variable)->entry;
 				trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d, %d(%%bp)", destinationIndex, theArgument->stackOffset));
 				ASMblock_append(outputBlock, trimmedStr);
 			}
@@ -156,9 +157,9 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 						trimmedStr = strTrim(printBuf, sprintf(printBuf, "\t;introduce var %s to %%r%d", this->variable, destinationIndex));
 						ASMblock_append(outputBlock, trimmedStr);
 						// place the value into the register if this is an argument (value starts on the stack)
-						if (this->variable[0] != '.' && symbolTableLookup(table, this->variable)->type == e_argument)
+						if (this->variable[0] != '.' && SymbolTableLookup(table, this->variable)->type == e_argument)
 						{
-							struct variableEntry *theArgument = symbolTableLookup(table, this->variable)->entry;
+							struct variableEntry *theArgument = SymbolTableLookup(table, this->variable)->entry;
 							trimmedStr = strTrim(printBuf, sprintf(printBuf, "mov %%r%d, %d(%%bp)", destinationIndex, theArgument->stackOffset));
 							// trimmedStr = strTrim(printBuf, sprintf(printBuf, "%s ;place argument %s", outputLine, this->variable);
 							ASMblock_append(outputBlock, trimmedStr);
@@ -169,12 +170,13 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 			default:
 				break;
 			}
-
+*/
 			/*
 			 * double check spill space because some functions in regalloc may spill variables on their own
 			 * TODO: consider just making this the only check, any reason it wouldn't work?
 			 *
 			 */
+			/*
 			if (spilledList->size * 2 > maxSpillSpace)
 				maxSpillSpace = spilledList->size * 2;
 
@@ -690,3 +692,4 @@ struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile)
 	Stack_free(savedStateStack);
 	return outputBlock;
 }
+*/

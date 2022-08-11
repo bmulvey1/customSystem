@@ -739,7 +739,9 @@ struct ASTNode *parseIfStatement(struct Dictionary *dict)
 	}
 	else
 	{
-		ASTNode_insertChild(doBlock, parseStatement(dict));
+		struct ASTNode *ifScope = ASTNode_new(t_scope, "scope");
+		ASTNode_insertChild(ifScope, parseStatement(dict));
+		ASTNode_insertChild(doBlock, ifScope);
 	}
 
 	if (lookaheadToken() == t_else)
@@ -763,7 +765,9 @@ struct ASTNode *parseElseStatement(struct Dictionary *dict)
 	}
 	else
 	{
-		ASTNode_insertChild(doBlock, parseStatement(dict));
+		struct ASTNode *elseScope = ASTNode_new(t_scope, "scope");
+		ASTNode_insertChild(elseScope, parseStatement(dict));
+		ASTNode_insertChild(doBlock, elseScope);
 	}
 
 	return elseStatement;
@@ -782,7 +786,12 @@ struct ASTNode *parseWhileLoop(struct Dictionary *dict)
 		ASTNode_insertChild(doBlock, parseScope(dict));
 	}
 	else
-		ParserError("while loop", "Expected '{' after 'while([condition])'");
+	{
+		struct ASTNode *whileScope = ASTNode_new(t_scope, "scope");
+		ASTNode_insertChild(whileScope, parseStatement(dict));
+		ASTNode_insertChild(doBlock, whileScope);
+	}
+	// ParserError("while loop", "Expected '{' after 'while([condition])'");
 
 	// printf("done parsing if statement - here's what we got!\n");
 	// printAST(ifStatement, 0);

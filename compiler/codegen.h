@@ -1,3 +1,3 @@
 #include "regalloc.h"
 
-struct ASMblock *generateCode(struct symbolTable *table, FILE *outFile);
+struct ASMblock *generateCode(struct SymbolTable *table, FILE *outFile);

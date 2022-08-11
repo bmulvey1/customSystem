@@ -16,8 +16,8 @@ int compareBasicBlockStartIndices(struct BasicBlock *a, struct BasicBlock *b)
 {
 	return ((struct TACLine *)a->TACList->head->data)->index < ((struct TACLine *)b->TACList->head->data)->index;
 }
-
-void printBasicBlocks(struct symbolTable *theTable)
+/*
+void printBasicBlocks(struct SymbolTable *theTable)
 {
 	printf("Basic Blocks for %s\n", theTable->name);
 	for (int i = 0; i < theTable->size; i++)
@@ -34,7 +34,7 @@ void printBasicBlocks(struct symbolTable *theTable)
 	}
 }
 
-void checkUninitializedUsage(struct symbolTable *table)
+void checkUninitializedUsage(struct SymbolTable *table)
 {
 
 	for (struct LinkedListNode *r = table->BasicBlockList->head; r != NULL; r = r->next)
@@ -75,7 +75,7 @@ void checkUninitializedUsage(struct symbolTable *table)
 			{
 			case tt_declare:
 
-				struct variableEntry *declared = symbolTableLookup(table, ir->operands[0])->entry;
+				struct variableEntry *declared = SymbolTableLookup(table, ir->operands[0])->entry;
 				if (declared->declaredAt > 0)
 				{
 					ErrorAndExit(ERROR_CODE, "Error - redeclaration of variable [%s]\n", ir->operands[0]);
@@ -90,7 +90,8 @@ void checkUninitializedUsage(struct symbolTable *table)
 					{
 					case vt_var:
 						// lookup_var breaks and exits if variable is undeclared
-						/*struct variableEntry *pushed = */ symbolTableLookup_var(table, ir->operands[0]);
+						//struct variableEntry *pushed =  
+						SymbolTableLookup_var(table, ir->operands[0]);
 						break;
 
 					default:
@@ -102,7 +103,7 @@ void checkUninitializedUsage(struct symbolTable *table)
 			case tt_call:
 				if (ir->operandTypes[0] != vt_null && ir->operandPermutations[0] == vp_standard)
 				{
-					struct variableEntry *callResult = symbolTableLookup_var(table, ir->operands[0]);
+					struct variableEntry *callResult = SymbolTableLookup_var(table, ir->operands[0]);
 					if (!callResult->isAssigned)
 					{
 						callResult->assignedAt = ir->index;
@@ -123,7 +124,7 @@ void checkUninitializedUsage(struct symbolTable *table)
 					switch (ir->operandPermutations[j])
 					{
 					case vp_standard:
-						struct variableEntry *it = symbolTableLookup_var(table, ir->operands[j]);
+						struct variableEntry *it = SymbolTableLookup_var(table, ir->operands[j]);
 
 						if (!it->isAssigned)
 						{
@@ -144,7 +145,7 @@ void checkUninitializedUsage(struct symbolTable *table)
 				{
 				// check only standard type, not temp or literal
 				case vp_standard:
-					struct variableEntry *theVariable = symbolTableLookup_var(table, ir->operands[0]);
+					struct variableEntry *theVariable = SymbolTableLookup_var(table, ir->operands[0]);
 
 					if (theVariable->declaredAt > ir->index || theVariable->declaredAt == -1)
 					{
@@ -168,7 +169,7 @@ void checkUninitializedUsage(struct symbolTable *table)
 		}
 	}
 }
-
+*/
 void checkIRConsistency(struct LinkedList *blockList)
 {
 	for (struct LinkedListNode *br = blockList->head; br != NULL; br = br->next)
@@ -340,25 +341,29 @@ int main(int argc, char **argv)
 
 	ASTNode_print(program, 0);
 	printf("Generating symbol table from AST");
-	struct symbolTable *theTable = walkAST(program);
+	struct SymbolTable *theTable = walkAST(program);
 	printf("\n");
 
-	printSymTab(theTable, 1);
+	// printSymTab(theTable, 1);
+	SymbolTable_print(theTable, 0);
 
-	printf("Linearizing code to basic blocks\n");
-	linearizeProgram(program, theTable);
+	// printf("Linearizing code to basic blocks\n");
+	// linearizeProgram(program, theTable);
 
-	printBasicBlocks(theTable);
-	printf("\n\n");
+	// printBasicBlocks(theTable);
+	// printf("\n\n");
 
-	FILE *outFile = fopen(argv[2], "wb");
+	// FILE *outFile = fopen(argv[2], "wb");
+
 	// struct Lifetime *theseLifetimes = findLifetimes(theTable);
-	struct ASMblock *output;
-	output = generateCode(theTable, outFile);
-	ASMblock_output(output, outFile);
-	ASMblock_free(output);
+
+	// struct ASMblock *output;
+	// output = generateCode(theTable, outFile);
+	// ASMblock_output(output, outFile);
+	// ASMblock_free(output);
 
 	// exit(1);
+	/*
 	for (int i = 0; i < theTable->size; i++)
 	{
 		if (theTable->entries[i]->type == e_function)
@@ -378,13 +383,14 @@ int main(int argc, char **argv)
 			ASMblock_free(output);
 		}
 	}
+	*/
 
-	fprintf(outFile, "data:\n");
+	// fprintf(outFile, "data:\n");
 
-	fclose(outFile);
+	// fclose(outFile);
 	freeDictionary(parseDict);
 	ASTNode_free(program);
-	freeSymTab(theTable);
+	SymbolTable_free(theTable);
 
 	printf("done printing\n");
 }

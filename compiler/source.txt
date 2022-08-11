@@ -19,7 +19,11 @@ fun scopeTest(var a)
 	}
 
 	
+	/*
+	//i = i + k; // shouldn't work
 
+	
+	
 	{
 		// second scope
 		var j = 123;
@@ -33,7 +37,7 @@ fun scopeTest(var a)
 	{
 		// second scope
 		var j = 123;
-	}
+	}*/
 
 	
 }

@@ -50,6 +50,7 @@ void freeTempList(struct tempList *it)
 	free(it);
 }
 
+/*
 struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
 {
 	struct symTabEntry *wip = malloc(sizeof(struct symTabEntry));
@@ -59,9 +60,9 @@ struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
 	return wip;
 }
 
-struct variableEntry *newVariableEntry(int indirectionLevel, enum variableTypes type)
+struct VariableEntry *newVariableEntry(int indirectionLevel, enum variableTypes type)
 {
-	struct variableEntry *wip = malloc(sizeof(struct variableEntry));
+	struct VariableEntry *wip = malloc(sizeof(struct VariableEntry));
 	wip->stackOffset = 0;
 	wip->indirectionLevel = indirectionLevel;
 	wip->type = type;
@@ -71,38 +72,31 @@ struct variableEntry *newVariableEntry(int indirectionLevel, enum variableTypes 
 	return wip;
 }
 
-struct functionEntry *newFunctionEntry(struct symbolTable *table)
+struct FunctionEntry *FunctionEntry_new(struct Scope *parentScope)
 {
-	struct functionEntry *wip = malloc(sizeof(struct functionEntry));
-	wip->table = table;
-	return wip;
-}
-
-struct scopeEntry *newScopeEntry(struct symbolTable *table)
-{
-	struct scopeEntry *wip = malloc(sizeof(struct scopeEntry));
-	wip->table = table;
-	return wip;
-}
-
-struct symbolTable *newSymbolTable(char *name)
-{
-	struct symbolTable *wip = malloc(sizeof(struct symbolTable));
-	wip->size = 0;
-	wip->parentScope = NULL;
-	wip->entries = NULL;
-	wip->BasicBlockList = NULL;
-	wip->name = name;
+	struct FunctionEntry *wip = malloc(sizeof(struct FunctionEntry));
+	wip->mainScope = Scope_new(parentScope);
+	wip->mainScope->parentFunction = wip;
 	wip->localStackSize = 0;
 	wip->argStackSize = 0;
-	wip->childScopeCount = 0;
+	wip->BasicBlockList = LinkedList_new();
+	return wip;
+}
+*/
+
+struct SymbolTable *SymbolTable_new(char *name)
+{
+	struct SymbolTable *wip = malloc(sizeof(struct SymbolTable));
+	wip->name = name;
+	wip->globalScope = Scope_new(NULL, "Global");
 	// generate a single templist at the top level symTab
 	// leave all others as NULL to avoid duplication
 	wip->tl = NULL;
 	return wip;
 }
 
-int symbolTableContains(struct symbolTable *table, char *name)
+/*
+int SymbolTableContains(struct SymbolTable *table, char *name)
 {
 	for (int i = 0; i < table->size; i++)
 		if (!strcmp(table->entries[i]->name, name))
@@ -113,7 +107,7 @@ int symbolTableContains(struct symbolTable *table, char *name)
 
 // return a symbol table entry by name, or NULL if not found
 // automatically looks at most local scope, then enclosing scopes until found or no scopes left
-struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name)
+struct symTabEntry *SymbolTableLookup(struct SymbolTable *table, char *name)
 {
 	while (table != NULL)
 	{
@@ -127,10 +121,10 @@ struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name)
 	return NULL;
 }
 
-// return the variableEntry for a given name, or throw a use-before-declare error if nonexistent
-struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *name)
+// return the VariableEntry for a given name, or throw a use-before-declare error if nonexistent
+struct VariableEntry *SymbolTable_lookupVar(struct SymbolTable *table, char *name)
 {
-	struct symTabEntry *e = symbolTableLookup(table, name);
+	struct symTabEntry *e = SymbolTableLookup(table, name);
 
 	if (e != NULL)
 		return e->entry;
@@ -140,7 +134,7 @@ struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *nam
 	}
 }
 
-int symbolTable_getSizeOfVariable(struct symbolTable *table, enum variableTypes type)
+int SymbolTable_getSizeOfVariable(struct SymbolTable *table, enum variableTypes type)
 {
 	switch (type)
 	{
@@ -152,9 +146,32 @@ int symbolTable_getSizeOfVariable(struct symbolTable *table, enum variableTypes 
 	}
 }
 
-struct functionEntry *symbolTableLookup_fun(struct symbolTable *table, char *name)
+// unwind the scope of the current table to find and return the name of the actual function the scopes are within
+char *SymbolTable_getNameOfParentFunction(struct SymbolTable *table)
 {
-	struct symTabEntry *e = symbolTableLookup(table, name);
+	printf("getnameofparent\n");
+	char *functionName = table->name;
+	// track all the scope numbers so we can name this scope appropriately
+	// also find out the base function name
+	while (table->parentScope != NULL)
+	{
+		printf("table [%s] (%p) (parent is %p)\n", table->name, table, table->parentScope);
+		for (int i = 0; i < 0xffffff; i++)
+		{
+		}
+		if (table->parentScope->parentScope != NULL)
+		{
+			functionName = table->parentScope->name;
+		}
+
+		table = table->parentScope;
+	}
+	return functionName;
+}
+
+struct FunctionEntry *SymbolTable_lookupFun(struct SymbolTable *table, char *name)
+{
+	struct symTabEntry *e = SymbolTableLookup(table, name);
 
 	if (e != NULL)
 		return e->entry;
@@ -164,75 +181,194 @@ struct functionEntry *symbolTableLookup_fun(struct symbolTable *table, char *nam
 	}
 }
 
-void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum symTabEntryType type)
+struct FunctionEntry *SymbolTable_lookupScope(struct SymbolTable *table, char *name)
 {
-	if (symbolTableContains(table, name))
+	struct symTabEntry *e = NULL;
+	while (table != NULL)
+	{
+		e = SymbolTableLookup(table, name);
+		if (e == NULL)
+		{
+			table = table->parentScope;
+		}
+		else
+		{
+			printf("scope [%s] has pointer (%p)\n", name, e->entry);
+			return e->entry;
+		}
+	}
+	ErrorAndExit(ERROR_CODE, "Error - Use of scope [%s] before declaration\n", name);
+}
+*/
+struct Scope *Scope_new(struct Scope *parentScope, char *name)
+{
+	struct Scope *wip = malloc(sizeof(struct Scope));
+	wip->entries = Stack_new();
+	// need to set this manually to handle when new functions are declared
+	// TODO: supports nested functions? ;)
+	wip->parentFunction = NULL; 
+	wip->parentScope = parentScope;
+	wip->subScopeCount = 0;
+	wip->name = name;
+	return wip;
+}
+
+char Scope_contains(struct Scope *scope, char *name)
+{
+	for(int i = 0; i < scope->entries->size; i++)
+	{
+		if(!strcmp(name, ((struct ScopeMember *)scope->entries->data[i])->name))
+		{
+			return 1;
+		}
+	}
+	return 0;
+}
+
+// if a member with the given name exists in this scope or any of its parents,
+// return it
+struct ScopeMember *Scope_lookup(struct Scope *scope, char *name)
+{
+	while(scope != NULL)
+	{
+		for(int i = 0; i < scope->entries->size; i++)
+		{
+			struct ScopeMember *examinedEntry = scope->entries->data[i];
+			if(!strcmp(examinedEntry->name, name))
+			{
+				return examinedEntry;
+			}
+		}
+		scope = scope->parentScope;
+	}
+	return NULL;
+}
+
+int Scope_getSizeOfVariable(struct Scope *scope, char *name)
+{
+	struct ScopeMember *examinedEntry = Scope_lookup(scope, name);
+	struct VariableEntry *theVariable;
+	switch(examinedEntry->type)
+	{
+		case e_argument:
+		case e_variable:
+			theVariable = examinedEntry->entry;
+			break;
+
+		default:
+			ErrorAndExit(ERROR_INTERNAL, "Expected variable entry in scope, got entry type %d instead!\n", examinedEntry->type);
+			break;
+	}
+
+	switch(theVariable->type)
+	{
+		case vt_var:
+			return 2;
+
+		default:
+			ErrorAndExit(ERROR_INTERNAL, "Unexpected variable type %d!\n", theVariable->type);
+			break;
+	}
+}
+
+void Scope_insert(struct Scope *scope, char *name, void *newEntry, enum ScopeMemberType type)
+{
+	if (Scope_contains(scope, name))
 	{
 		ErrorAndExit(ERROR_CODE, "Error defining symbol [%s] - name already exists!\n", name);
 	}
-	struct symTabEntry *wip = malloc(sizeof(struct symTabEntry));
+	struct ScopeMember *wip = malloc(sizeof(struct ScopeMember));
 	wip->name = name;
 	wip->entry = newEntry;
 	wip->type = type;
-
-	struct symTabEntry **newList = malloc((table->size + 1) * sizeof(struct symTabEntry *));
-	for (int i = 0; i < table->size; i++)
-	{
-		newList[i] = table->entries[i];
-	}
-
-	newList[table->size] = wip;
-	free(table->entries);
-	table->entries = newList;
-	table->size++;
+	Stack_push(scope->entries, wip);
 }
 
-void symTab_insertVariable(struct symbolTable *table, char *name, enum variableTypes type, int indirectionLevel)
+void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes type, int indirectionLevel)
 {
-	struct variableEntry *newVariable = newVariableEntry(indirectionLevel, type);
-	symTabInsert(table, name, newVariable, e_variable);
+	struct VariableEntry *newVariable = malloc(sizeof(struct VariableEntry));
+	newVariable->type = type;
+	newVariable->indirectionLevel = indirectionLevel;
+	// we'll see how well this works with structs but should hold together for now...
+	newVariable->stackOffset = 0;
+	newVariable->type = type;
+	newVariable->assignedAt = -1;
+	newVariable->declaredAt = -1;
+	newVariable->isAssigned = 0;
+	Scope_insert(scope, name, newVariable, e_variable);
+	newVariable->stackOffset = scope->parentFunction->localStackSize;
+	scope->parentFunction->localStackSize += Scope_getSizeOfVariable(scope, name);
+	// return newVariable;
 }
 
-void symTab_insertArgument(struct symbolTable *table, char *name, enum variableTypes type, int indirectionLevel)
+void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum variableTypes type, int indirectionLevel)
 {
-	struct variableEntry *newArgument = newVariableEntry(indirectionLevel, type);
-	newArgument->isAssigned = 1;
-	newArgument->assignedAt = 0;
-	newArgument->declaredAt = 0;
-	switch (type)
-	{
-	case vt_var:
-		table->argStackSize += 2;
-		newArgument->stackOffset = (table->argStackSize + 2);
-		break;
+	struct VariableEntry *newArgument = malloc(sizeof(struct VariableEntry));
+	newArgument->type = type;
+	newArgument->indirectionLevel = indirectionLevel;
+	newArgument->type = type;
+	newArgument->assignedAt = -1;
+	newArgument->declaredAt = -1;
+	newArgument->isAssigned = 0;
 
-	default:
-		break;
-	}
-	symTabInsert(table, name, newArgument, e_argument);
+
+	Scope_insert(func->mainScope, name, newArgument, e_argument);
+	int argSize = Scope_getSizeOfVariable(func->mainScope, name);
+	func->argStackSize += argSize;
+	newArgument->stackOffset = -1 * (func->argStackSize + argSize);
+
+	// return newArgument;
 }
 
-void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolTable *subTable)
+struct FunctionEntry *Scope_createFunction(struct Scope *scope, char *name)
 {
-	struct functionEntry *newFunction = newFunctionEntry(subTable);
+	struct FunctionEntry *newFunction = malloc(sizeof(struct FunctionEntry));
+	newFunction->argStackSize = 0;
+	newFunction->localStackSize = 0;
+	newFunction->mainScope = Scope_new(scope, name);
+	newFunction->mainScope->parentFunction = newFunction;
 	newFunction->returnType = vt_var; // hardcoded... for now ;)
-	symTabInsert(table, name, newFunction, e_function);
+	newFunction->name = name;
+	Scope_insert(scope, name, newFunction, e_function);
+	return newFunction;
 }
 
+struct Scope *Scope_createSubScope(struct Scope *parentScope)
+{
+	if(parentScope->subScopeCount == 0xff)
+	{
+		ErrorAndExit(ERROR_INTERNAL, "Too many subscopes of scope %s\n", parentScope->name);
+	}
+	char *newScopeName = malloc(3 + strlen(parentScope->name) + 1);
+	sprintf(newScopeName, "%s_%02x", parentScope->name, parentScope->subScopeCount);
+	parentScope->subScopeCount++;
+	
+	struct Scope *newScope = Scope_new(parentScope, newScopeName);
+	newScope->parentFunction = parentScope->parentFunction;
+	
+	Scope_insert(parentScope, newScopeName, newScope, e_scope);
+	return newScope;
+}
+/*
 // currently just does basically the same thing as insertFunction
 // since scopes are similar to functions in terms of data structures
 // this could change later, so leaving this for easy support
-void symTab_insertScope(struct symbolTable *table, char *name, struct symbolTable *scope)
+struct Scope *symTab_insertScope(struct SymbolTable *table, char *name)
 {
-	struct scopeEntry *newScope = newScopeEntry(scope);
+	struct Scope *newScope = Scope_new(name);
 	symTabInsert(table, name, newScope, e_scope);
+	return newScope;
 }
 
-void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
+void printSymTabRec(struct SymbolTable *it, int depth, char printTAC)
 {
 	for (int i = 0; i < depth; i++)
 		printf("\t");
 
+	printf("pointer (%p), parent (%p)\n", it, it->parentScope);
+
+	for (int i = 0; i < depth; i++)
+		printf("\t");
 	printf("~~~~~Symbol table for [%s] (stack footprint of %d:%d)\n", it->name, it->argStackSize, it->localStackSize);
 	for (int i = 0; i < it->size; i++)
 	{
@@ -243,7 +379,7 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
 		{
 		case e_argument:
 		{
-			struct variableEntry *theArgument = it->entries[i]->entry;
+			struct VariableEntry *theArgument = it->entries[i]->entry;
 			printf("> argument variable ");
 			for (int i = 0; i < theArgument->indirectionLevel; i++)
 			{
@@ -255,7 +391,7 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
 
 		case e_variable:
 		{
-			struct variableEntry *theVariable = it->entries[i]->entry;
+			struct VariableEntry *theVariable = it->entries[i]->entry;
 			printf("> variable");
 
 			for (int i = 0; i < theVariable->indirectionLevel; i++)
@@ -268,7 +404,7 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
 
 		case e_function:
 		{
-			struct functionEntry *theFunction = it->entries[i]->entry;
+			struct FunctionEntry *theFunction = it->entries[i]->entry;
 			printf("> function [%s]: %d symbols\n", it->entries[i]->name, theFunction->table->size);
 			printSymTabRec(theFunction->table, depth + 1, printTAC);
 			// if (printTAC)
@@ -279,7 +415,7 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
 
 		case e_scope:
 		{
-			struct scopeEntry *theScope = it->entries[i]->entry;
+			struct ScopeMember *theScope = it->entries[i]->entry;
 			printf("> scope [%s]: %d symbols\n", it->entries[i]->name, theScope->table->size);
 			printSymTabRec(theScope->table, depth + 1, printTAC);
 			printf("\n");
@@ -293,12 +429,14 @@ void printSymTabRec(struct symbolTable *it, int depth, char printTAC)
 	printf("\n");
 }
 
-void printSymTab(struct symbolTable *it, char printTAC)
+void printSymTab(struct SymbolTable *it, char printTAC)
 {
 	printSymTabRec(it, 0, printTAC);
 }
 
-void freeSymTab(struct symbolTable *it)
+
+
+void freeSymTab(struct SymbolTable *it)
 {
 	for (int i = 0; i < it->size; i++)
 	{
@@ -307,16 +445,16 @@ void freeSymTab(struct symbolTable *it)
 		{
 		case e_argument:
 		case e_variable:
-			free((struct variableEntry *)currentEntry->entry);
+			free((struct VariableEntry *)currentEntry->entry);
 			break;
 
 		case e_function:
-			freeSymTab(((struct functionEntry *)currentEntry->entry)->table);
-			free((struct functionEntry *)currentEntry->entry);
+			freeSymTab(((struct FunctionEntry *)currentEntry->entry)->table);
+			free((struct FunctionEntry *)currentEntry->entry);
 			break;
 
 		case e_scope:
-			freeSymTab(((struct scopeEntry *)currentEntry->entry)->table);
+			freeSymTab(((struct ScopeMember *)currentEntry->entry)->table);
 			free(currentEntry->name);
 			break;
 		}
@@ -334,11 +472,70 @@ void freeSymTab(struct symbolTable *it)
 	free(it->entries);
 	free(it);
 }
+*/
+
+void Scope_print(struct Scope *it, int depth)
+{
+	for(int i = 0; i < it->entries->size; i++)
+	{
+		struct ScopeMember *thisMember = it->entries->data[i];
+
+		for(int j = 0; j < depth; j++)
+		{
+			printf("\t");
+		}
+
+		switch(thisMember->type)
+		{
+			case e_argument:
+			{
+				struct VariableEntry *theArgument = thisMember->entry;
+				printf("> Argument %s (stack offset %d)\n", thisMember->name, theArgument->stackOffset);
+			}
+			break;
+
+			case e_variable:
+			{
+				struct VariableEntry *theVariable = thisMember->entry;
+				printf("> Variable %s (stack offset %d)\n", thisMember->name, theVariable->stackOffset);
+			}
+			break;
+
+			case e_function:
+			{
+				struct FunctionEntry *theFunction = thisMember->entry;
+				printf("> Function %s (returns %d)\n", thisMember->name, theFunction->returnType);
+				Scope_print(theFunction->mainScope, depth + 1);
+			}
+			break;
+
+			case e_scope:
+			{
+				struct Scope *theScope = thisMember->entry;
+				printf("> Subscope %s\n", thisMember->name);
+				Scope_print(theScope, depth + 1);
+			}
+			break;
+		}
+	}
+}
+
+
+void SymbolTable_print(struct SymbolTable *it, char printTAC)
+{
+	printf("Symbol Table %s\n", it->name);
+	Scope_print(it->globalScope, 0);
+}
+
+void SymbolTable_free(struct SymbolTable *it)
+{
+
+}
 
 /*
  * AST walk and symbol table generation functions
  */
-void walkStatement(struct ASTNode *it, struct symbolTable *wip)
+void walkStatement(struct ASTNode *it, struct Scope *wip)
 {
 	struct ASTNode *runner;
 	switch (it->type)
@@ -370,8 +567,8 @@ void walkStatement(struct ASTNode *it, struct symbolTable *wip)
 
 		// lookup the variable being assigned, only insert if unique
 		// also covers modification of argument values
-		if (!symbolTableContains(wip, varName))
-			symTab_insertVariable(wip, varName, vt_var, indirectionLevel);
+		if (!Scope_contains(wip, varName))
+			Scope_createVariable(wip, varName, vt_var, indirectionLevel);
 		else
 		{
 			ErrorAndExit(ERROR_CODE, "Error - redeclaration of symbol [%s]\n", varName);
@@ -386,7 +583,7 @@ void walkStatement(struct ASTNode *it, struct symbolTable *wip)
 		while(runner->type == t_dereference){
 			runner = runner->child;
 		}
-		if (!symbolTableContains(wip, runner->value))
+		if (!SymbolTableContains(wip, runner->value))
 		{
 			printf("Error - variable [%s] assigned before declaration\n", runner->child->value);
 			exit(1);
@@ -437,47 +634,8 @@ void walkStatement(struct ASTNode *it, struct symbolTable *wip)
 	}
 }
 
-void walkScope(struct ASTNode *it, struct symbolTable *wip, char isMainScope)
+void walkScope(struct ASTNode *it, struct Scope *wipScope, char isMainScope)
 {
-	printf("\nEntering scope\n");
-	struct Stack *scopeNums = Stack_new();
-	// start at the parent (ultimately do nothing if this is one level down from global)
-	struct symbolTable *hierarchyRunner = wip;
-	char *functionName = hierarchyRunner->name;
-	// while there is a parent scope, we should label it'
-	while (hierarchyRunner != NULL)
-	{
-		Stack_push(scopeNums, &hierarchyRunner->childScopeCount);
-		if (hierarchyRunner->parentScope != NULL)
-		{
-			functionName = hierarchyRunner->parentScope->name;
-		}
-		hierarchyRunner = hierarchyRunner->parentScope;
-	}
-	char *thisScopeName;
-	if (isMainScope)
-	{
-		printf("is main scope!\n");
-		thisScopeName = functionName;
-	}
-	else
-	{
-		printf("isn't main scope\n");
-		thisScopeName = malloc((3 * scopeNums->size) + strlen(functionName) + 1);
-		thisScopeName[0] = '\0';
-		sprintf(thisScopeName, "%s", functionName);
-		for (int i = 0; i < scopeNums->size; i++)
-		{
-			sprintf(thisScopeName + strlen(thisScopeName), "_%02x", *(unsigned char *)scopeNums->data[i]);
-		}
-	}
-	printf("have %d nested scopes\n", scopeNums->size);
-	printf("this scope is named [%s]\n", thisScopeName);
-
-
-
-	struct symbolTable *thisScopeTable = newSymbolTable(thisScopeName);
-	symTab_insertScope(wip, thisScopeName, thisScopeTable);
 	struct ASTNode *scopeRunner = it->child;
 	while (scopeRunner != NULL)
 	{
@@ -485,7 +643,7 @@ void walkScope(struct ASTNode *it, struct symbolTable *wip, char isMainScope)
 		{
 			// nested scopes!
 		case t_scope:
-			walkScope(scopeRunner, thisScopeTable, 0);
+			walkScope(scopeRunner, Scope_createSubScope(wipScope), 0);
 			break;
 
 			// function call/return can't create new symbols so ignore
@@ -498,7 +656,7 @@ void walkScope(struct ASTNode *it, struct symbolTable *wip, char isMainScope)
 			struct ASTNode *ifRunner = scopeRunner->child->sibling->child;
 			while (ifRunner != NULL)
 			{
-				walkStatement(ifRunner, thisScopeTable);
+				walkStatement(ifRunner, wipScope);
 				ifRunner = ifRunner->sibling;
 			}
 
@@ -508,7 +666,7 @@ void walkScope(struct ASTNode *it, struct symbolTable *wip, char isMainScope)
 				ifRunner = scopeRunner->child->sibling->sibling->child->child;
 				while (ifRunner != NULL)
 				{
-					walkStatement(ifRunner, thisScopeTable);
+					walkStatement(ifRunner, wipScope);
 					ifRunner = ifRunner->sibling;
 				}
 			}
@@ -519,28 +677,25 @@ void walkScope(struct ASTNode *it, struct symbolTable *wip, char isMainScope)
 			struct ASTNode *whileRunner = scopeRunner->child->sibling->child;
 			while (whileRunner != NULL)
 			{
-				walkStatement(whileRunner, thisScopeTable);
+				walkStatement(whileRunner, wipScope);
 				whileRunner = whileRunner->sibling;
 			}
 			break;
 
 		// otherwise we are looking at the body of the function, which is a statement list
 		default:
-			walkStatement(scopeRunner, thisScopeTable);
+			walkStatement(scopeRunner, wipScope);
 			break;
 		}
 		scopeRunner = scopeRunner->sibling;
 	}
-
-	wip->childScopeCount++;
 }
 
-void walkFunction(struct ASTNode *it, struct symbolTable *wip)
+void walkFunction(struct ASTNode *it, struct Scope *parentScope)
 {
 	struct ASTNode *functionRunner = it->child;
-	char *functionName = functionRunner->value;
-	struct symbolTable *funcTable = newSymbolTable(functionName);
-	funcTable->parentScope = wip;
+	struct FunctionEntry *func = Scope_createFunction(parentScope, functionRunner->value);
+	func->mainScope->parentScope = parentScope;
 	while (functionRunner != NULL)
 	{
 		switch (functionRunner->type)
@@ -584,7 +739,7 @@ void walkFunction(struct ASTNode *it, struct symbolTable *wip)
 					runner = runner->child;
 				}
 
-				symTab_insertArgument(funcTable, runner->value, theType, indirectionLevel);
+				FunctionEntry_createArgument(func, runner->value, theType, indirectionLevel);
 
 				argumentRunner = argumentRunner->sibling;
 			}
@@ -593,7 +748,7 @@ void walkFunction(struct ASTNode *it, struct symbolTable *wip)
 
 		case t_scope:
 		{
-			walkScope(functionRunner, funcTable, 1);
+			walkScope(functionRunner, func->mainScope, 1);
 		}
 		break;
 
@@ -644,25 +799,24 @@ void walkFunction(struct ASTNode *it, struct symbolTable *wip)
 		}
 		functionRunner = functionRunner->sibling;
 	}
-	symTab_insertFunction(wip, functionName, funcTable);
 }
 
 // given an AST node for a program, walk the AST and generate a symbol table for the entire thing
-struct symbolTable *walkAST(struct ASTNode *it)
+struct SymbolTable *walkAST(struct ASTNode *it)
 {
-	struct symbolTable *wip = newSymbolTable("Program");
-	wip->tl = newTempList();
+	struct SymbolTable *programTable = SymbolTable_new("Program");
+	programTable->tl = newTempList();
+	struct Scope *globalScope = programTable->globalScope;
 	struct ASTNode *runner = it;
 	while (runner != NULL)
 	{
 		printf(".");
 		switch (runner->type)
 		{
-
 		// global variable declarations/definitions are allowed
 		// use walkStatement to handle this
 		case t_var:
-			walkStatement(runner, wip);
+			walkStatement(runner, globalScope);
 			struct ASTNode *scraper = runner->child;
 			while (scraper->type != t_name)
 			{
@@ -671,7 +825,7 @@ struct symbolTable *walkAST(struct ASTNode *it)
 			break;
 
 		case t_fun:
-			walkFunction(runner, wip);
+			walkFunction(runner, globalScope);
 			break;
 
 		// ignore asm blocks
@@ -684,5 +838,5 @@ struct symbolTable *walkAST(struct ASTNode *it)
 		}
 		runner = runner->sibling;
 	}
-	return wip;
+	return programTable;
 }

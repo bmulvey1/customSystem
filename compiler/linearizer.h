@@ -4,7 +4,7 @@
 #include "symtab.h"
 
 #pragma once
-
+/*
 int linearizeASMBlock(int currentTACIndex,
 					  struct BasicBlock *currentBlock,
 					  struct ASTNode *it);
@@ -77,7 +77,7 @@ struct LinearizationResult *linearizeWhileLoop(struct symbolTable *table,
 											   int *labelCount,
 											   struct tempList *tl);
 
-struct LinearizationResult *linearizeStatementList(struct symbolTable *table,
+struct LinearizationResult *linearizeScope(struct symbolTable *table,
 												   int currentTACIndex,
 												   struct LinkedList *blockList,
 												   struct BasicBlock *currentBlock,
@@ -85,6 +85,8 @@ struct LinearizationResult *linearizeStatementList(struct symbolTable *table,
 												   struct ASTNode *it,
 												   int *tempNum,
 												   int *labelCount,
-												   struct tempList *tl);
+												   struct tempList *tl,
+												   struct Stack *scopeNestings);
 
 void linearizeProgram(struct ASTNode *it, struct symbolTable *table);
+*/

@@ -3,7 +3,7 @@
 /*
  * These functions walk the AST and convert it to three-address code
  */
-
+/*
 int linearizeASMBlock(int currentTACIndex,
 					  struct BasicBlock *currentBlock,
 					  struct ASTNode *it)
@@ -1011,8 +1011,9 @@ struct Stack *linearizeIfStatement(struct symbolTable *table,
 	int ifTACIndex = currentTACIndex;
 	int elseTACIndex = currentTACIndex;
 
-	struct LinearizationResult *r = linearizeStatementList(table, ifTACIndex, blockList, currentBlock, afterIfBlock, it->child->sibling->child, tempNum, labelCount, tl);
-
+	struct Stack *scopeStack = Stack_new();
+	struct LinearizationResult *r = linearizeScope(table, ifTACIndex, blockList, currentBlock, afterIfBlock, it->child->sibling->child, tempNum, labelCount, tl, scopeStack);
+	Stack_free(scopeStack);
 	Stack_push(results, r);
 
 	// if there is an else statement to the if
@@ -1032,8 +1033,9 @@ struct Stack *linearizeIfStatement(struct symbolTable *table,
 		noifJump->operands[0] = (char *)((long int)elseBlock->labelNum);
 
 		// linearize the else block, it returns to the same afterIfBlock as the ifBlock does
-		r = linearizeStatementList(table, elseTACIndex, blockList, elseBlock, afterIfBlock, it->child->sibling->sibling->child->child, tempNum, labelCount, tl);
-
+		struct Stack *scopeStack = Stack_new();
+		r = linearizeScope(table, elseTACIndex, blockList, elseBlock, afterIfBlock, it->child->sibling->sibling->child->child, tempNum, labelCount, tl, scopeStack);
+		Stack_free(scopeStack);
 		Stack_push(results, r);
 	}
 	else
@@ -1082,7 +1084,9 @@ struct LinearizationResult *linearizeWhileLoop(struct symbolTable *table,
 	noWhileJump->operands[0] = (char *)((long int)afterWhileBlock->labelNum);
 	BasicBlock_append(whileBlock, noWhileJump);
 
-	struct LinearizationResult *r = linearizeStatementList(table, currentTACIndex, blockList, whileBlock, whileBlock, it->child->sibling->child, tempNum, labelCount, tl);
+	struct Stack *scopeStack = Stack_new();
+	struct LinearizationResult *r = linearizeScope(table, currentTACIndex, blockList, whileBlock, whileBlock, it->child->sibling->child, tempNum, labelCount, tl, scopeStack);
+	Stack_free(scopeStack);
 
 	for (struct LinkedListNode *TACRunner = r->block->TACList->tail; TACRunner != NULL; TACRunner = TACRunner->prev)
 	{
@@ -1101,22 +1105,53 @@ struct LinearizationResult *linearizeWhileLoop(struct symbolTable *table,
 }
 
 // given the AST for a function, generate TAC and return a pointer to the head of the generated block
-struct LinearizationResult *linearizeStatementList(struct symbolTable *table,
-												   int currentTACIndex,
-												   struct LinkedList *blockList,
-												   struct BasicBlock *currentBlock,
-												   struct BasicBlock *controlConvergesTo,
-												   struct ASTNode *it,
-												   int *tempNum,
-												   int *labelCount,
-												   struct tempList *tl)
+struct LinearizationResult *linearizeScope(struct symbolTable *table,
+										   int currentTACIndex,
+										   struct LinkedList *blockList,
+										   struct BasicBlock *currentBlock,
+										   struct BasicBlock *controlConvergesTo,
+										   struct ASTNode *it,
+										   int *tempNum,
+										   int *labelCount,
+										   struct tempList *tl,
+										   struct Stack *scopeNesting)
 {
+	// if deeper than just the main function scope
+	if (scopeNesting->size > 1)
+	{
+		char *parentFunctionName = symbolTable_getNameOfParentFunction(table);
+		char *thisScopeName = malloc((3 * scopeNesting->size) + strlen(parentFunctionName) + 1);
+		thisScopeName[0] = '\0';
+		
+		sprintf(thisScopeName, "%s", parentFunctionName);
+		for (int i = 1; i < scopeNesting->size; i++)
+		{
+			sprintf(thisScopeName + strlen(thisScopeName), "_%02x", *(unsigned char *)scopeNesting->data[i]);
+		}
+		table = symbolTableLookup_scope(table, thisScopeName)->table;
+		
+		free(thisScopeName);
+	}
+
+	// locally scope a variable for scope count at this depth, push it to the stack
+	// printf("here's the symtab we looked up for [%s]\n", thisScopeName);
+	// printSymTab(table, 0);
+
+
+	int scopeCountThisDepth = 0;
+	Stack_push(scopeNesting, &scopeCountThisDepth);
+
 	// scrape along the function
 	struct ASTNode *runner = it;
 	while (runner != NULL)
 	{
 		switch (runner->type)
 		{
+		case t_scope:
+			linearizeScope(table, currentTACIndex, blockList, currentBlock, controlConvergesTo, runner->child, tempNum, labelCount, tl, scopeNesting);
+			scopeCountThisDepth++;
+			break;
+
 		case t_asm:
 			currentTACIndex = linearizeASMBlock(currentTACIndex, currentBlock, runner);
 			break;
@@ -1314,6 +1349,7 @@ struct LinearizationResult *linearizeStatementList(struct symbolTable *table,
 	struct LinearizationResult *r = malloc(sizeof(struct LinearizationResult));
 	r->block = currentBlock;
 	r->endingTACIndex = currentTACIndex;
+	Stack_pop(scopeNesting);
 	return r;
 }
 
@@ -1345,8 +1381,10 @@ void linearizeProgram(struct ASTNode *it, struct symbolTable *table)
 			functionBlock->hintLabel = table->name;
 
 			LinkedList_append(functionBlockList, functionBlock);
-			struct LinearizationResult *r = linearizeStatementList(theFunction->table, 0, functionBlockList, functionBlock, NULL, runner->child->sibling, &funTempNum, &labelCount, table->tl);
+			struct Stack *scopeStack = Stack_new();
+			struct LinearizationResult *r = linearizeScope(theFunction->table, 0, functionBlockList, functionBlock, NULL, runner->child->sibling, &funTempNum, &labelCount, table->tl, scopeStack);
 			free(r);
+			Stack_free(scopeStack);
 			break;
 		}
 		break;
@@ -1379,3 +1417,4 @@ void linearizeProgram(struct ASTNode *it, struct symbolTable *table)
 		runner = runner->sibling;
 	}
 }
+*/

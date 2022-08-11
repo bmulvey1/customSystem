@@ -1,5 +1,5 @@
 #include "regalloc.h"
-
+/*
 struct Lifetime *newLifetime(char *variable, enum variableTypes type, int start)
 {
 	struct Lifetime *wip = malloc(sizeof(struct Lifetime));
@@ -289,7 +289,7 @@ void spillRegister(struct Stack *activeList,
 				   struct Stack *inactiveList,
 				   struct Stack *spilledList,
 				   struct ASMblock *outputBlock,
-				   struct symbolTable *table)
+				   struct SymbolTable *table)
 {
 	// invert the order of the active list by pushing onto an intermediate stack
 	struct Stack *intermediate = Stack_new();
@@ -377,7 +377,7 @@ int unSpillVariable(struct Stack *activeList,
 					struct Stack *spilledList,
 					char *varName,
 					struct ASMblock *outputBlock,
-					struct symbolTable *table)
+					struct SymbolTable *table)
 {
 	if (inactiveList->size == 0)
 	{
@@ -480,12 +480,13 @@ void printLifetimesGraph(struct LinkedList *lifetimeList)
 	}
 	printf("\n");
 }
-
+*/
 /*
  * state duplication/reading
  *
  *
  */
+/*
 struct SavedState *duplicateCurrentState(struct Stack *activeList,
 										 struct Stack *inactiveList,
 										 struct Stack *spilledList,
@@ -738,7 +739,7 @@ int findOrPlaceAssignedVariable(struct Stack *activeList,
 								struct Stack *spilledList,
 								char *varName,
 								struct ASMblock *outputBlock,
-								struct symbolTable *table)
+								struct SymbolTable *table)
 {
 	for (int i = 0; i < activeList->size; i++)
 		if (!strcmp(((struct Register *)activeList->data[i])->lifetime->variable, varName))
@@ -772,7 +773,7 @@ int findOrPlaceOperand(struct Stack *activeList,
 					   struct Stack *spilledList,
 					   char *varName,
 					   struct ASMblock *outputBlock,
-					   struct symbolTable *table)
+					   struct SymbolTable *table)
 {
 	for (int i = 0; i < activeList->size; i++)
 		if (!strcmp(((struct Register *)activeList->data[i])->lifetime->variable, varName))
@@ -781,7 +782,7 @@ int findOrPlaceOperand(struct Stack *activeList,
 	return unSpillVariable(activeList, inactiveList, spilledList, varName, outputBlock, table);
 }
 
-struct LinkedList *findLifetimes(struct symbolTable *table)
+struct LinkedList *findLifetimes(struct SymbolTable *table)
 {
 	struct LinkedList *lifetimes = LinkedList_new();
 	for (int i = 0; i < table->size; i++)
@@ -909,3 +910,4 @@ struct LinkedList *findLifetimes(struct symbolTable *table)
 	Stack_free(doDepth);
 	return lifetimes;
 }
+*/

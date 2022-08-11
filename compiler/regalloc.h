@@ -83,7 +83,7 @@ void spillRegister(struct Stack *activeList,
 				   struct Stack *inactiveList,
 				   struct Stack *spilledList,
 				   struct ASMblock *outputBlock,
-				   struct symbolTable *table);
+				   struct SymbolTable *table);
 
 int assignRegister(struct Stack *activeList,
 				   struct Stack *inactiveList,
@@ -94,7 +94,7 @@ int unSpillVariable(struct Stack *activeList,
 					struct Stack *spilledList,
 					char *varName,
 					struct ASMblock *outputBlock,
-					struct symbolTable *table);
+					struct SymbolTable *table);
 
 int findActiveVariable(struct Stack *activeList, char *varName);
 
@@ -126,13 +126,13 @@ int findOrPlaceAssignedVariable(struct Stack *activeList,
 								struct Stack *spilledList,
 								char *varName,
 								struct ASMblock *outputBlock,
-								struct symbolTable *table);
+								struct SymbolTable *table);
 
 int findOrPlaceOperand(struct Stack *activeList,
 								struct Stack *inactiveList,
 								struct Stack *spilledList,
 								char *varName,
 								struct ASMblock *outputBlock,
-								struct symbolTable *table);
+								struct SymbolTable *table);
 
-struct LinkedList *findLifetimes(struct symbolTable *table);
+struct LinkedList *findLifetimes(struct SymbolTable *table);
