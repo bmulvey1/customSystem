@@ -85,7 +85,7 @@ struct SymbolTable *SymbolTable_new(char *name);
 
 struct Scope *Scope_new(struct Scope *parentScope, char *name);
 
-void Scope_print(struct Scope *it, int depth);
+void Scope_print(struct Scope *it, int depth, char printTAC);
 
 // look only within the given scope, don't traverse upwards
 char Scope_contains(struct Scope *scope, char *name);
@@ -109,8 +109,6 @@ void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum v
 struct FunctionEntry *Scope_createFunction(struct Scope *scope, char *name);
 
 struct Scope *Scope_createSubScope(struct Scope *scope);
-
-void SymbolTable_printRec(struct SymbolTable *it, int depth, char printTAC);
 
 void SymbolTable_print(struct SymbolTable *it, char printTAC);
 

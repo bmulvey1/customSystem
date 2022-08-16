@@ -285,8 +285,11 @@ void printTACLine(struct TACLine *it)
 	printf("\t");
 	for (int i = 0; i < 4; i++)
 	{
-		printf("[%d", it->operandTypes[i]);
-		switch(it->operandPermutations[i]){
+		if (it->operandTypes[i] != vt_null)
+		{
+			printf("[%d", it->operandTypes[i]);
+			switch (it->operandPermutations[i])
+			{
 			case vp_standard:
 				printf("S");
 				break;
@@ -298,8 +301,13 @@ void printTACLine(struct TACLine *it)
 			case vp_literal:
 				printf("L");
 				break;
+			}
+			printf(" %d*]", it->indirectionLevels[i]);
 		}
-		printf(" %d*]", it->indirectionLevels[i]);
+		else
+		{
+			printf("[     ]");
+		}
 	}
 	// printf("\t%d %d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2], it->operandTypes[3]);
 	// printf("\t%d %d %d", it->indirectionLevels[0], it->indirectionLevels[1], it->indirectionLevels[2]);
@@ -515,6 +523,10 @@ struct TACLine *findLastEffectiveTAC(struct BasicBlock *b)
 
 void printBasicBlock(struct BasicBlock *b, int indentLevel)
 {
+	for (int i = 0; i < indentLevel; i++)
+	{
+		printf("\t");
+	}
 	printf("BASIC BLOCK %d (%s)\n", b->labelNum, b->hintLabel);
 	for (struct LinkedListNode *runner = b->TACList->head; runner != NULL; runner = runner->next)
 	{

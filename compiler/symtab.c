@@ -4,40 +4,6 @@ char *symbolNames[] = {
 	"variable",
 	"function"};
 
-/*
-struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
-{
-	struct symTabEntry *wip = malloc(sizeof(struct symTabEntry));
-	wip->name = name;
-	wip->type = type;
-	wip->entry = NULL;
-	return wip;
-}
-
-struct VariableEntry *newVariableEntry(int indirectionLevel, enum variableTypes type)
-{
-	struct VariableEntry *wip = malloc(sizeof(struct VariableEntry));
-	wip->stackOffset = 0;
-	wip->indirectionLevel = indirectionLevel;
-	wip->type = type;
-	wip->assignedAt = -1;
-	wip->declaredAt = -1;
-	wip->isAssigned = 0;
-	return wip;
-}
-
-struct FunctionEntry *FunctionEntry_new(struct Scope *parentScope)
-{
-	struct FunctionEntry *wip = malloc(sizeof(struct FunctionEntry));
-	wip->mainScope = Scope_new(parentScope);
-	wip->mainScope->parentFunction = wip;
-	wip->localStackSize = 0;
-	wip->argStackSize = 0;
-	wip->BasicBlockList = LinkedList_new();
-	return wip;
-}
-*/
-
 struct SymbolTable *SymbolTable_new(char *name)
 {
 	struct SymbolTable *wip = malloc(sizeof(struct SymbolTable));
@@ -48,111 +14,6 @@ struct SymbolTable *SymbolTable_new(char *name)
 	return wip;
 }
 
-/*
-int SymbolTableContains(struct SymbolTable *table, char *name)
-{
-	for (int i = 0; i < table->size; i++)
-		if (!strcmp(table->entries[i]->name, name))
-			return 1;
-
-	return 0;
-}
-
-// return a symbol table entry by name, or NULL if not found
-// automatically looks at most local scope, then enclosing scopes until found or no scopes left
-struct symTabEntry *SymbolTableLookup(struct SymbolTable *table, char *name)
-{
-	while (table != NULL)
-	{
-		for (int i = 0; i < table->size; i++)
-			if (!strcmp(table->entries[i]->name, name))
-				return table->entries[i];
-
-		table = table->parentScope;
-	}
-
-	return NULL;
-}
-
-// return the VariableEntry for a given name, or throw a use-before-declare error if nonexistent
-struct VariableEntry *SymbolTable_lookupVar(struct SymbolTable *table, char *name)
-{
-	struct symTabEntry *e = SymbolTableLookup(table, name);
-
-	if (e != NULL)
-		return e->entry;
-	else
-	{
-		ErrorAndExit(ERROR_CODE, "Error - Use of variable [%s] before declaration\n", name);
-	}
-}
-
-int SymbolTable_getSizeOfVariable(struct SymbolTable *table, enum variableTypes type)
-{
-	switch (type)
-	{
-	case vt_var:
-		return 2;
-
-	default:
-		ErrorAndExit(ERROR_CODE, "Error - attempt to get size of unknown type!");
-	}
-}
-
-// unwind the scope of the current table to find and return the name of the actual function the scopes are within
-char *SymbolTable_getNameOfParentFunction(struct SymbolTable *table)
-{
-	printf("getnameofparent\n");
-	char *functionName = table->name;
-	// track all the scope numbers so we can name this scope appropriately
-	// also find out the base function name
-	while (table->parentScope != NULL)
-	{
-		printf("table [%s] (%p) (parent is %p)\n", table->name, table, table->parentScope);
-		for (int i = 0; i < 0xffffff; i++)
-		{
-		}
-		if (table->parentScope->parentScope != NULL)
-		{
-			functionName = table->parentScope->name;
-		}
-
-		table = table->parentScope;
-	}
-	return functionName;
-}
-
-struct FunctionEntry *SymbolTable_lookupFun(struct SymbolTable *table, char *name)
-{
-	struct symTabEntry *e = SymbolTableLookup(table, name);
-
-	if (e != NULL)
-		return e->entry;
-	else
-	{
-		ErrorAndExit(ERROR_CODE, "Error - Use of function [%s] before declaration\n", name);
-	}
-}
-
-struct FunctionEntry *SymbolTable_lookupScope(struct SymbolTable *table, char *name)
-{
-	struct symTabEntry *e = NULL;
-	while (table != NULL)
-	{
-		e = SymbolTableLookup(table, name);
-		if (e == NULL)
-		{
-			table = table->parentScope;
-		}
-		else
-		{
-			printf("scope [%s] has pointer (%p)\n", name, e->entry);
-			return e->entry;
-		}
-	}
-	ErrorAndExit(ERROR_CODE, "Error - Use of scope [%s] before declaration\n", name);
-}
-*/
 struct Scope *Scope_new(struct Scope *parentScope, char *name)
 {
 	struct Scope *wip = malloc(sizeof(struct Scope));
@@ -278,6 +139,7 @@ int Scope_getSizeOfVariable(struct Scope *scope, char *name)
 	}
 }
 
+// insert a member with a given name and pointer to entry, along with info about the entry type
 void Scope_insert(struct Scope *scope, char *name, void *newEntry, enum ScopeMemberType type)
 {
 	if (Scope_contains(scope, name))
@@ -291,11 +153,13 @@ void Scope_insert(struct Scope *scope, char *name, void *newEntry, enum ScopeMem
 	Stack_push(scope->entries, wip);
 }
 
+// create a variable within the given scope
 void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes type, int indirectionLevel)
 {
 	struct VariableEntry *newVariable = malloc(sizeof(struct VariableEntry));
 	newVariable->type = type;
 	newVariable->indirectionLevel = indirectionLevel;
+	
 	// we'll see how well this works with structs but should hold together for now...
 	newVariable->stackOffset = 0;
 	newVariable->assignedAt = -1;
@@ -307,6 +171,7 @@ void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes ty
 	// return newVariable;
 }
 
+// create a variable denoted to be an argument within the given function entry
 void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum variableTypes type, int indirectionLevel)
 {
 	struct VariableEntry *newArgument = malloc(sizeof(struct VariableEntry));
@@ -316,7 +181,6 @@ void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum v
 	newArgument->declaredAt = -1;
 	newArgument->isAssigned = 0;
 
-
 	Scope_insert(func->mainScope, name, newArgument, e_argument);
 	int argSize = Scope_getSizeOfVariable(func->mainScope, name);
 	func->argStackSize += argSize;
@@ -325,6 +189,7 @@ void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum v
 	// return newArgument;
 }
 
+// create a new function accessible within the given scope
 struct FunctionEntry *Scope_createFunction(struct Scope *scope, char *name)
 {
 	struct FunctionEntry *newFunction = malloc(sizeof(struct FunctionEntry));
@@ -332,12 +197,14 @@ struct FunctionEntry *Scope_createFunction(struct Scope *scope, char *name)
 	newFunction->localStackSize = 0;
 	newFunction->mainScope = Scope_new(scope, name);
 	newFunction->mainScope->parentFunction = newFunction;
+	newFunction->BasicBlockList = LinkedList_new();
 	newFunction->returnType = vt_var; // hardcoded... for now ;)
 	newFunction->name = name;
 	Scope_insert(scope, name, newFunction, e_function);
 	return newFunction;
 }
 
+// create and return a child scope of the scope provided as an argument
 struct Scope *Scope_createSubScope(struct Scope *parentScope)
 {
 	if(parentScope->subScopeCount == 0xff)
@@ -354,132 +221,8 @@ struct Scope *Scope_createSubScope(struct Scope *parentScope)
 	Scope_insert(parentScope, newScopeName, newScope, e_scope);
 	return newScope;
 }
-/*
-// currently just does basically the same thing as insertFunction
-// since scopes are similar to functions in terms of data structures
-// this could change later, so leaving this for easy support
-struct Scope *symTab_insertScope(struct SymbolTable *table, char *name)
-{
-	struct Scope *newScope = Scope_new(name);
-	symTabInsert(table, name, newScope, e_scope);
-	return newScope;
-}
 
-void printSymTabRec(struct SymbolTable *it, int depth, char printTAC)
-{
-	for (int i = 0; i < depth; i++)
-		printf("\t");
-
-	printf("pointer (%p), parent (%p)\n", it, it->parentScope);
-
-	for (int i = 0; i < depth; i++)
-		printf("\t");
-	printf("~~~~~Symbol table for [%s] (stack footprint of %d:%d)\n", it->name, it->argStackSize, it->localStackSize);
-	for (int i = 0; i < it->size; i++)
-	{
-		for (int i = 0; i < depth; i++)
-			printf("\t");
-
-		switch (it->entries[i]->type)
-		{
-		case e_argument:
-		{
-			struct VariableEntry *theArgument = it->entries[i]->entry;
-			printf("> argument variable ");
-			for (int i = 0; i < theArgument->indirectionLevel; i++)
-			{
-				printf("*");
-			}
-			printf("[%s] (type %d)\n", it->entries[i]->name, theArgument->type);
-		}
-		break;
-
-		case e_variable:
-		{
-			struct VariableEntry *theVariable = it->entries[i]->entry;
-			printf("> variable");
-
-			for (int i = 0; i < theVariable->indirectionLevel; i++)
-			{
-				printf("*");
-			}
-			printf(" [%s] (type %d)\n", it->entries[i]->name, theVariable->type);
-		}
-		break;
-
-		case e_function:
-		{
-			struct FunctionEntry *theFunction = it->entries[i]->entry;
-			printf("> function [%s]: %d symbols\n", it->entries[i]->name, theFunction->table->size);
-			printSymTabRec(theFunction->table, depth + 1, printTAC);
-			// if (printTAC)
-			// printTACBlock(theFunction->table->codeBlock, depth);
-			printf("\n");
-		}
-		break;
-
-		case e_scope:
-		{
-			struct ScopeMember *theScope = it->entries[i]->entry;
-			printf("> scope [%s]: %d symbols\n", it->entries[i]->name, theScope->table->size);
-			printSymTabRec(theScope->table, depth + 1, printTAC);
-			printf("\n");
-		}
-		break;
-		}
-	}
-	// if (printTAC)
-	// printBasicBlockList(it->BasicBlockList, depth * 2);
-
-	printf("\n");
-}
-
-void printSymTab(struct SymbolTable *it, char printTAC)
-{
-	printSymTabRec(it, 0, printTAC);
-}
-
-
-
-void freeSymTab(struct SymbolTable *it)
-{
-	for (int i = 0; i < it->size; i++)
-	{
-		struct symTabEntry *currentEntry = it->entries[i];
-		switch (currentEntry->type)
-		{
-		case e_argument:
-		case e_variable:
-			free((struct VariableEntry *)currentEntry->entry);
-			break;
-
-		case e_function:
-			freeSymTab(((struct FunctionEntry *)currentEntry->entry)->table);
-			free((struct FunctionEntry *)currentEntry->entry);
-			break;
-
-		case e_scope:
-			freeSymTab(((struct ScopeMember *)currentEntry->entry)->table);
-			free(currentEntry->name);
-			break;
-		}
-		// free(it->name);
-		free(currentEntry);
-	}
-
-	LinkedList_free(it->BasicBlockList, &BasicBlock_free);
-
-	if (it->tl != NULL)
-	{
-		freeTempList(it->tl);
-	}
-
-	free(it->entries);
-	free(it);
-}
-*/
-
-void Scope_print(struct Scope *it, int depth)
+void Scope_print(struct Scope *it, int depth, char printTAC)
 {
 	for(int i = 0; i < it->entries->size; i++)
 	{
@@ -510,7 +253,11 @@ void Scope_print(struct Scope *it, int depth)
 			{
 				struct FunctionEntry *theFunction = thisMember->entry;
 				printf("> Function %s (returns %d)\n", thisMember->name, theFunction->returnType);
-				Scope_print(theFunction->mainScope, depth + 1);
+				Scope_print(theFunction->mainScope, depth + 1, printTAC);
+				for(struct LinkedListNode *b = theFunction->BasicBlockList->head; b != NULL; b = b->next)
+				{
+					printBasicBlock(b->data, depth + 1);
+				}
 			}
 			break;
 
@@ -518,7 +265,7 @@ void Scope_print(struct Scope *it, int depth)
 			{
 				struct Scope *theScope = thisMember->entry;
 				printf("> Subscope %s\n", thisMember->name);
-				Scope_print(theScope, depth + 1);
+				Scope_print(theScope, depth + 1, printTAC);
 			}
 			break;
 		}
@@ -529,7 +276,7 @@ void Scope_print(struct Scope *it, int depth)
 void SymbolTable_print(struct SymbolTable *it, char printTAC)
 {
 	printf("Symbol Table %s\n", it->name);
-	Scope_print(it->globalScope, 0);
+	Scope_print(it->globalScope, 0, printTAC);
 }
 
 void SymbolTable_free(struct SymbolTable *it)
