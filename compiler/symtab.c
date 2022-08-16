@@ -291,7 +291,6 @@ void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes ty
 	newVariable->indirectionLevel = indirectionLevel;
 	// we'll see how well this works with structs but should hold together for now...
 	newVariable->stackOffset = 0;
-	newVariable->type = type;
 	newVariable->assignedAt = -1;
 	newVariable->declaredAt = -1;
 	newVariable->isAssigned = 0;
@@ -306,7 +305,6 @@ void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum v
 	struct VariableEntry *newArgument = malloc(sizeof(struct VariableEntry));
 	newArgument->type = type;
 	newArgument->indirectionLevel = indirectionLevel;
-	newArgument->type = type;
 	newArgument->assignedAt = -1;
 	newArgument->declaredAt = -1;
 	newArgument->isAssigned = 0;
@@ -540,6 +538,10 @@ void walkStatement(struct ASTNode *it, struct Scope *wip)
 	struct ASTNode *runner;
 	switch (it->type)
 	{
+	case t_scope:
+		walkScope(it, Scope_createSubScope(wip), 0);
+		break;
+
 	case t_var:
 		char *varName;
 		int indirectionLevel = 0;
@@ -630,7 +632,7 @@ void walkStatement(struct ASTNode *it, struct Scope *wip)
 
 	default:
 		// TODO: should this really be an internal error?
-		ErrorAndExit(ERROR_INTERNAL, "Error walking AST for function %s - expected 'var', name, or function call, saw %s with value of [%s]\n", it->child->value, getTokenName(it->type), it->value);
+		ErrorAndExit(ERROR_INTERNAL, "Error walking AST for function %s - expected 'var', name, or function call, saw %s with value of [%s]\n", wip->parentFunction->name, getTokenName(it->type), it->value);
 	}
 }
 

@@ -2,6 +2,7 @@
 
 #pragma once
 
+
 enum token
 {
 	t_asm,

@@ -30,7 +30,8 @@ char *token_names[] = {
 	"r curly",
 	"call",
 	"scope",
-	"EOF"};
+	"EOF"
+};
 
 void ParserError(char *production, char *info)
 {
@@ -40,11 +41,12 @@ void ParserError(char *production, char *info)
 	ErrorAndExit(ERROR_CODE, "Parse buffer when error occurred: [%s]\n", buffer);
 }
 
-// return 'count' characters ahead
+// return the char 'count' characters ahead
+// count must be >0, returns null char otherwise
 char lookahead_dumb(int count)
 {
 	long offset = ftell(inFile);
-	char returnChar;
+	char returnChar = '\0';
 	for (int i = 0; i < count; i++)
 	{
 		returnChar = fgetc(inFile);

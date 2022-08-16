@@ -334,7 +334,6 @@ char *sPrintTACLine(struct TACLine *it)
 	case tt_div:
 		if (!fallingThrough)
 			operationStr = "/";
-		fallingThrough = 1;
 
 		width += sprintf(tacString, "%s = %s %s %s", it->operands[0], it->operands[1], operationStr, it->operands[2]);
 		break;
