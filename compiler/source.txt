@@ -6,13 +6,17 @@ Mild pointer optimizations - use of offset(base, scale): 7483
 */
 
 
+fun print(var n){
+	n = n + 1;
+}
+
 fun scopeTest(var a)
 {
 	var i = 0;
-	while(i < 10)
+	while(i < a)
 	{
 		var j = 0;
-		while(j < 10)
+		while(j < a)
 		{
 			print(i + j);
 			j = j + 1;
@@ -37,12 +41,6 @@ code:
 	call gradient
 	hlt
 };
-
-fun print(var n){
-	asm{
-		out %r1
-	};
-}
 
 fun mul(var x, var y)
 {

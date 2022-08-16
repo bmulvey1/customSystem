@@ -985,7 +985,8 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 								   struct BasicBlock *afterIfBlock,
 								   struct ASTNode *it,
 								   int *tempNum,
-								   int *labelCount)
+								   int *labelCount,
+								   struct Stack *scopeNesting)
 {
 	// a stack is overkill but allows to store either 1 or 2 resulting blocks depending on if there is or isn't an else block
 	struct Stack *results = Stack_new();
@@ -1006,9 +1007,7 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 	int ifTACIndex = currentTACIndex;
 	int elseTACIndex = currentTACIndex;
 
-	struct Stack *scopeStack = Stack_new();
-	struct LinearizationResult *r = linearizeScope(scope, ifTACIndex, blockList, currentBlock, afterIfBlock, it->child->sibling->child, tempNum, labelCount, scopeStack);
-	Stack_free(scopeStack);
+	struct LinearizationResult *r = linearizeScope(scope, ifTACIndex, blockList, currentBlock, afterIfBlock, it->child->sibling->child, tempNum, labelCount, scopeNesting);
 	Stack_push(results, r);
 
 	// if there is an else statement to the if
@@ -1048,7 +1047,8 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 											   struct BasicBlock *afterWhileBlock,
 											   struct ASTNode *it,
 											   int *tempNum,
-											   int *labelCount)
+											   int *labelCount,
+											   struct Stack *scopeNesting)
 {
 	int entryTACIndex = currentTACIndex;
 	// save state before while block
@@ -1078,9 +1078,7 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 	noWhileJump->operands[0] = (char *)((long int)afterWhileBlock->labelNum);
 	BasicBlock_append(whileBlock, noWhileJump);
 
-	struct Stack *scopeStack = Stack_new();
-	struct LinearizationResult *r = linearizeScope(scope, currentTACIndex, blockList, whileBlock, whileBlock, it->child->sibling->child, tempNum, labelCount, scopeStack);
-	Stack_free(scopeStack);
+	struct LinearizationResult *r = linearizeScope(scope, currentTACIndex, blockList, whileBlock, whileBlock, it->child->sibling->child, tempNum, labelCount, scopeNesting);
 
 	for (struct LinkedListNode *TACRunner = r->block->TACList->tail; TACRunner != NULL; TACRunner = TACRunner->prev)
 	{
@@ -1109,9 +1107,8 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 										   int *labelCount,
 										   struct Stack *scopeNesting)
 {
-	int depthThisScope = 0;
-	Stack_push(scopeNesting, &depthThisScope);
-	if (scopeNesting->size >= 1)
+	// if we are descending into a nested scope, look up the correct scope
+	if (scopeNesting->size > 0)
 	{
 		char *parentFunctionName = scope->parentFunction->name;
 		char *thisScopeName = malloc((3 * scopeNesting->size) + strlen(parentFunctionName) + 1);
@@ -1122,26 +1119,23 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 		{
 			sprintf(thisScopeName + strlen(thisScopeName), "_%02x", *(unsigned char *)scopeNesting->data[i]);
 		}
-		printf("got subscope name [%s]\n", thisScopeName);
 		scope = Scope_lookupSubScope(scope, thisScopeName);
-
 		free(thisScopeName);
 	}
 
-	printf("Linearizing within scope [%s]\n", scope->name);
-
 	// locally scope a variable for scope count at this depth, push it to the stack
-	// printf("here's the symtab we looked up for [%s]\n", thisScopeName);
-	// printSymTab(table, 0);
+	int depthThisScope = 0;
+	Stack_push(scopeNesting, &depthThisScope);
+	
 
 	// scrape along the function
-	struct ASTNode *runner = it;
+	struct ASTNode *runner = it->child;
 	while (runner != NULL)
 	{
 		switch (runner->type)
 		{
 		case t_scope:
-			linearizeScope(scope, currentTACIndex, blockList, currentBlock, controlConvergesTo, runner->child, tempNum, labelCount, scopeNesting);
+			linearizeScope(scope, currentTACIndex, blockList, currentBlock, controlConvergesTo, runner, tempNum, labelCount, scopeNesting);
 			break;
 
 		case t_asm:
@@ -1259,7 +1253,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 			afterIfBlock->hintLabel = "after if block";
 
 			// linearize the if statement and attached else if it exists
-			struct Stack *results = linearizeIfStatement(scope, currentTACIndex, blockList, currentBlock, afterIfBlock, runner, tempNum, labelCount);
+			struct Stack *results = linearizeIfStatement(scope, currentTACIndex, blockList, currentBlock, afterIfBlock, runner, tempNum, labelCount, scopeNesting);
 			LinkedList_append(blockList, afterIfBlock);
 
 			struct Stack *beforeConvergeRestores = Stack_new();
@@ -1307,7 +1301,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 			struct BasicBlock *afterWhileBlock = BasicBlock_new(++(*labelCount));
 			afterWhileBlock->hintLabel = "after while block";
 
-			struct LinearizationResult *r = linearizeWhileLoop(scope, currentTACIndex, blockList, currentBlock, afterWhileBlock, runner, tempNum, labelCount);
+			struct LinearizationResult *r = linearizeWhileLoop(scope, currentTACIndex, blockList, currentBlock, afterWhileBlock, runner, tempNum, labelCount, scopeNesting);
 			currentTACIndex = r->endingTACIndex;
 			LinkedList_append(blockList, afterWhileBlock);
 			free(r);
@@ -1342,7 +1336,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 	r->block = currentBlock;
 	r->endingTACIndex = currentTACIndex;
 	Stack_pop(scopeNesting);
-	*((int *)Stack_peek(scopeNesting)) += 1;
+	if(scopeNesting->size > 0) *((int *)Stack_peek(scopeNesting)) += 1;
 	return r;
 }
 

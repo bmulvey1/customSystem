@@ -59,7 +59,8 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 								   struct BasicBlock *afterIfBlock,
 								   struct ASTNode *it,
 								   int *tempNum,
-								   int *labelCount);
+								   int *labelCount,
+								   struct Stack *scopenesting);
 
 struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 											   int currentTACIndex,
@@ -68,7 +69,8 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 											   struct BasicBlock *afterIfBlock,
 											   struct ASTNode *it,
 											   int *tempNum,
-											   int *labelCount);
+											   int *labelCount,
+											   struct Stack *scopenesting);
 
 struct LinearizationResult *linearizeScope(struct Scope *scope,
 										   int currentTACIndex,
@@ -78,6 +80,6 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 										   struct ASTNode *it,
 										   int *tempNum,
 										   int *labelCount,
-										   struct Stack *scopeNestings);
+										   struct Stack *scopenesting);
 
 void linearizeProgram(struct ASTNode *it, struct Scope *scope);
