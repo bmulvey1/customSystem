@@ -17,11 +17,6 @@ enum ScopeMemberType
 	e_scope,
 };
 
-struct tempList
-{
-	int size;
-	char **temps;
-};
 
 struct ScopeMember
 {
@@ -67,16 +62,10 @@ struct SymbolTable
 {
 	char *name;
 	struct Scope *globalScope;
-	// struct symTabEntry **entries;
-	// int size;
-	struct tempList *tl;
+	// global basic blocks for defining/declaring globals
+	struct LinkedList *BasicBlockList;
 };
 
-char *getTempString(struct tempList *tempList, int tempNum);
-
-struct tempList *newTempList();
-
-void freeTempList(struct tempList *it);
 
 struct variableEntry *VariableEntry_new(int indirectionLevel, enum variableTypes type);
 
@@ -102,6 +91,12 @@ void Scope_print(struct Scope *it, int depth);
 char Scope_contains(struct Scope *scope, char *name);
 
 struct ScopeMember *Scope_lookup(struct Scope *scope, char *name);
+
+struct VariableEntry *Scope_lookupVar(struct Scope *scope, char *name);
+
+struct FunctionEntry *Scope_lookupFun(struct Scope *scope, char *name);
+
+struct Scope *Scope_lookupSubScope(struct Scope *scope, char *name);
 
 int Scope_getSizeOfVariable(struct Scope *scope, char *name);
 

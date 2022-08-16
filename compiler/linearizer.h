@@ -4,89 +4,80 @@
 #include "symtab.h"
 
 #pragma once
-/*
+
 int linearizeASMBlock(int currentTACIndex,
 					  struct BasicBlock *currentBlock,
 					  struct ASTNode *it);
 
-int linearizeDereference(struct symbolTable *table,
+int linearizeDereference(struct Scope *scope,
 						 int currentTACIndex,
 						 struct LinkedList *blockList,
 						 struct BasicBlock *currentBlock,
 						 struct ASTNode *it,
-						 int *tempNum,
-						 struct tempList *tl);
+						 int *tempNum);
 
-int linearizePointerArithmetic(struct symbolTable *table,
+int linearizePointerArithmetic(struct Scope *scope,
 							   int currentTACIndex,
 							   struct LinkedList *blockList,
 							   struct BasicBlock *currentBlock,
 							   struct ASTNode *it,
 							   int *tempNum,
-							   struct tempList *tl,
 							   int depth);
 
-int linearizeFunctionCall(struct symbolTable *table,
+int linearizeFunctionCall(struct Scope *scope,
 						  int currentTACIndex,
 						  struct LinkedList *blockList,
 						  struct BasicBlock *currentBlock,
 						  struct ASTNode *it,
-						  int *tempNum,
-						  struct tempList *tl);
+						  int *tempNum);
 
-int linearizeExpression(struct symbolTable *table,
+int linearizeExpression(struct Scope *scope,
 						int currentTACIndex,
 						struct LinkedList *blockList,
 						struct BasicBlock *currentBlock,
 						struct ASTNode *it,
-						int *tempNum,
-						struct tempList *tl);
+						int *tempNum);
 
-int linearizeAssignment(struct symbolTable *table,
+int linearizeAssignment(struct Scope *scope,
 						int currentTACIndex,
 						struct LinkedList *blockList,
 						struct BasicBlock *currentBlock,
 						struct ASTNode *it,
-						int *tempNum,
-						struct tempList *tl);
+						int *tempNum);
 
 struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp, struct ASTNode *correspondingTree);
 
-int linearizeDeclaration(struct symbolTable *table,
+int linearizeDeclaration(struct Scope *scope,
 						 int currentTACIndex,
 						 struct BasicBlock *currentBlock,
 						 struct ASTNode *it);
 
-struct Stack *linearizeIfStatement(struct symbolTable *table,
+struct Stack *linearizeIfStatement(struct Scope *scope,
 								   int currentTACIndex,
 								   struct LinkedList *blockList,
 								   struct BasicBlock *currentBlock,
 								   struct BasicBlock *afterIfBlock,
 								   struct ASTNode *it,
 								   int *tempNum,
-								   int *labelCount,
-								   struct tempList *tl);
+								   int *labelCount);
 
-struct LinearizationResult *linearizeWhileLoop(struct symbolTable *table,
+struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 											   int currentTACIndex,
 											   struct LinkedList *blockList,
 											   struct BasicBlock *currentBlock,
 											   struct BasicBlock *afterIfBlock,
 											   struct ASTNode *it,
 											   int *tempNum,
-											   int *labelCount,
-											   struct tempList *tl);
+											   int *labelCount);
 
-struct LinearizationResult *linearizeScope(struct symbolTable *table,
-												   int currentTACIndex,
-												   struct LinkedList *blockList,
-												   struct BasicBlock *currentBlock,
-												   struct BasicBlock *controlConvergesTo,
-												   struct ASTNode *it,
-												   int *tempNum,
-												   int *labelCount,
-												   struct tempList *tl,
-												   struct Stack *scopeNestings);
+struct LinearizationResult *linearizeScope(struct Scope *scope,
+										   int currentTACIndex,
+										   struct LinkedList *blockList,
+										   struct BasicBlock *currentBlock,
+										   struct BasicBlock *controlConvergesTo,
+										   struct ASTNode *it,
+										   int *tempNum,
+										   int *labelCount,
+										   struct Stack *scopeNestings);
 
-void linearizeProgram(struct ASTNode *it, struct symbolTable *table);
-*/
+void linearizeProgram(struct ASTNode *it, struct Scope *scope);

@@ -19,8 +19,6 @@ fun scopeTest(var a)
 		}
 		i = i + 1;
 	}
-
-	
 }
 
 /*

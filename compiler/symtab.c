@@ -4,52 +4,6 @@ char *symbolNames[] = {
 	"variable",
 	"function"};
 
-char *getTempString(struct tempList *tempList, int tempNum)
-{
-	if (tempList->size <= tempNum)
-	{
-		int newSize = tempList->size + 10;
-		char **newTemps = malloc(newSize * sizeof(char *));
-		for (int i = 0; i < tempList->size; i++)
-		{
-			newTemps[i] = tempList->temps[i];
-		}
-		for (int i = tempList->size; i < newSize; i++)
-		{
-			newTemps[i] = malloc(6 * sizeof(char));
-			sprintf(newTemps[i], ".t%d", i);
-		}
-		free(tempList->temps);
-		tempList->temps = newTemps;
-		tempList->size = newSize;
-	}
-	return tempList->temps[tempNum];
-}
-
-struct tempList *newTempList()
-{
-	struct tempList *wip = malloc(sizeof(struct tempList));
-	wip->size = 10;
-	wip->temps = malloc(10 * sizeof(char *));
-	for (int i = 0; i < 10; i++)
-	{
-		wip->temps[i] = malloc(6 * sizeof(char));
-		sprintf(wip->temps[i], ".t%d", i);
-	}
-
-	return wip;
-}
-
-void freeTempList(struct tempList *it)
-{
-	for (int i = 0; i < it->size; i++)
-	{
-		free(it->temps[i]);
-	}
-	free(it->temps);
-	free(it);
-}
-
 /*
 struct symTabEntry *newEntry(char *name, enum symTabEntryType type)
 {
@@ -91,7 +45,6 @@ struct SymbolTable *SymbolTable_new(char *name)
 	wip->globalScope = Scope_new(NULL, "Global");
 	// generate a single templist at the top level symTab
 	// leave all others as NULL to avoid duplication
-	wip->tl = NULL;
 	return wip;
 }
 
@@ -242,6 +195,60 @@ struct ScopeMember *Scope_lookup(struct Scope *scope, char *name)
 		scope = scope->parentScope;
 	}
 	return NULL;
+}
+
+struct VariableEntry *Scope_lookupVar(struct Scope *scope, char *name)
+{
+	struct ScopeMember *lookedUp = Scope_lookup(scope, name);
+	if(lookedUp == NULL)
+	{
+		ErrorAndExit(ERROR_CODE, "Use of undeclared variable [%s]\n", name);
+	}
+
+	switch(lookedUp->type)
+	{
+		case e_argument:
+		case e_variable:
+			return lookedUp->entry;
+
+		default:
+			ErrorAndExit(ERROR_CODE, "Use of undeclared variable [%s]\n", name);
+	}
+}
+
+struct FunctionEntry *Scope_lookupFun(struct Scope *scope, char *name)
+{
+	struct ScopeMember *lookedUp = Scope_lookup(scope, name);
+	if(lookedUp == NULL)
+	{
+		ErrorAndExit(ERROR_CODE, "Use of undeclared function [%s]\n", name);
+	}
+	switch(lookedUp->type)
+	{
+		case e_function:
+			return lookedUp->entry;
+
+		default:
+			ErrorAndExit(ERROR_CODE, "Use of undeclared function [%s]\n", name);
+	}
+}
+
+struct Scope *Scope_lookupSubScope(struct Scope *scope, char *name)
+{
+	struct ScopeMember *lookedUp = Scope_lookup(scope, name);
+	if(lookedUp == NULL)
+	{
+		ErrorAndExit(ERROR_INTERNAL, "Use of undeclared scope [%s]\n", name);
+	}
+
+	switch(lookedUp->type)
+	{
+		case e_scope:
+			return lookedUp->entry;
+
+		default:
+			ErrorAndExit(ERROR_INTERNAL, "Use of undeclared scope [%s]\n", name);
+	}
 }
 
 int Scope_getSizeOfVariable(struct Scope *scope, char *name)
@@ -807,7 +814,6 @@ void walkFunction(struct ASTNode *it, struct Scope *parentScope)
 struct SymbolTable *walkAST(struct ASTNode *it)
 {
 	struct SymbolTable *programTable = SymbolTable_new("Program");
-	programTable->tl = newTempList();
 	struct Scope *globalScope = programTable->globalScope;
 	struct ASTNode *runner = it;
 	while (runner != NULL)

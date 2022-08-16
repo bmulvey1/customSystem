@@ -98,3 +98,21 @@ void *LinkedList_delete(struct LinkedList *l, char (*compareFunction)(), void *e
 void *LinkedList_find(struct LinkedList *l, char (*compareFunction)(), void *element);
 
 char *strTrim(char *s, int l);
+
+/*
+ *
+ *
+ * 
+ */
+
+struct TempList
+{
+	struct Stack *temps;
+};
+
+
+char *TempList_getString(struct TempList *tempList, int tempNum);
+
+struct TempList *TempList_new();
+
+void TempList_free(struct TempList *it);

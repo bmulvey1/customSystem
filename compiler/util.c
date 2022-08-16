@@ -314,3 +314,40 @@ char *strTrim(char *s, int l){
 	strcpy(newStr, s);
 	return newStr;
 }
+
+/*
+ *
+ *
+ *
+ * 
+ */
+
+char *TempList_getString(struct TempList *tempList, int tempNum)
+{
+	int sizeDiff = tempNum - tempList->temps->size;
+	while(sizeDiff-- > 0)
+	{
+		char *thisTemp = malloc(6 * sizeof(char));
+		sprintf(thisTemp, ".t%d", tempList->temps->size);
+		Stack_push(tempList->temps, thisTemp);
+	}
+	return tempList->temps->data[tempNum];
+}
+
+struct TempList *TempList_new()
+{
+	struct TempList *wip = malloc(sizeof(struct TempList));
+	wip->temps = Stack_new();
+	TempList_getString(wip, 10);
+	return wip;
+}
+
+void TempList_free(struct TempList *it)
+{
+	for(int i = 0; i < it->temps->size; i++)
+	{
+		free(it->temps->data[i]);
+	}
+	Stack_free(it->temps);
+	free(it);
+}
