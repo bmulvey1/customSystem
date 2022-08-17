@@ -1119,7 +1119,6 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 	// locally scope a variable for scope count at this depth, push it to the stack
 	int depthThisScope = 0;
 	Stack_push(scopeNesting, &depthThisScope);
-	
 
 	// scrape along the function
 	struct ASTNode *runner = it->child;
@@ -1329,47 +1328,51 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 	r->block = currentBlock;
 	r->endingTACIndex = currentTACIndex;
 	Stack_pop(scopeNesting);
-	if(scopeNesting->size > 0) *((int *)Stack_peek(scopeNesting)) += 1;
+	if (scopeNesting->size > 0)
+		*((int *)Stack_peek(scopeNesting)) += 1;
 	return r;
 }
 
-void collapseScopes(struct Scope* scope, struct Dictionary *dict)
+void collapseScopes(struct Scope *scope, struct Dictionary *dict)
 {
 	printf("collapse scopes [%s] (%p)\n", scope->name, scope);
-	for(int i = 0; i < scope->entries->size; i++)
+	for (int i = 0; i < scope->entries->size; i++)
 	{
 		struct ScopeMember *thisMember = scope->entries->data[i];
-		switch(thisMember->type)
+		switch (thisMember->type)
 		{
-			case e_scope: // recurse to subscopes
-				collapseScopes(thisMember->entry, dict);
-				break;
+		case e_scope: // recurse to subscopes
+			collapseScopes(thisMember->entry, dict);
+			break;
 
-			case e_function: // recurse to functions
-				collapseScopes(((struct FunctionEntry *)(thisMember->entry))->mainScope, dict);
-				break;
-
-			default:
-				break;
-		}
-	}
-
-	// potential for wild performance gains by avoiding strlen and malloc for each name
-	for(struct LinkedListNode *blockRunner = scope->BasicBlockList->head; blockRunner != NULL; blockRunner = blockRunner->next)
-	{
-		struct BasicBlock *thisBlock = blockRunner->data;
-		for(struct LinkedListNode *TACRunner = thisBlock->TACList->head; TACRunner != NULL; TACRunner = TACRunner->next)
+		case e_function: // recurse to functions
 		{
-			struct TACLine *thisTAC = TACRunner->data;
-			for(int i = 0; i < 4; i++)
+			struct FunctionEntry *thisFunction = thisMember->entry;
+			collapseScopes(thisFunction->mainScope, dict);
+			// potential for wild performance gains by avoiding strlen and malloc for each name
+			for (struct LinkedListNode *blockRunner = thisFunction->BasicBlockList->head; blockRunner != NULL; blockRunner = blockRunner->next)
 			{
-				if(thisTAC->operandTypes[i] != vt_null && thisTAC->operandPermutations[i] == vp_standard)
+				struct BasicBlock *thisBlock = blockRunner->data;
+				for (struct LinkedListNode *TACRunner = thisBlock->TACList->head; TACRunner != NULL; TACRunner = TACRunner->next)
 				{
-					printf("%s%s\n", thisTAC->operands[i], Scope_lookupVarScopeName(scope, thisTAC->operands[i]));
+					struct TACLine *thisTAC = TACRunner->data;
+					for (int i = 0; i < 4; i++)
+					{
+						if (thisTAC->operandTypes[i] != vt_null && thisTAC->operandPermutations[i] == vp_standard)
+						{
+							printf("%s%s\n", thisTAC->operands[i], Scope_lookupVarScopeName(scope, thisTAC->operands[i]));
+						}
+					}
 				}
 			}
 		}
+		break;
+
+		default:
+			break;
+		}
 	}
+
 	printf("done (%s)\n", scope->name);
 }
 
@@ -1378,7 +1381,8 @@ void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dict
 {
 	temps = TempList_new();
 	struct BasicBlock *globalBlock = BasicBlock_new(0);
-	Scope_addBasicBlock(globalScope, globalBlock);
+	// Scope_addBasicBlock(globalScope, globalBlock);
+	Scope_insert(globalScope, "Global code", globalBlock, e_basicblock);
 	// scrape along the top level of the AST
 	struct ASTNode *runner = it;
 	int tempNum = 0;

@@ -26,6 +26,8 @@ fun scopeTest(var a)
 		
 		i = i + 1;
 	}
+
+	return 0;
 }
 
 /*

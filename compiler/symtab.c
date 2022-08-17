@@ -43,7 +43,6 @@ void SymbolTable_free(struct SymbolTable *it)
 	// TODO: free function for symbol table and entries/scopes
 }
 
-
 /*
  * Scope functions
  *
@@ -52,7 +51,6 @@ struct Scope *Scope_new(struct Scope *parentScope, char *name)
 {
 	struct Scope *wip = malloc(sizeof(struct Scope));
 	wip->entries = Stack_new();
-	wip->BasicBlockList = LinkedList_new();
 
 	// need to set this manually to handle when new functions are declared
 	// TODO: supports nested functions? ;)
@@ -83,7 +81,7 @@ void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes ty
 	struct VariableEntry *newVariable = malloc(sizeof(struct VariableEntry));
 	newVariable->type = type;
 	newVariable->indirectionLevel = indirectionLevel;
-	
+
 	// we'll see how well this works with structs but should hold together for now...
 	newVariable->stackOffset = 0;
 	newVariable->assignedAt = -1;
@@ -102,6 +100,7 @@ struct FunctionEntry *Scope_createFunction(struct Scope *scope, char *name)
 	newFunction->argStackSize = 0;
 	newFunction->localStackSize = 0;
 	newFunction->mainScope = Scope_new(scope, "");
+	newFunction->BasicBlockList = LinkedList_new();
 	newFunction->mainScope->parentFunction = newFunction;
 	newFunction->returnType = vt_var; // hardcoded... for now ;)
 	newFunction->name = name;
@@ -112,29 +111,28 @@ struct FunctionEntry *Scope_createFunction(struct Scope *scope, char *name)
 // create and return a child scope of the scope provided as an argument
 struct Scope *Scope_createSubScope(struct Scope *parentScope)
 {
-	if(parentScope->subScopeCount == 0xff)
+	if (parentScope->subScopeCount == 0xff)
 	{
 		ErrorAndExit(ERROR_INTERNAL, "Too many subscopes of scope %s\n", parentScope->name);
 	}
 	char *newScopeName = malloc(3 + strlen(parentScope->name) + 1);
 	sprintf(newScopeName, "%s_%02x", parentScope->name, parentScope->subScopeCount);
 	parentScope->subScopeCount++;
-	
+
 	struct Scope *newScope = Scope_new(parentScope, newScopeName);
 	newScope->parentFunction = parentScope->parentFunction;
-	
+
 	Scope_insert(parentScope, newScopeName, newScope, e_scope);
 	return newScope;
 }
-
 
 // Scope lookup functions
 
 char Scope_contains(struct Scope *scope, char *name)
 {
-	for(int i = 0; i < scope->entries->size; i++)
+	for (int i = 0; i < scope->entries->size; i++)
 	{
-		if(!strcmp(name, ((struct ScopeMember *)scope->entries->data[i])->name))
+		if (!strcmp(name, ((struct ScopeMember *)scope->entries->data[i])->name))
 		{
 			return 1;
 		}
@@ -146,12 +144,12 @@ char Scope_contains(struct Scope *scope, char *name)
 // return it
 struct ScopeMember *Scope_lookup(struct Scope *scope, char *name)
 {
-	while(scope != NULL)
+	while (scope != NULL)
 	{
-		for(int i = 0; i < scope->entries->size; i++)
+		for (int i = 0; i < scope->entries->size; i++)
 		{
 			struct ScopeMember *examinedEntry = scope->entries->data[i];
-			if(!strcmp(examinedEntry->name, name))
+			if (!strcmp(examinedEntry->name, name))
 			{
 				return examinedEntry;
 			}
@@ -164,47 +162,47 @@ struct ScopeMember *Scope_lookup(struct Scope *scope, char *name)
 struct VariableEntry *Scope_lookupVar(struct Scope *scope, char *name)
 {
 	struct ScopeMember *lookedUp = Scope_lookup(scope, name);
-	if(lookedUp == NULL)
+	if (lookedUp == NULL)
 	{
 		ErrorAndExit(ERROR_CODE, "Use of undeclared variable [%s]\n", name);
 	}
 
-	switch(lookedUp->type)
+	switch (lookedUp->type)
 	{
-		case e_argument:
-		case e_variable:
-			return lookedUp->entry;
+	case e_argument:
+	case e_variable:
+		return lookedUp->entry;
 
-		default:
-			ErrorAndExit(ERROR_CODE, "Use of undeclared variable [%s]\n", name);
+	default:
+		ErrorAndExit(ERROR_CODE, "Use of undeclared variable [%s]\n", name);
 	}
 }
 
 struct FunctionEntry *Scope_lookupFun(struct Scope *scope, char *name)
 {
 	struct ScopeMember *lookedUp = Scope_lookup(scope, name);
-	if(lookedUp == NULL)
+	if (lookedUp == NULL)
 	{
 		ErrorAndExit(ERROR_CODE, "Use of undeclared function [%s]\n", name);
 	}
-	switch(lookedUp->type)
+	switch (lookedUp->type)
 	{
-		case e_function:
-			return lookedUp->entry;
+	case e_function:
+		return lookedUp->entry;
 
-		default:
-			ErrorAndExit(ERROR_CODE, "Use of undeclared function [%s]\n", name);
+	default:
+		ErrorAndExit(ERROR_CODE, "Use of undeclared function [%s]\n", name);
 	}
 }
 
 char *Scope_lookupVarScopeName(struct Scope *scope, char *name)
 {
-	while(scope != NULL)
+	while (scope != NULL)
 	{
-		for(int i = 0; i < scope->entries->size; i++)
+		for (int i = 0; i < scope->entries->size; i++)
 		{
 			struct ScopeMember *examinedEntry = scope->entries->data[i];
-			if(!strcmp(examinedEntry->name, name))
+			if (!strcmp(examinedEntry->name, name))
 			{
 				return scope->name;
 			}
@@ -217,18 +215,18 @@ char *Scope_lookupVarScopeName(struct Scope *scope, char *name)
 struct Scope *Scope_lookupSubScope(struct Scope *scope, char *name)
 {
 	struct ScopeMember *lookedUp = Scope_lookup(scope, name);
-	if(lookedUp == NULL)
+	if (lookedUp == NULL)
 	{
 		ErrorAndExit(ERROR_INTERNAL, "Use of undeclared scope [%s]\n", name);
 	}
 
-	switch(lookedUp->type)
+	switch (lookedUp->type)
 	{
-		case e_scope:
-			return lookedUp->entry;
+	case e_scope:
+		return lookedUp->entry;
 
-		default:
-			ErrorAndExit(ERROR_INTERNAL, "Use of undeclared scope [%s]\n", name);
+	default:
+		ErrorAndExit(ERROR_INTERNAL, "Use of undeclared scope [%s]\n", name);
 	}
 }
 
@@ -245,86 +243,94 @@ int Scope_getSizeOfVariable(struct Scope *scope, char *name)
 {
 	struct ScopeMember *examinedEntry = Scope_lookup(scope, name);
 	struct VariableEntry *theVariable;
-	switch(examinedEntry->type)
+	switch (examinedEntry->type)
 	{
-		case e_argument:
-		case e_variable:
-			theVariable = examinedEntry->entry;
-			break;
+	case e_argument:
+	case e_variable:
+		theVariable = examinedEntry->entry;
+		break;
 
-		default:
-			ErrorAndExit(ERROR_INTERNAL, "Expected variable entry in scope, got entry type %d instead!\n", examinedEntry->type);
-			break;
+	default:
+		ErrorAndExit(ERROR_INTERNAL, "Expected variable entry in scope, got entry type %d instead!\n", examinedEntry->type);
+		break;
 	}
 
-	switch(theVariable->type)
+	switch (theVariable->type)
 	{
-		case vt_var:
-			return 2;
+	case vt_var:
+		return 2;
 
-		default:
-			ErrorAndExit(ERROR_INTERNAL, "Unexpected variable type %d!\n", theVariable->type);
-			break;
+	default:
+		ErrorAndExit(ERROR_INTERNAL, "Unexpected variable type %d!\n", theVariable->type);
+		break;
 	}
 }
 
 void Scope_print(struct Scope *it, int depth, char printTAC)
 {
-	if(printTAC)
-	{
-		for(struct LinkedListNode *b = it->BasicBlockList->head; b != NULL; b = b->next)
-		{
-			printBasicBlock(b->data, depth + 1);
-		}
-	}
-	for(int i = 0; i < it->entries->size; i++)
+	for (int i = 0; i < it->entries->size; i++)
 	{
 		struct ScopeMember *thisMember = it->entries->data[i];
 
-		for(int j = 0; j < depth; j++)
+		for (int j = 0; j < depth; j++)
 		{
 			printf("\t");
 		}
 
-		switch(thisMember->type)
+		switch (thisMember->type)
 		{
-			case e_argument:
-			{
-				struct VariableEntry *theArgument = thisMember->entry;
-				printf("> Argument %s (stack offset %d)\n", thisMember->name, theArgument->stackOffset);
-			}
-			break;
+		case e_argument:
+		{
+			struct VariableEntry *theArgument = thisMember->entry;
+			printf("> Argument %s (stack offset %d)\n", thisMember->name, theArgument->stackOffset);
+		}
+		break;
 
-			case e_variable:
-			{
-				struct VariableEntry *theVariable = thisMember->entry;
-				printf("> Variable %s (stack offset %d)\n", thisMember->name, theVariable->stackOffset);
-			}
-			break;
+		case e_variable:
+		{
+			struct VariableEntry *theVariable = thisMember->entry;
+			printf("> Variable %s (stack offset %d)\n", thisMember->name, theVariable->stackOffset);
+		}
+		break;
 
-			case e_function:
+		case e_function:
+		{
+			struct FunctionEntry *theFunction = thisMember->entry;
+			printf("> Function %s (returns %d)\n", thisMember->name, theFunction->returnType);
+			if (printTAC)
 			{
-				struct FunctionEntry *theFunction = thisMember->entry;
-				printf("> Function %s (returns %d)\n", thisMember->name, theFunction->returnType);
-				Scope_print(theFunction->mainScope, depth + 1, printTAC);
+				for (struct LinkedListNode *b = theFunction->BasicBlockList->head; b != NULL; b = b->next)
+				{
+					printBasicBlock(b->data, depth + 1);
+				}
 			}
-			break;
+			Scope_print(theFunction->mainScope, depth + 1, printTAC);
+		}
+		break;
 
-			case e_scope:
-			{
-				struct Scope *theScope = thisMember->entry;
-				printf("> Subscope %s\n", thisMember->name);
-				Scope_print(theScope, depth + 1, printTAC);
-			}
-			break;
+		case e_scope:
+		{
+			struct Scope *theScope = thisMember->entry;
+			printf("> Subscope %s\n", thisMember->name);
+			Scope_print(theScope, depth + 1, printTAC);
+		}
+		break;
+
+		case e_basicblock:
+		{
+			printf("> Basic Block %s\n", thisMember->name);
+		}
+		break;
 		}
 	}
 }
 
-
 void Scope_addBasicBlock(struct Scope *scope, struct BasicBlock *b)
 {
-	LinkedList_append(scope->BasicBlockList, b);
+	LinkedList_append(scope->parentFunction->BasicBlockList, b);
+	char *blockName = malloc(10);
+	sprintf(blockName, "Block%d", b->labelNum);
+	Scope_insert(scope, blockName, b, e_basicblock);
 }
 
 /*

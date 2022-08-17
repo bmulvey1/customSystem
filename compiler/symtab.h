@@ -15,6 +15,7 @@ enum ScopeMemberType
 	e_function,
 	e_argument,
 	e_scope,
+	e_basicblock,
 };
 
 
@@ -34,7 +35,6 @@ struct Scope
 	struct Stack *entries;
 	char subScopeCount;
 	char *name; // duplicate pointer from ScopeMember for ease of use
-	struct LinkedList *BasicBlockList;
 };
 
 struct FunctionEntry
@@ -45,6 +45,7 @@ struct FunctionEntry
 	// struct SymbolTable *table;
 	struct Scope *mainScope;
 	char *name; // duplicate pointer from ScopeMember for ease of use
+	struct LinkedList *BasicBlockList;
 };
 
 struct VariableEntry
@@ -56,7 +57,6 @@ struct VariableEntry
 	int declaredAt;
 	char isAssigned;
 };
-
 
 struct SymbolTable
 {
@@ -103,6 +103,9 @@ struct Scope *Scope_lookupSubScopeByNumber(struct Scope *scope, unsigned char su
 int Scope_getSizeOfVariable(struct Scope *scope, char *name);
 
 // scope linearization functions
+
+// add the basic block to the linkedlist for the parent function
+// also adds an entry in the given scope denoting that the block is from that scope
 void Scope_addBasicBlock(struct Scope *scope, struct BasicBlock *b);
 
 void SymbolTable_print(struct SymbolTable *it, char printTAC);
