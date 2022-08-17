@@ -11,14 +11,12 @@ int linearizeASMBlock(int currentTACIndex,
 
 int linearizeDereference(struct Scope *scope,
 						 int currentTACIndex,
-						 struct LinkedList *blockList,
 						 struct BasicBlock *currentBlock,
 						 struct ASTNode *it,
 						 int *tempNum);
 
 int linearizePointerArithmetic(struct Scope *scope,
 							   int currentTACIndex,
-							   struct LinkedList *blockList,
 							   struct BasicBlock *currentBlock,
 							   struct ASTNode *it,
 							   int *tempNum,
@@ -26,21 +24,18 @@ int linearizePointerArithmetic(struct Scope *scope,
 
 int linearizeFunctionCall(struct Scope *scope,
 						  int currentTACIndex,
-						  struct LinkedList *blockList,
 						  struct BasicBlock *currentBlock,
 						  struct ASTNode *it,
 						  int *tempNum);
 
 int linearizeExpression(struct Scope *scope,
 						int currentTACIndex,
-						struct LinkedList *blockList,
 						struct BasicBlock *currentBlock,
 						struct ASTNode *it,
 						int *tempNum);
 
 int linearizeAssignment(struct Scope *scope,
 						int currentTACIndex,
-						struct LinkedList *blockList,
 						struct BasicBlock *currentBlock,
 						struct ASTNode *it,
 						int *tempNum);
@@ -54,7 +49,6 @@ int linearizeDeclaration(struct Scope *scope,
 
 struct Stack *linearizeIfStatement(struct Scope *scope,
 								   int currentTACIndex,
-								   struct LinkedList *blockList,
 								   struct BasicBlock *currentBlock,
 								   struct BasicBlock *afterIfBlock,
 								   struct ASTNode *it,
@@ -64,7 +58,6 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 
 struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 											   int currentTACIndex,
-											   struct LinkedList *blockList,
 											   struct BasicBlock *currentBlock,
 											   struct BasicBlock *afterIfBlock,
 											   struct ASTNode *it,
@@ -74,7 +67,6 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 
 struct LinearizationResult *linearizeScope(struct Scope *scope,
 										   int currentTACIndex,
-										   struct LinkedList *blockList,
 										   struct BasicBlock *currentBlock,
 										   struct BasicBlock *controlConvergesTo,
 										   struct ASTNode *it,
@@ -82,4 +74,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 										   int *labelCount,
 										   struct Stack *scopenesting);
 
-void linearizeProgram(struct ASTNode *it, struct Scope *scope);
+
+void collapseScopes(struct Scope *scope, struct Dictionary *dict);
+
+void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dictionary *dict);

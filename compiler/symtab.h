@@ -34,6 +34,7 @@ struct Scope
 	struct Stack *entries;
 	char subScopeCount;
 	char *name; // duplicate pointer from ScopeMember for ease of use
+	struct LinkedList *BasicBlockList;
 };
 
 struct FunctionEntry
@@ -43,7 +44,6 @@ struct FunctionEntry
 	enum variableTypes returnType;
 	// struct SymbolTable *table;
 	struct Scope *mainScope;
-	struct LinkedList *BasicBlockList;
 	char *name; // duplicate pointer from ScopeMember for ease of use
 };
 
@@ -67,27 +67,25 @@ struct SymbolTable
 };
 
 
-struct variableEntry *VariableEntry_new(int indirectionLevel, enum variableTypes type);
+void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum variableTypes type, int indirectionLevel);
 
-struct functionEntry *FunctionEntry_new(struct SymbolTable *table);
-
+// symbol table functions
 struct SymbolTable *SymbolTable_new(char *name);
 
-// int SymbolTable_contains(struct SymbolTable *table, char *name);
-
-// struct symTabEntry *SymbolTable_lookup(struct SymbolTable *table, char *name);
-
-// struct VariableEntry *SymbolTable_lookupVar(struct SymbolTable *table, char *name);
-
-// struct FunctionEntry *SymbolTable_lookupFun(struct SymbolTable *table, char *name);
-
-// struct Scope *SymbolTable_lookupScope(struct SymbolTable *table, char *name);
-
+// scope functions
 struct Scope *Scope_new(struct Scope *parentScope, char *name);
 
 void Scope_print(struct Scope *it, int depth, char printTAC);
 
-// look only within the given scope, don't traverse upwards
+void Scope_insert(struct Scope *scope, char *name, void *newEntry, enum ScopeMemberType type);
+
+void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes type, int indirectionLevel);
+
+struct FunctionEntry *Scope_createFunction(struct Scope *scope, char *name);
+
+struct Scope *Scope_createSubScope(struct Scope *scope);
+
+// scope lookup functions
 char Scope_contains(struct Scope *scope, char *name);
 
 struct ScopeMember *Scope_lookup(struct Scope *scope, char *name);
@@ -96,19 +94,16 @@ struct VariableEntry *Scope_lookupVar(struct Scope *scope, char *name);
 
 struct FunctionEntry *Scope_lookupFun(struct Scope *scope, char *name);
 
+char *Scope_lookupVarScopeName(struct Scope *scope, char *name);
+
 struct Scope *Scope_lookupSubScope(struct Scope *scope, char *name);
+
+struct Scope *Scope_lookupSubScopeByNumber(struct Scope *scope, unsigned char subScopeNumber);
 
 int Scope_getSizeOfVariable(struct Scope *scope, char *name);
 
-void Scope_insert(struct Scope *scope, char *name, void *newEntry, enum ScopeMemberType type);
-
-void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes type, int indirectionLevel);
-
-void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum variableTypes type, int indirectionLevel);
-
-struct FunctionEntry *Scope_createFunction(struct Scope *scope, char *name);
-
-struct Scope *Scope_createSubScope(struct Scope *scope);
+// scope linearization functions
+void Scope_addBasicBlock(struct Scope *scope, struct BasicBlock *b);
 
 void SymbolTable_print(struct SymbolTable *it, char printTAC);
 

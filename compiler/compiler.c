@@ -346,22 +346,20 @@ int main(int argc, char **argv)
 
 
 	printf("Linearizing code to basic blocks\n");
-	linearizeProgram(program, theTable->globalScope);
+	linearizeProgram(program, theTable->globalScope, parseDict);
 
 	SymbolTable_print(theTable, 1);
 
-
-	// printBasicBlocks(theTable);
-	// printf("\n\n");
-
-	// FILE *outFile = fopen(argv[2], "wb");
+	FILE *outFile = fopen(argv[2], "wb");
 
 	// struct Lifetime *theseLifetimes = findLifetimes(theTable);
 
-	// struct ASMblock *output;
-	// output = generateCode(theTable, outFile);
-	// ASMblock_output(output, outFile);
-	// ASMblock_free(output);
+	/*
+	struct ASMblock *output;
+	output = generateCode(theTable, outFile);
+	ASMblock_output(output, outFile);
+	ASMblock_free(output);
+	*/
 
 	// exit(1);
 	/*
@@ -388,7 +386,7 @@ int main(int argc, char **argv)
 
 	// fprintf(outFile, "data:\n");
 
-	// fclose(outFile);
+	fclose(outFile);
 	freeDictionary(parseDict);
 	ASTNode_free(program);
 	SymbolTable_free(theTable);

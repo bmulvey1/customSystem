@@ -4,6 +4,24 @@ char *symbolNames[] = {
 	"variable",
 	"function"};
 
+// create a variable denoted to be an argument within the given function entry
+void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum variableTypes type, int indirectionLevel)
+{
+	struct VariableEntry *newArgument = malloc(sizeof(struct VariableEntry));
+	newArgument->type = type;
+	newArgument->indirectionLevel = indirectionLevel;
+	newArgument->assignedAt = -1;
+	newArgument->declaredAt = -1;
+	newArgument->isAssigned = 0;
+
+	Scope_insert(func->mainScope, name, newArgument, e_argument);
+	int argSize = Scope_getSizeOfVariable(func->mainScope, name);
+	func->argStackSize += argSize;
+	newArgument->stackOffset = -1 * (func->argStackSize + argSize);
+
+	// return newArgument;
+}
+
 struct SymbolTable *SymbolTable_new(char *name)
 {
 	struct SymbolTable *wip = malloc(sizeof(struct SymbolTable));
@@ -14,18 +32,103 @@ struct SymbolTable *SymbolTable_new(char *name)
 	return wip;
 }
 
+void SymbolTable_print(struct SymbolTable *it, char printTAC)
+{
+	printf("Symbol Table %s\n", it->name);
+	Scope_print(it->globalScope, 0, printTAC);
+}
+
+void SymbolTable_free(struct SymbolTable *it)
+{
+	// TODO: free function for symbol table and entries/scopes
+}
+
+
+/*
+ * Scope functions
+ *
+ */
 struct Scope *Scope_new(struct Scope *parentScope, char *name)
 {
 	struct Scope *wip = malloc(sizeof(struct Scope));
 	wip->entries = Stack_new();
+	wip->BasicBlockList = LinkedList_new();
+
 	// need to set this manually to handle when new functions are declared
 	// TODO: supports nested functions? ;)
-	wip->parentFunction = NULL; 
+	wip->parentFunction = NULL;
 	wip->parentScope = parentScope;
-	wip->subScopeCount = 0;
 	wip->name = name;
+	wip->subScopeCount = 0;
 	return wip;
 }
+
+// insert a member with a given name and pointer to entry, along with info about the entry type
+void Scope_insert(struct Scope *scope, char *name, void *newEntry, enum ScopeMemberType type)
+{
+	if (Scope_contains(scope, name))
+	{
+		ErrorAndExit(ERROR_CODE, "Error defining symbol [%s] - name already exists!\n", name);
+	}
+	struct ScopeMember *wip = malloc(sizeof(struct ScopeMember));
+	wip->name = name;
+	wip->entry = newEntry;
+	wip->type = type;
+	Stack_push(scope->entries, wip);
+}
+
+// create a variable within the given scope
+void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes type, int indirectionLevel)
+{
+	struct VariableEntry *newVariable = malloc(sizeof(struct VariableEntry));
+	newVariable->type = type;
+	newVariable->indirectionLevel = indirectionLevel;
+	
+	// we'll see how well this works with structs but should hold together for now...
+	newVariable->stackOffset = 0;
+	newVariable->assignedAt = -1;
+	newVariable->declaredAt = -1;
+	newVariable->isAssigned = 0;
+	Scope_insert(scope, name, newVariable, e_variable);
+	newVariable->stackOffset = scope->parentFunction->localStackSize;
+	scope->parentFunction->localStackSize += Scope_getSizeOfVariable(scope, name);
+	// return newVariable;
+}
+
+// create a new function accessible within the given scope
+struct FunctionEntry *Scope_createFunction(struct Scope *scope, char *name)
+{
+	struct FunctionEntry *newFunction = malloc(sizeof(struct FunctionEntry));
+	newFunction->argStackSize = 0;
+	newFunction->localStackSize = 0;
+	newFunction->mainScope = Scope_new(scope, "");
+	newFunction->mainScope->parentFunction = newFunction;
+	newFunction->returnType = vt_var; // hardcoded... for now ;)
+	newFunction->name = name;
+	Scope_insert(scope, name, newFunction, e_function);
+	return newFunction;
+}
+
+// create and return a child scope of the scope provided as an argument
+struct Scope *Scope_createSubScope(struct Scope *parentScope)
+{
+	if(parentScope->subScopeCount == 0xff)
+	{
+		ErrorAndExit(ERROR_INTERNAL, "Too many subscopes of scope %s\n", parentScope->name);
+	}
+	char *newScopeName = malloc(3 + strlen(parentScope->name) + 1);
+	sprintf(newScopeName, "%s_%02x", parentScope->name, parentScope->subScopeCount);
+	parentScope->subScopeCount++;
+	
+	struct Scope *newScope = Scope_new(parentScope, newScopeName);
+	newScope->parentFunction = parentScope->parentFunction;
+	
+	Scope_insert(parentScope, newScopeName, newScope, e_scope);
+	return newScope;
+}
+
+
+// Scope lookup functions
 
 char Scope_contains(struct Scope *scope, char *name)
 {
@@ -94,6 +197,23 @@ struct FunctionEntry *Scope_lookupFun(struct Scope *scope, char *name)
 	}
 }
 
+char *Scope_lookupVarScopeName(struct Scope *scope, char *name)
+{
+	while(scope != NULL)
+	{
+		for(int i = 0; i < scope->entries->size; i++)
+		{
+			struct ScopeMember *examinedEntry = scope->entries->data[i];
+			if(!strcmp(examinedEntry->name, name))
+			{
+				return scope->name;
+			}
+		}
+		scope = scope->parentScope;
+	}
+	ErrorAndExit(ERROR_INTERNAL, "Error looking up parent scope of variable [%s] - doesn't exist!\n", name);
+}
+
 struct Scope *Scope_lookupSubScope(struct Scope *scope, char *name)
 {
 	struct ScopeMember *lookedUp = Scope_lookup(scope, name);
@@ -110,6 +230,15 @@ struct Scope *Scope_lookupSubScope(struct Scope *scope, char *name)
 		default:
 			ErrorAndExit(ERROR_INTERNAL, "Use of undeclared scope [%s]\n", name);
 	}
+}
+
+struct Scope *Scope_lookupSubScopeByNumber(struct Scope *scope, unsigned char subScopeNumber)
+{
+	char *subScopeName = malloc(strlen(scope->name) + 4);
+	sprintf(subScopeName, "%s_%02x", scope->name, subScopeNumber);
+	struct Scope *lookedUp = Scope_lookupSubScope(scope, subScopeName);
+	free(subScopeName);
+	return lookedUp;
 }
 
 int Scope_getSizeOfVariable(struct Scope *scope, char *name)
@@ -139,91 +268,15 @@ int Scope_getSizeOfVariable(struct Scope *scope, char *name)
 	}
 }
 
-// insert a member with a given name and pointer to entry, along with info about the entry type
-void Scope_insert(struct Scope *scope, char *name, void *newEntry, enum ScopeMemberType type)
-{
-	if (Scope_contains(scope, name))
-	{
-		ErrorAndExit(ERROR_CODE, "Error defining symbol [%s] - name already exists!\n", name);
-	}
-	struct ScopeMember *wip = malloc(sizeof(struct ScopeMember));
-	wip->name = name;
-	wip->entry = newEntry;
-	wip->type = type;
-	Stack_push(scope->entries, wip);
-}
-
-// create a variable within the given scope
-void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes type, int indirectionLevel)
-{
-	struct VariableEntry *newVariable = malloc(sizeof(struct VariableEntry));
-	newVariable->type = type;
-	newVariable->indirectionLevel = indirectionLevel;
-	
-	// we'll see how well this works with structs but should hold together for now...
-	newVariable->stackOffset = 0;
-	newVariable->assignedAt = -1;
-	newVariable->declaredAt = -1;
-	newVariable->isAssigned = 0;
-	Scope_insert(scope, name, newVariable, e_variable);
-	newVariable->stackOffset = scope->parentFunction->localStackSize;
-	scope->parentFunction->localStackSize += Scope_getSizeOfVariable(scope, name);
-	// return newVariable;
-}
-
-// create a variable denoted to be an argument within the given function entry
-void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum variableTypes type, int indirectionLevel)
-{
-	struct VariableEntry *newArgument = malloc(sizeof(struct VariableEntry));
-	newArgument->type = type;
-	newArgument->indirectionLevel = indirectionLevel;
-	newArgument->assignedAt = -1;
-	newArgument->declaredAt = -1;
-	newArgument->isAssigned = 0;
-
-	Scope_insert(func->mainScope, name, newArgument, e_argument);
-	int argSize = Scope_getSizeOfVariable(func->mainScope, name);
-	func->argStackSize += argSize;
-	newArgument->stackOffset = -1 * (func->argStackSize + argSize);
-
-	// return newArgument;
-}
-
-// create a new function accessible within the given scope
-struct FunctionEntry *Scope_createFunction(struct Scope *scope, char *name)
-{
-	struct FunctionEntry *newFunction = malloc(sizeof(struct FunctionEntry));
-	newFunction->argStackSize = 0;
-	newFunction->localStackSize = 0;
-	newFunction->mainScope = Scope_new(scope, name);
-	newFunction->mainScope->parentFunction = newFunction;
-	newFunction->BasicBlockList = LinkedList_new();
-	newFunction->returnType = vt_var; // hardcoded... for now ;)
-	newFunction->name = name;
-	Scope_insert(scope, name, newFunction, e_function);
-	return newFunction;
-}
-
-// create and return a child scope of the scope provided as an argument
-struct Scope *Scope_createSubScope(struct Scope *parentScope)
-{
-	if(parentScope->subScopeCount == 0xff)
-	{
-		ErrorAndExit(ERROR_INTERNAL, "Too many subscopes of scope %s\n", parentScope->name);
-	}
-	char *newScopeName = malloc(3 + strlen(parentScope->name) + 1);
-	sprintf(newScopeName, "%s_%02x", parentScope->name, parentScope->subScopeCount);
-	parentScope->subScopeCount++;
-	
-	struct Scope *newScope = Scope_new(parentScope, newScopeName);
-	newScope->parentFunction = parentScope->parentFunction;
-	
-	Scope_insert(parentScope, newScopeName, newScope, e_scope);
-	return newScope;
-}
-
 void Scope_print(struct Scope *it, int depth, char printTAC)
 {
+	if(printTAC)
+	{
+		for(struct LinkedListNode *b = it->BasicBlockList->head; b != NULL; b = b->next)
+		{
+			printBasicBlock(b->data, depth + 1);
+		}
+	}
 	for(int i = 0; i < it->entries->size; i++)
 	{
 		struct ScopeMember *thisMember = it->entries->data[i];
@@ -254,10 +307,6 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 				struct FunctionEntry *theFunction = thisMember->entry;
 				printf("> Function %s (returns %d)\n", thisMember->name, theFunction->returnType);
 				Scope_print(theFunction->mainScope, depth + 1, printTAC);
-				for(struct LinkedListNode *b = theFunction->BasicBlockList->head; b != NULL; b = b->next)
-				{
-					printBasicBlock(b->data, depth + 1);
-				}
 			}
 			break;
 
@@ -273,15 +322,9 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 }
 
 
-void SymbolTable_print(struct SymbolTable *it, char printTAC)
+void Scope_addBasicBlock(struct Scope *scope, struct BasicBlock *b)
 {
-	printf("Symbol Table %s\n", it->name);
-	Scope_print(it->globalScope, 0, printTAC);
-}
-
-void SymbolTable_free(struct SymbolTable *it)
-{
-
+	LinkedList_append(scope->BasicBlockList, b);
 }
 
 /*

@@ -23,7 +23,6 @@ int linearizeASMBlock(int currentTACIndex,
 
 int linearizeDereference(struct Scope *scope,
 						 int currentTACIndex,
-						 struct LinkedList *blockList,
 						 struct BasicBlock *currentBlock,
 						 struct ASTNode *it,
 						 int *tempNum)
@@ -48,7 +47,7 @@ int linearizeDereference(struct Scope *scope,
 		thisDereference->operands[1] = TempList_getString(temps, *tempNum);
 		thisDereference->operandPermutations[1] = vp_temp;
 
-		currentTACIndex = linearizeDereference(scope, currentTACIndex, blockList, currentBlock, it->child, tempNum);
+		currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, it->child, tempNum);
 		struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
 		thisDereference->operandTypes[1] = recursiveDereference->operandTypes[0];
 		thisDereference->indirectionLevels[1] = recursiveDereference->indirectionLevels[0];
@@ -84,7 +83,7 @@ int linearizeDereference(struct Scope *scope,
 			thisDereference->operands[1] = TempList_getString(temps, *tempNum);
 			thisDereference->operandPermutations[1] = vp_temp;
 
-			currentTACIndex = linearizeDereference(scope, currentTACIndex, blockList, currentBlock, it->child->child, tempNum);
+			currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, it->child->child, tempNum);
 			struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
 			thisDereference->operandTypes[1] = recursiveDereference->operandTypes[0];
 			thisDereference->indirectionLevels[1] = recursiveDereference->indirectionLevels[0];
@@ -162,7 +161,7 @@ int linearizeDereference(struct Scope *scope,
 				subtractInvert->operands[0] = TempList_getString(temps, *tempNum);
 				subtractInvert->operandPermutations[0] = vp_temp;
 				(*tempNum)++;
-				currentTACIndex = linearizeExpression(scope, currentTACIndex, blockList, currentBlock, it->child->sibling, tempNum);
+				currentTACIndex = linearizeExpression(scope, currentTACIndex, currentBlock, it->child->sibling, tempNum);
 				struct TACLine *recursiveExpression = currentBlock->TACList->tail->data;
 
 				// set inverted types based on the expression result type
@@ -184,7 +183,7 @@ int linearizeDereference(struct Scope *scope,
 			{
 				thisDereference->operands[2] = TempList_getString(temps, *tempNum);
 				thisDereference->operandTypes[2] = vp_temp;
-				currentTACIndex = linearizeExpression(scope, currentTACIndex, blockList, currentBlock, it->child->sibling, tempNum);
+				currentTACIndex = linearizeExpression(scope, currentTACIndex, currentBlock, it->child->sibling, tempNum);
 			}
 			thisDereference->operandPermutations[2] = vp_temp;
 			break;
@@ -224,7 +223,6 @@ int linearizeDereference(struct Scope *scope,
 
 int linearizeArgumentPushes(struct Scope *scope,
 							int currentTACIndex,
-							struct LinkedList *blockList,
 							struct BasicBlock *currentBlock,
 							struct ASTNode *argRunner,
 							int *tempNum)
@@ -232,7 +230,7 @@ int linearizeArgumentPushes(struct Scope *scope,
 
 	if (argRunner->sibling != NULL)
 	{
-		currentTACIndex = linearizeArgumentPushes(scope, currentTACIndex, blockList, currentBlock, argRunner->sibling, tempNum);
+		currentTACIndex = linearizeArgumentPushes(scope, currentTACIndex, currentBlock, argRunner->sibling, tempNum);
 	}
 	struct TACLine *thisArgument = NULL;
 	switch (argRunner->type)
@@ -254,7 +252,7 @@ int linearizeArgumentPushes(struct Scope *scope,
 
 	case t_dereference:
 	{
-		currentTACIndex = linearizeDereference(scope, currentTACIndex, blockList, currentBlock, argRunner->child, tempNum);
+		currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, argRunner->child, tempNum);
 		thisArgument = newTACLine(currentTACIndex++, tt_push, argRunner);
 		struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
 		thisArgument->operands[0] = recursiveDereference->operands[0];
@@ -267,7 +265,7 @@ int linearizeArgumentPushes(struct Scope *scope,
 	case t_un_add:
 	case t_un_sub:
 	{
-		currentTACIndex = linearizeExpression(scope, currentTACIndex, blockList, currentBlock, argRunner, tempNum);
+		currentTACIndex = linearizeExpression(scope, currentTACIndex, currentBlock, argRunner, tempNum);
 		struct TACLine *recursiveExpression = currentBlock->TACList->tail->data;
 
 		thisArgument = newTACLine(currentTACIndex++, tt_push, argRunner);
@@ -290,7 +288,6 @@ int linearizeArgumentPushes(struct Scope *scope,
 // given an AST node of a function call, generate TAC to evaluate and push the arguments, then call it
 int linearizeFunctionCall(struct Scope *scope,
 						  int currentTACIndex,
-						  struct LinkedList *blockList,
 						  struct BasicBlock *currentBlock,
 						  struct ASTNode *it,
 						  int *tempNum)
@@ -307,7 +304,7 @@ int linearizeFunctionCall(struct Scope *scope,
 	// push arguments iff they exist
 	if (it->child->child != NULL)
 	{
-		currentTACIndex = linearizeArgumentPushes(scope, currentTACIndex, blockList, currentBlock, it->child->child, tempNum);
+		currentTACIndex = linearizeArgumentPushes(scope, currentTACIndex, currentBlock, it->child->child, tempNum);
 	}
 
 	struct TACLine *calltac = newTACLine(currentTACIndex++, tt_call, it);
@@ -337,7 +334,6 @@ int linearizeFunctionCall(struct Scope *scope,
 // linearize any subexpression which results in the use of a temporary variable
 int linearizeSubExpression(struct Scope *scope,
 						   int currentTACIndex,
-						   struct LinkedList *blockList,
 						   struct BasicBlock *currentBlock,
 						   struct ASTNode *it,
 						   int *tempNum,
@@ -352,7 +348,7 @@ int linearizeSubExpression(struct Scope *scope,
 	// handle recording return types from function calls here
 	case t_call:
 	{
-		currentTACIndex = linearizeFunctionCall(scope, currentTACIndex, blockList, currentBlock, it, tempNum);
+		currentTACIndex = linearizeFunctionCall(scope, currentTACIndex, currentBlock, it, tempNum);
 		struct TACLine *recursiveFunctionCall = currentBlock->TACList->tail->data;
 
 		// TODO: check return type (or at least that function returns something)
@@ -368,7 +364,7 @@ int linearizeSubExpression(struct Scope *scope,
 	case t_un_add:
 	case t_un_sub:
 	{
-		currentTACIndex = linearizeExpression(scope, currentTACIndex, blockList, currentBlock, it, tempNum);
+		currentTACIndex = linearizeExpression(scope, currentTACIndex, currentBlock, it, tempNum);
 		struct TACLine *recursiveExpression = currentBlock->TACList->tail->data;
 
 		parentExpression->operandTypes[operandIndex] = recursiveExpression->operandTypes[1];
@@ -378,7 +374,7 @@ int linearizeSubExpression(struct Scope *scope,
 
 	case t_dereference:
 	{
-		currentTACIndex = linearizeDereference(scope, currentTACIndex, blockList, currentBlock, it->child, tempNum);
+		currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, it->child, tempNum);
 		struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
 
 		parentExpression->operandTypes[operandIndex] = recursiveDereference->operandTypes[0];
@@ -395,7 +391,6 @@ int linearizeSubExpression(struct Scope *scope,
 // given an AST node of an expression, figure out how to break it down into multiple lines of three address code
 int linearizeExpression(struct Scope *scope,
 						int currentTACIndex,
-						struct LinkedList *blockList,
 						struct BasicBlock *currentBlock,
 						struct ASTNode *it,
 						int *tempNum)
@@ -430,7 +425,7 @@ int linearizeExpression(struct Scope *scope,
 			thisExpression->operands[1] = TempList_getString(temps, *tempNum);
 			thisExpression->operandPermutations[1] = vp_temp;
 
-			currentTACIndex = linearizeDereference(scope, currentTACIndex, blockList, currentBlock, it->child, tempNum);
+			currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, it->child, tempNum);
 			struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
 
 			thisExpression->indirectionLevels[1] = recursiveDereference->indirectionLevels[0];
@@ -452,7 +447,7 @@ int linearizeExpression(struct Scope *scope,
 	case t_un_sub:
 	case t_dereference:
 	{
-		currentTACIndex = linearizeSubExpression(scope, currentTACIndex, blockList, currentBlock, it->child, tempNum, thisExpression, 1);
+		currentTACIndex = linearizeSubExpression(scope, currentTACIndex, currentBlock, it->child, tempNum, thisExpression, 1);
 	}
 	break;
 
@@ -507,7 +502,7 @@ int linearizeExpression(struct Scope *scope,
 	case t_un_sub:
 	case t_dereference:
 	{
-		currentTACIndex = linearizeSubExpression(scope, currentTACIndex, blockList, currentBlock, it->child->sibling, tempNum, thisExpression, 2);
+		currentTACIndex = linearizeSubExpression(scope, currentTACIndex, currentBlock, it->child->sibling, tempNum, thisExpression, 2);
 	}
 	break;
 
@@ -657,7 +652,6 @@ int linearizeExpression(struct Scope *scope,
 // given an AST node of an assignment, return the TAC block necessary to generate the correct value
 int linearizeAssignment(struct Scope *scope,
 						int currentTACIndex,
-						struct LinkedList *blockList,
 						struct BasicBlock *currentBlock,
 						struct ASTNode *it,
 						int *tempNum)
@@ -698,16 +692,16 @@ int linearizeAssignment(struct Scope *scope,
 		switch (it->child->sibling->type)
 		{
 		case t_dereference:
-			currentTACIndex = linearizeDereference(scope, currentTACIndex, blockList, currentBlock, it->child->sibling->child, tempNum);
+			currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, it->child->sibling->child, tempNum);
 			break;
 
 		case t_un_add:
 		case t_un_sub:
-			currentTACIndex = linearizeExpression(scope, currentTACIndex, blockList, currentBlock, it->child->sibling, tempNum);
+			currentTACIndex = linearizeExpression(scope, currentTACIndex, currentBlock, it->child->sibling, tempNum);
 			break;
 
 		case t_call:
-			currentTACIndex = linearizeFunctionCall(scope, currentTACIndex, blockList, currentBlock, it->child->sibling, tempNum);
+			currentTACIndex = linearizeFunctionCall(scope, currentTACIndex, currentBlock, it->child->sibling, tempNum);
 			break;
 
 		default:
@@ -755,7 +749,7 @@ int linearizeAssignment(struct Scope *scope,
 
 			case t_dereference:
 			{
-				currentTACIndex = linearizeDereference(scope, currentTACIndex, blockList, currentBlock, dereferencedExpression, tempNum);
+				currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, dereferencedExpression, tempNum);
 				struct TACLine *thisDereference = currentBlock->TACList->tail->data;
 				finalAssignment = newTACLine(currentTACIndex++, tt_memw_1, dereferencedExpression);
 				finalAssignment->operands[1] = RHS->operands[0];
@@ -802,7 +796,7 @@ int linearizeAssignment(struct Scope *scope,
 				case t_un_add:
 				case t_un_sub:
 				{
-					currentTACIndex = linearizeExpression(scope, currentTACIndex, blockList, currentBlock, dereferencedRHS, tempNum);
+					currentTACIndex = linearizeExpression(scope, currentTACIndex, currentBlock, dereferencedRHS, tempNum);
 					struct TACLine *finalArithmeticLine = currentBlock->TACList->tail->data;
 					finalAssignment = newTACLine(currentTACIndex++, tt_memw_3, dereferencedRHS);
 
@@ -980,7 +974,6 @@ int linearizeDeclaration(struct Scope *scope,
 
 struct Stack *linearizeIfStatement(struct Scope *scope,
 								   int currentTACIndex,
-								   struct LinkedList *blockList,
 								   struct BasicBlock *currentBlock,
 								   struct BasicBlock *afterIfBlock,
 								   struct ASTNode *it,
@@ -992,7 +985,7 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 	struct Stack *results = Stack_new();
 
 	// linearize the expression we will test
-	currentTACIndex = linearizeExpression(scope, currentTACIndex, blockList, currentBlock, it->child, tempNum);
+	currentTACIndex = linearizeExpression(scope, currentTACIndex, currentBlock, it->child, tempNum);
 
 	// save state before branch
 	struct TACLine *pushState = newTACLine(currentTACIndex, tt_pushstate, it);
@@ -1007,7 +1000,7 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 	int ifTACIndex = currentTACIndex;
 	int elseTACIndex = currentTACIndex;
 
-	struct LinearizationResult *r = linearizeScope(scope, ifTACIndex, blockList, currentBlock, afterIfBlock, it->child->sibling->child, tempNum, labelCount, scopeNesting);
+	struct LinearizationResult *r = linearizeScope(scope, ifTACIndex, currentBlock, afterIfBlock, it->child->sibling->child, tempNum, labelCount, scopeNesting);
 	Stack_push(results, r);
 
 	// if there is an else statement to the if
@@ -1016,7 +1009,7 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 		// create a basicblock for the else statement
 		struct BasicBlock *elseBlock = BasicBlock_new(++(*labelCount));
 		elseBlock->hintLabel = "else block";
-		LinkedList_append(blockList, elseBlock);
+		Scope_addBasicBlock(scope, elseBlock);
 
 		// need to ensure the else block starts from the same state as the if
 		struct TACLine *resetLine = newTACLine(elseTACIndex, tt_resetstate, it);
@@ -1028,7 +1021,7 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 
 		// linearize the else block, it returns to the same afterIfBlock as the ifBlock does
 		struct Stack *scopeStack = Stack_new();
-		r = linearizeScope(scope, elseTACIndex, blockList, elseBlock, afterIfBlock, it->child->sibling->sibling->child->child, tempNum, labelCount, scopeStack);
+		r = linearizeScope(scope, elseTACIndex, elseBlock, afterIfBlock, it->child->sibling->sibling->child->child, tempNum, labelCount, scopeStack);
 		Stack_free(scopeStack);
 		Stack_push(results, r);
 	}
@@ -1042,7 +1035,6 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 
 struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 											   int currentTACIndex,
-											   struct LinkedList *blockList,
 											   struct BasicBlock *currentBlock,
 											   struct BasicBlock *afterWhileBlock,
 											   struct ASTNode *it,
@@ -1057,7 +1049,8 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 
 	struct BasicBlock *whileBlock = BasicBlock_new(++(*labelCount));
 	whileBlock->hintLabel = "while block";
-	LinkedList_append(blockList, whileBlock);
+	int whileSubScopeIndex = scope->subScopeCount - 1;
+	// Scope_addBasicBlock(scope, whileBlock);
 
 	struct TACLine *enterWhileJump = newTACLine(currentTACIndex++, tt_jmp, it);
 	enterWhileJump->operands[0] = (char *)((long int)whileBlock->labelNum);
@@ -1067,7 +1060,7 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 	BasicBlock_append(whileBlock, whileDo);
 
 	// linearize the expression we will test
-	currentTACIndex = linearizeExpression(scope, currentTACIndex, blockList, whileBlock, it->child, tempNum);
+	currentTACIndex = linearizeExpression(scope, currentTACIndex, whileBlock, it->child, tempNum);
 
 	// restore state before the conditional jump that exits the loop
 	struct TACLine *beforeNoWhileRestore = newTACLine(currentTACIndex, tt_restorestate, it);
@@ -1078,7 +1071,10 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 	noWhileJump->operands[0] = (char *)((long int)afterWhileBlock->labelNum);
 	BasicBlock_append(whileBlock, noWhileJump);
 
-	struct LinearizationResult *r = linearizeScope(scope, currentTACIndex, blockList, whileBlock, whileBlock, it->child->sibling->child, tempNum, labelCount, scopeNesting);
+	// create the scope for the while loop
+	struct LinearizationResult *r = linearizeScope(scope, currentTACIndex, whileBlock, whileBlock, it->child->sibling->child, tempNum, labelCount, scopeNesting);
+	// insert the conditional checks into that scope
+	Scope_addBasicBlock(Scope_lookupSubScopeByNumber(scope, whileSubScopeIndex), whileBlock);
 
 	for (struct LinkedListNode *TACRunner = r->block->TACList->tail; TACRunner != NULL; TACRunner = TACRunner->prev)
 	{
@@ -1099,7 +1095,6 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 // given the AST for a function, generate TAC and return a pointer to the head of the generated block
 struct LinearizationResult *linearizeScope(struct Scope *scope,
 										   int currentTACIndex,
-										   struct LinkedList *blockList,
 										   struct BasicBlock *currentBlock,
 										   struct BasicBlock *controlConvergesTo,
 										   struct ASTNode *it,
@@ -1110,11 +1105,9 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 	// if we are descending into a nested scope, look up the correct scope
 	if (scopeNesting->size > 0)
 	{
-		char *parentFunctionName = scope->parentFunction->name;
-		char *thisScopeName = malloc((3 * scopeNesting->size) + strlen(parentFunctionName) + 1);
+		char *thisScopeName = malloc((3 * scopeNesting->size) + 1);
 		thisScopeName[0] = '\0';
 
-		sprintf(thisScopeName, "%s", parentFunctionName);
 		for (int i = 0; i < scopeNesting->size; i++)
 		{
 			sprintf(thisScopeName + strlen(thisScopeName), "_%02x", *(unsigned char *)scopeNesting->data[i]);
@@ -1135,7 +1128,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 		switch (runner->type)
 		{
 		case t_scope:
-			linearizeScope(scope, currentTACIndex, blockList, currentBlock, controlConvergesTo, runner, tempNum, labelCount, scopeNesting);
+			linearizeScope(scope, currentTACIndex, currentBlock, controlConvergesTo, runner, tempNum, labelCount, scopeNesting);
 			break;
 
 		case t_asm:
@@ -1149,7 +1142,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 			switch (runner->child->type)
 			{
 			case t_assign:
-				currentTACIndex = linearizeAssignment(scope, currentTACIndex, blockList, currentBlock, runner->child, tempNum);
+				currentTACIndex = linearizeAssignment(scope, currentTACIndex, currentBlock, runner->child, tempNum);
 				break;
 
 			case t_dereference:
@@ -1158,7 +1151,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 					dereferenceScraper = dereferenceScraper->child;
 
 				if (dereferenceScraper->type == t_assign)
-					currentTACIndex = linearizeAssignment(scope, currentTACIndex, blockList, currentBlock, dereferenceScraper, tempNum);
+					currentTACIndex = linearizeAssignment(scope, currentTACIndex, currentBlock, dereferenceScraper, tempNum);
 				else
 					currentTACIndex = linearizeDeclaration(scope, currentTACIndex, currentBlock, runner);
 
@@ -1177,13 +1170,13 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 
 		// if we see an assignment, generate the code and stick it on to the end of the block
 		case t_assign:
-			currentTACIndex = linearizeAssignment(scope, currentTACIndex, blockList, currentBlock, runner, tempNum);
+			currentTACIndex = linearizeAssignment(scope, currentTACIndex, currentBlock, runner, tempNum);
 			break;
 
 		case t_call:
 		{
 			// for a raw call, return value is not used, null out that operand
-			currentTACIndex = linearizeFunctionCall(scope, currentTACIndex, blockList, currentBlock, runner, tempNum);
+			currentTACIndex = linearizeFunctionCall(scope, currentTACIndex, currentBlock, runner, tempNum);
 			struct TACLine *lastLine = currentBlock->TACList->tail->data;
 			lastLine->operands[0] = NULL;
 			lastLine->operandTypes[0] = vt_null;
@@ -1218,7 +1211,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 			{
 				returned = TempList_getString(temps, *tempNum);
 				returnedPermutation = vp_temp;
-				currentTACIndex = linearizeDereference(scope, currentTACIndex, blockList, currentBlock, runner->child->child, tempNum);
+				currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, runner->child->child, tempNum);
 				struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
 				returnedType = recursiveDereference->operandTypes[0];
 			}
@@ -1229,7 +1222,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 			{
 				returned = TempList_getString(temps, *tempNum);
 				returnedPermutation = vp_temp;
-				currentTACIndex = linearizeExpression(scope, currentTACIndex, blockList, currentBlock, runner->child, tempNum);
+				currentTACIndex = linearizeExpression(scope, currentTACIndex, currentBlock, runner->child, tempNum);
 				struct TACLine *recursiveExpression = currentBlock->TACList->tail->data;
 				returnedType = recursiveExpression->operandTypes[0];
 			}
@@ -1253,8 +1246,8 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 			afterIfBlock->hintLabel = "after if block";
 
 			// linearize the if statement and attached else if it exists
-			struct Stack *results = linearizeIfStatement(scope, currentTACIndex, blockList, currentBlock, afterIfBlock, runner, tempNum, labelCount, scopeNesting);
-			LinkedList_append(blockList, afterIfBlock);
+			struct Stack *results = linearizeIfStatement(scope, currentTACIndex, currentBlock, afterIfBlock, runner, tempNum, labelCount, scopeNesting);
+			Scope_addBasicBlock(scope, afterIfBlock);
 
 			struct Stack *beforeConvergeRestores = Stack_new();
 
@@ -1301,9 +1294,9 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 			struct BasicBlock *afterWhileBlock = BasicBlock_new(++(*labelCount));
 			afterWhileBlock->hintLabel = "after while block";
 
-			struct LinearizationResult *r = linearizeWhileLoop(scope, currentTACIndex, blockList, currentBlock, afterWhileBlock, runner, tempNum, labelCount, scopeNesting);
+			struct LinearizationResult *r = linearizeWhileLoop(scope, currentTACIndex, currentBlock, afterWhileBlock, runner, tempNum, labelCount, scopeNesting);
 			currentTACIndex = r->endingTACIndex;
-			LinkedList_append(blockList, afterWhileBlock);
+			Scope_addBasicBlock(scope, afterWhileBlock);
 			free(r);
 
 			currentBlock = afterWhileBlock;
@@ -1340,16 +1333,53 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 	return r;
 }
 
+void collapseScopes(struct Scope* scope, struct Dictionary *dict)
+{
+	printf("collapse scopes [%s] (%p)\n", scope->name, scope);
+	for(int i = 0; i < scope->entries->size; i++)
+	{
+		struct ScopeMember *thisMember = scope->entries->data[i];
+		switch(thisMember->type)
+		{
+			case e_scope: // recurse to subscopes
+				collapseScopes(thisMember->entry, dict);
+				break;
+
+			case e_function: // recurse to functions
+				collapseScopes(((struct FunctionEntry *)(thisMember->entry))->mainScope, dict);
+				break;
+
+			default:
+				break;
+		}
+	}
+
+	// potential for wild performance gains by avoiding strlen and malloc for each name
+	for(struct LinkedListNode *blockRunner = scope->BasicBlockList->head; blockRunner != NULL; blockRunner = blockRunner->next)
+	{
+		struct BasicBlock *thisBlock = blockRunner->data;
+		for(struct LinkedListNode *TACRunner = thisBlock->TACList->head; TACRunner != NULL; TACRunner = TACRunner->next)
+		{
+			struct TACLine *thisTAC = TACRunner->data;
+			for(int i = 0; i < 4; i++)
+			{
+				if(thisTAC->operandTypes[i] != vt_null && thisTAC->operandPermutations[i] == vp_standard)
+				{
+					printf("%s%s\n", thisTAC->operands[i], Scope_lookupVarScopeName(scope, thisTAC->operands[i]));
+				}
+			}
+		}
+	}
+	printf("done (%s)\n", scope->name);
+}
+
 // given an AST and a populated symbol table, generate three address code for the function entries
-void linearizeProgram(struct ASTNode *it, struct Scope *scope)
+void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dictionary *dict)
 {
 	temps = TempList_new();
-	struct LinkedList *globalBlockList = LinkedList_new();
 	struct BasicBlock *globalBlock = BasicBlock_new(0);
-	LinkedList_append(globalBlockList, globalBlock);
-	struct SymbolTable *table = SymbolTable_new("Program");
+	Scope_addBasicBlock(globalScope, globalBlock);
 	// scrape along the top level of the AST
-	table->BasicBlockList = globalBlockList;
 	struct ASTNode *runner = it;
 	int tempNum = 0;
 	int currentTACIndex = 0;
@@ -1363,15 +1393,15 @@ void linearizeProgram(struct ASTNode *it, struct Scope *scope)
 		{
 			int funTempNum = 0; // track the number of temporary variables used
 			int labelCount = 0;
-			struct FunctionEntry *theFunction = Scope_lookupFun(scope, runner->child->value);
-			struct LinkedList *functionBlockList = LinkedList_new();
-			theFunction->BasicBlockList = functionBlockList;
+			struct FunctionEntry *theFunction = Scope_lookupFun(globalScope, runner->child->value);
+			// struct LinkedList *functionBlockList = LinkedList_new();
+			// theFunction->mainScope-> = functionBlockList;
 			struct BasicBlock *functionBlock = BasicBlock_new(funTempNum);
-			functionBlock->hintLabel = table->name;
+			functionBlock->hintLabel = theFunction->name;
 
-			LinkedList_append(functionBlockList, functionBlock);
+			Scope_addBasicBlock(theFunction->mainScope, functionBlock);
 			struct Stack *scopeStack = Stack_new();
-			struct LinearizationResult *r = linearizeScope(theFunction->mainScope, 0, functionBlockList, functionBlock, NULL, runner->child->sibling, &funTempNum, &labelCount, scopeStack);
+			struct LinearizationResult *r = linearizeScope(theFunction->mainScope, 0, functionBlock, NULL, runner->child->sibling, &funTempNum, &labelCount, scopeStack);
 			free(r);
 			Stack_free(scopeStack);
 			break;
@@ -1391,12 +1421,12 @@ void linearizeProgram(struct ASTNode *it, struct Scope *scope)
 
 			declarationScraper = declarationScraper->child;
 			if (declarationScraper->type == t_assign)
-				currentTACIndex = linearizeAssignment(scope, currentTACIndex, globalBlockList, globalBlock, declarationScraper, &tempNum);
+				currentTACIndex = linearizeAssignment(globalScope, currentTACIndex, globalBlock, declarationScraper, &tempNum);
 
 			break;
 
 		case t_assign:
-			currentTACIndex = linearizeAssignment(scope, currentTACIndex, globalBlockList, globalBlock, runner, &tempNum);
+			currentTACIndex = linearizeAssignment(globalScope, currentTACIndex, globalBlock, runner, &tempNum);
 			break;
 
 		// ignore everything else (for now) - no global vars, etc...
@@ -1405,4 +1435,23 @@ void linearizeProgram(struct ASTNode *it, struct Scope *scope)
 		}
 		runner = runner->sibling;
 	}
+
+	// collapseScopes(globalScope, dict);
 }
+
+/*
+
+Generating symbol table from AST..
+Linearizing code to basic blocks
+Symbol Table Program
+> Function print (returns 1)
+	> Argument n (stack offset -4)
+> Function scopeTest (returns 1)
+	> Argument a (stack offset -4)
+	> Variable i (stack offset 0)
+	> Subscope _00
+		> Variable j (stack offset 2)
+		> Subscope _00_00
+			> Variable k (stack offset 4)
+
+*/
