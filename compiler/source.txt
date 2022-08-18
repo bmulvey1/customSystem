@@ -13,9 +13,9 @@ fun print(var n){
 fun scopeTest(var a)
 {
 	var i = 0;
+	var j = a;
 	while(i < a)
 	{
-		
 		var j = 0;
 		while(j < a)
 		{
@@ -26,6 +26,7 @@ fun scopeTest(var a)
 		
 		i = i + 1;
 	}
+	j = j + 1;
 
 	return 0;
 }

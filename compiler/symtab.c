@@ -327,10 +327,15 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 
 void Scope_addBasicBlock(struct Scope *scope, struct BasicBlock *b)
 {
-	LinkedList_append(scope->parentFunction->BasicBlockList, b);
 	char *blockName = malloc(10);
 	sprintf(blockName, "Block%d", b->labelNum);
 	Scope_insert(scope, blockName, b, e_basicblock);
+}
+
+void Function_addBasicBlock(struct FunctionEntry *function, struct BasicBlock *b)
+{
+	printf("adding basic block %d to function %s\n", b->labelNum, function->name);
+	LinkedList_append(function->BasicBlockList, b);
 }
 
 /*

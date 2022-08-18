@@ -1010,6 +1010,7 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 		struct BasicBlock *elseBlock = BasicBlock_new(++(*labelCount));
 		elseBlock->hintLabel = "else block";
 		Scope_addBasicBlock(scope, elseBlock);
+		Function_addBasicBlock(scope->parentFunction, elseBlock);
 
 		// need to ensure the else block starts from the same state as the if
 		struct TACLine *resetLine = newTACLine(elseTACIndex, tt_resetstate, it);
@@ -1050,7 +1051,7 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 	struct BasicBlock *whileBlock = BasicBlock_new(++(*labelCount));
 	whileBlock->hintLabel = "while block";
 	int whileSubScopeIndex = scope->subScopeCount - 1;
-	// Scope_addBasicBlock(scope, whileBlock);
+	Function_addBasicBlock(scope->parentFunction, whileBlock);
 
 	struct TACLine *enterWhileJump = newTACLine(currentTACIndex++, tt_jmp, it);
 	enterWhileJump->operands[0] = (char *)((long int)whileBlock->labelNum);
@@ -1247,6 +1248,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 			// linearize the if statement and attached else if it exists
 			struct Stack *results = linearizeIfStatement(scope, currentTACIndex, currentBlock, afterIfBlock, runner, tempNum, labelCount, scopeNesting);
 			Scope_addBasicBlock(scope, afterIfBlock);
+			Function_addBasicBlock(scope->parentFunction, afterIfBlock);
 
 			struct Stack *beforeConvergeRestores = Stack_new();
 
@@ -1296,6 +1298,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 			struct LinearizationResult *r = linearizeWhileLoop(scope, currentTACIndex, currentBlock, afterWhileBlock, runner, tempNum, labelCount, scopeNesting);
 			currentTACIndex = r->endingTACIndex;
 			Scope_addBasicBlock(scope, afterWhileBlock);
+			Function_addBasicBlock(scope->parentFunction, afterWhileBlock);
 			free(r);
 
 			currentBlock = afterWhileBlock;
@@ -1335,7 +1338,6 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 
 void collapseScopes(struct Scope *scope, struct Dictionary *dict)
 {
-	printf("collapse scopes [%s] (%p)\n", scope->name, scope);
 	for (int i = 0; i < scope->entries->size; i++)
 	{
 		struct ScopeMember *thisMember = scope->entries->data[i];
@@ -1350,18 +1352,25 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict)
 			struct FunctionEntry *thisFunction = thisMember->entry;
 			collapseScopes(thisFunction->mainScope, dict);
 			// potential for wild performance gains by avoiding strlen and malloc for each name
-			for (struct LinkedListNode *blockRunner = thisFunction->BasicBlockList->head; blockRunner != NULL; blockRunner = blockRunner->next)
+		}
+		break;
+
+		case e_basicblock:
+		{
+			struct BasicBlock *thisBlock = thisMember->entry;
+			for (struct LinkedListNode *TACRunner = thisBlock->TACList->head; TACRunner != NULL; TACRunner = TACRunner->next)
 			{
-				struct BasicBlock *thisBlock = blockRunner->data;
-				for (struct LinkedListNode *TACRunner = thisBlock->TACList->head; TACRunner != NULL; TACRunner = TACRunner->next)
+				struct TACLine *thisTAC = TACRunner->data;
+				for (int i = 0; i < 4; i++)
 				{
-					struct TACLine *thisTAC = TACRunner->data;
-					for (int i = 0; i < 4; i++)
+					if (thisTAC->operandTypes[i] != vt_null && thisTAC->operandPermutations[i] == vp_standard)
 					{
-						if (thisTAC->operandTypes[i] != vt_null && thisTAC->operandPermutations[i] == vp_standard)
-						{
-							printf("%s%s\n", thisTAC->operands[i], Scope_lookupVarScopeName(scope, thisTAC->operands[i]));
-						}
+						char *originalName = thisTAC->operands[i];
+						char *scopeName = Scope_lookupVarScopeName(scope, thisTAC->operands[i]);
+						char *mangledName = malloc(strlen(originalName) + strlen(scopeName) + 1);
+						sprintf(mangledName, "%s%s", originalName, scopeName);
+						thisTAC->operands[i] = DictionaryLookupOrInsert(dict, mangledName);
+						free(mangledName);
 					}
 				}
 			}
@@ -1373,7 +1382,6 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict)
 		}
 	}
 
-	printf("done (%s)\n", scope->name);
 }
 
 // given an AST and a populated symbol table, generate three address code for the function entries
@@ -1381,7 +1389,6 @@ void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dict
 {
 	temps = TempList_new();
 	struct BasicBlock *globalBlock = BasicBlock_new(0);
-	// Scope_addBasicBlock(globalScope, globalBlock);
 	Scope_insert(globalScope, "Global code", globalBlock, e_basicblock);
 	// scrape along the top level of the AST
 	struct ASTNode *runner = it;
@@ -1404,6 +1411,7 @@ void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dict
 			functionBlock->hintLabel = theFunction->name;
 
 			Scope_addBasicBlock(theFunction->mainScope, functionBlock);
+			Function_addBasicBlock(theFunction, functionBlock);
 			struct Stack *scopeStack = Stack_new();
 			struct LinearizationResult *r = linearizeScope(theFunction->mainScope, 0, functionBlock, NULL, runner->child->sibling, &funTempNum, &labelCount, scopeStack);
 			free(r);
@@ -1440,7 +1448,8 @@ void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dict
 		runner = runner->sibling;
 	}
 
-	// collapseScopes(globalScope, dict);
+	collapseScopes(globalScope, dict);
+	printf("done linearizing\n\n\n");
 }
 
 /*

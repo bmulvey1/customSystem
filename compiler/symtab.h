@@ -104,9 +104,11 @@ int Scope_getSizeOfVariable(struct Scope *scope, char *name);
 
 // scope linearization functions
 
-// add the basic block to the linkedlist for the parent function
-// also adds an entry in the given scope denoting that the block is from that scope
+// adds an entry in the given scope denoting that the block is from that scope
 void Scope_addBasicBlock(struct Scope *scope, struct BasicBlock *b);
+
+// add the basic block to the linkedlist for the parent function
+void Function_addBasicBlock(struct FunctionEntry *function, struct BasicBlock *b);
 
 void SymbolTable_print(struct SymbolTable *it, char printTAC);
 
