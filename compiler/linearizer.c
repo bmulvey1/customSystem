@@ -1388,8 +1388,8 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict)
 void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dictionary *dict)
 {
 	temps = TempList_new();
-	struct BasicBlock *globalBlock = BasicBlock_new(0);
-	Scope_insert(globalScope, "Global code", globalBlock, e_basicblock);
+	struct BasicBlock *globalBlock = Scope_lookup(globalScope, "globalblock")->entry;
+
 	// scrape along the top level of the AST
 	struct ASTNode *runner = it;
 	int tempNum = 0;
@@ -1449,6 +1449,7 @@ void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dict
 	}
 
 	collapseScopes(globalScope, dict);
+
 	printf("done linearizing\n\n\n");
 }
 

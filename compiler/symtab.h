@@ -62,8 +62,6 @@ struct SymbolTable
 {
 	char *name;
 	struct Scope *globalScope;
-	// global basic blocks for defining/declaring globals
-	struct LinkedList *BasicBlockList;
 };
 
 

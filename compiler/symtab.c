@@ -27,8 +27,12 @@ struct SymbolTable *SymbolTable_new(char *name)
 	struct SymbolTable *wip = malloc(sizeof(struct SymbolTable));
 	wip->name = name;
 	wip->globalScope = Scope_new(NULL, "Global");
-	// generate a single templist at the top level symTab
-	// leave all others as NULL to avoid duplication
+	struct BasicBlock *globalBlock = BasicBlock_new(0);
+	globalBlock->hintLabel = "globalblock";
+
+	// manually insert a basic block for global code so we can give it the custom name of "globalblock"
+	Scope_insert(wip->globalScope, "globalblock", globalBlock, e_basicblock);
+	
 	return wip;
 }
 
@@ -319,6 +323,10 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 		case e_basicblock:
 		{
 			printf("> Basic Block %s\n", thisMember->name);
+			if (printTAC)
+			{
+				printBasicBlock(thisMember->entry, depth + 1);
+			}
 		}
 		break;
 		}
@@ -615,7 +623,6 @@ void walkFunction(struct ASTNode *it, struct Scope *parentScope)
 struct SymbolTable *walkAST(struct ASTNode *it)
 {
 	struct SymbolTable *programTable = SymbolTable_new("Program");
-	struct Scope *globalScope = programTable->globalScope;
 	struct ASTNode *runner = it;
 	while (runner != NULL)
 	{
@@ -625,7 +632,7 @@ struct SymbolTable *walkAST(struct ASTNode *it)
 		// global variable declarations/definitions are allowed
 		// use walkStatement to handle this
 		case t_var:
-			walkStatement(runner, globalScope);
+			walkStatement(runner, programTable->globalScope);
 			struct ASTNode *scraper = runner->child;
 			while (scraper->type != t_name)
 			{
@@ -634,7 +641,7 @@ struct SymbolTable *walkAST(struct ASTNode *it)
 			break;
 
 		case t_fun:
-			walkFunction(runner, globalScope);
+			walkFunction(runner, programTable->globalScope);
 			break;
 
 		// ignore asm blocks
