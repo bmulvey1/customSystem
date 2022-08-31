@@ -320,6 +320,11 @@ void checkIRConsistency(struct LinkedList *blockList)
 	}
 }
 
+char compareNumbers(int *a, int *b)
+{
+	return *a == *b;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 2)
@@ -348,18 +353,18 @@ int main(int argc, char **argv)
 	printf("Linearizing code to basic blocks\n");
 	linearizeProgram(program, theTable->globalScope, parseDict);
 
-	SymbolTable_print(theTable, 1);
+	SymbolTable_print(theTable, 0);
 
 	FILE *outFile = fopen(argv[2], "wb");
 
 	// struct Lifetime *theseLifetimes = findLifetimes(theTable);
 
-	/*
+	
 	struct ASMblock *output;
 	output = generateCode(theTable, outFile);
-	ASMblock_output(output, outFile);
-	ASMblock_free(output);
-	*/
+	output += 1;
+	// ASMblock_output(output, outFile);
+	// ASMblock_free(output);
 
 	// exit(1);
 	/*

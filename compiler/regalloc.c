@@ -1,5 +1,5 @@
 #include "regalloc.h"
-/*
+
 struct Lifetime *newLifetime(char *variable, enum variableTypes type, int start)
 {
 	struct Lifetime *wip = malloc(sizeof(struct Lifetime));
@@ -7,6 +7,8 @@ struct Lifetime *newLifetime(char *variable, enum variableTypes type, int start)
 	wip->start = start;
 	wip->end = start;
 	wip->type = type;
+	wip->nwrites = 0;
+	wip->nreads = 0;
 	return wip;
 }
 
@@ -17,10 +19,11 @@ char compareLifetimes(struct Lifetime *a, char *variable)
 
 // search through the list of existing lifetimes
 // update the lifetime if it exists, insert if it doesn't
-void updateOrInsertLifetime(struct LinkedList *ltList,
-							char *variable,
-							enum variableTypes type,
-							int newEnd)
+// returns pointer to the lifetime corresponding to the passed variable name
+struct Lifetime *updateOrInsertLifetime(struct LinkedList *ltList,
+										char *variable,
+										enum variableTypes type,
+										int newEnd)
 {
 	struct Lifetime *thisLt = LinkedList_find(ltList, &compareLifetimes, variable);
 	if (thisLt != NULL)
@@ -39,6 +42,28 @@ void updateOrInsertLifetime(struct LinkedList *ltList,
 		thisLt = newLifetime(variable, type, newEnd);
 		LinkedList_append(ltList, thisLt);
 	}
+
+	return thisLt;
+}
+
+// wrapper function for updateOrInsertLifetime
+//  increments write count for the given variable
+void recordVariableWrite(struct LinkedList *ltList,
+						 char *variable,
+						 enum variableTypes type,
+						 int newEnd)
+{
+	updateOrInsertLifetime(ltList, variable, type, newEnd)->nwrites++;
+}
+
+// wrapper function for updateOrInsertLifetime
+//  increments read count for the given variable
+void recordVariableRead(struct LinkedList *ltList,
+						char *variable,
+						enum variableTypes type,
+						int newEnd)
+{
+	updateOrInsertLifetime(ltList, variable, type, newEnd)->nreads++;
 }
 
 void printCurrentState(struct Stack *activeList,
@@ -480,13 +505,13 @@ void printLifetimesGraph(struct LinkedList *lifetimeList)
 	}
 	printf("\n");
 }
-*/
+
 /*
  * state duplication/reading
  *
  *
  */
-/*
+
 struct SavedState *duplicateCurrentState(struct Stack *activeList,
 										 struct Stack *inactiveList,
 										 struct Stack *spilledList,
@@ -782,20 +807,21 @@ int findOrPlaceOperand(struct Stack *activeList,
 	return unSpillVariable(activeList, inactiveList, spilledList, varName, outputBlock, table);
 }
 
-struct LinkedList *findLifetimes(struct SymbolTable *table)
+struct LinkedList *findLifetimes(struct FunctionEntry *function)
 {
 	struct LinkedList *lifetimes = LinkedList_new();
-	for (int i = 0; i < table->size; i++)
+	for (int i = 0; i < function->mainScope->entries->size; i++)
 	{
-		if (table->entries[i]->type == e_argument)
+		struct ScopeMember *thisMember = function->mainScope->entries->data[i];
+		if (thisMember->type == e_argument)
 		{
 			// struct variableEntry *theArgument = table->entries[i]->entry;
 
-			updateOrInsertLifetime(lifetimes, table->entries[i]->name, ((struct variableEntry *)table->entries[i]->entry)->type, 0);
+			updateOrInsertLifetime(lifetimes, thisMember->name, ((struct VariableEntry *)thisMember->entry)->type, 0);
 		}
 	}
 
-	struct LinkedListNode *blockRunner = table->BasicBlockList->head;
+	struct LinkedListNode *blockRunner = function->BasicBlockList->head;
 	struct Stack *doDepth = Stack_new();
 	while (blockRunner != NULL)
 	{
@@ -910,4 +936,3 @@ struct LinkedList *findLifetimes(struct SymbolTable *table)
 	Stack_free(doDepth);
 	return lifetimes;
 }
-*/

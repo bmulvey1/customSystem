@@ -4,12 +4,12 @@
 #include "asm.h"
 #include "tac.h"
 
-#define REGISTER_COUNT 10
+#define REGISTER_COUNT 3
 
 
 struct Lifetime
 {
-	int start, end;
+	int start, end, nwrites, nreads;
 	char *variable;
 	enum variableTypes type;
 };
@@ -18,7 +18,23 @@ struct Lifetime *newLifetime(char *variable, enum variableTypes type, int start)
 
 char compareLifetimes(struct Lifetime *a, char *variable);
 
-void updateOrInsertLifetime(struct LinkedList *ltList,
+// update the lifetime start/end indices
+// returns pointer to the lifetime corresponding to the passed variable name
+struct Lifetime *updateOrInsertLifetime(struct LinkedList *ltList,
+							char *variable,
+							enum variableTypes type,
+							int newEnd);
+
+//wrapper function for updateOrInsertLifetime
+// increments write count for the given variable
+void recordVariableWrite(struct LinkedList *ltList,
+							char *variable,
+							enum variableTypes type,
+							int newEnd);
+
+//wrapper function for updateOrInsertLifetime
+// increments read count for the given variable
+void recordVariableRead(struct LinkedList *ltList,
 							char *variable,
 							enum variableTypes type,
 							int newEnd);
@@ -135,4 +151,4 @@ int findOrPlaceOperand(struct Stack *activeList,
 								struct ASMblock *outputBlock,
 								struct SymbolTable *table);
 
-struct LinkedList *findLifetimes(struct SymbolTable *table);
+struct LinkedList *findLifetimes(struct FunctionEntry *function);

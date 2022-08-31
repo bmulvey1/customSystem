@@ -284,13 +284,18 @@ void *LinkedList_delete(struct LinkedList *l, char (*compareFunction)(), void *e
 					}
 				}
 			}
+			else
+			{
+				l->head = NULL;
+				l->tail = NULL;
+			}
 			void *data = runner->data;
 			free(runner);
+			l->size--;
 			return data;
 		}
 	}
-	fprintf(stderr, "Error - could not delete element from linked list!\n");
-	exit(1);
+	ErrorAndExit(ERROR_INTERNAL, "Couldn't delete element from linked list!\n");
 }
 
 void *LinkedList_find(struct LinkedList *l, char (*compareFunction)(), void *element)
@@ -307,9 +312,10 @@ void *LinkedList_find(struct LinkedList *l, char (*compareFunction)(), void *ele
 
 /*
  * string trimming - overallocate for sprintf and let this funciton trim it down
-*/
+ */
 
-char *strTrim(char *s, int l){
+char *strTrim(char *s, int l)
+{
 	char *newStr = malloc(l + 1);
 	strcpy(newStr, s);
 	return newStr;
@@ -319,13 +325,13 @@ char *strTrim(char *s, int l){
  *
  *
  *
- * 
+ *
  */
 
 char *TempList_getString(struct TempList *tempList, int tempNum)
 {
 	int sizeDiff = tempNum - tempList->temps->size;
-	while(sizeDiff-- > 0)
+	while (sizeDiff-- > 0)
 	{
 		char *thisTemp = malloc(6 * sizeof(char));
 		sprintf(thisTemp, ".t%d", tempList->temps->size);
@@ -344,7 +350,7 @@ struct TempList *TempList_new()
 
 void TempList_free(struct TempList *it)
 {
-	for(int i = 0; i < it->temps->size; i++)
+	for (int i = 0; i < it->temps->size; i++)
 	{
 		free(it->temps->data[i]);
 	}
