@@ -6,9 +6,11 @@ struct Lifetime *newLifetime(char *variable, enum variableTypes type, int start)
 	wip->variable = variable;
 	wip->start = start;
 	wip->end = start;
+	wip->stackOrRegLocation = 0;
 	wip->type = type;
 	wip->nwrites = 0;
 	wip->nreads = 0;
+	wip->isSpilled = 0;
 	return wip;
 }
 
@@ -66,6 +68,7 @@ void recordVariableRead(struct LinkedList *ltList,
 	updateOrInsertLifetime(ltList, variable, type, newEnd)->nreads++;
 }
 
+/*
 void printCurrentState(struct Stack *activeList,
 					   struct Stack *inactiveList,
 					   struct Stack *spilledList)
@@ -505,13 +508,13 @@ void printLifetimesGraph(struct LinkedList *lifetimeList)
 	}
 	printf("\n");
 }
-
+*/
 /*
  * state duplication/reading
  *
  *
  */
-
+/*
 struct SavedState *duplicateCurrentState(struct Stack *activeList,
 										 struct Stack *inactiveList,
 										 struct Stack *spilledList,
@@ -806,7 +809,7 @@ int findOrPlaceOperand(struct Stack *activeList,
 
 	return unSpillVariable(activeList, inactiveList, spilledList, varName, outputBlock, table);
 }
-
+*/
 struct LinkedList *findLifetimes(struct FunctionEntry *function)
 {
 	struct LinkedList *lifetimes = LinkedList_new();
@@ -936,3 +939,4 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 	Stack_free(doDepth);
 	return lifetimes;
 }
+

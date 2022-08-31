@@ -31,12 +31,11 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	printf("Generate code for function %s\n", function->name);
 	struct LinkedList *unprocessedLifetimes = findLifetimes(function);
 
-	struct LinkedList *spilledLifetimes = LinkedList_new();
+	struct Stack *spilledLifetimes = Stack_new();
 
 	// struct LinkedList *activeLifetimes = LinkedList_new();
 
-	// find all overlappingl lifetimes, to figure out which variables can live in registers vs being spilled
-
+	// find all overlapping lifetimes, to figure out which variables can live in registers vs being spilled
 	int largestTacIndex = 0;
 	for (struct LinkedListNode *runner = unprocessedLifetimes->head; runner != NULL; runner = runner->next)
 	{
@@ -64,8 +63,8 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 
 	for (int i = 0; i <= largestTacIndex; i++)
 	{
-
-		while (lifetimeOverlaps[i]->size > REGISTER_COUNT)
+		// need to leave a scratch register
+		while (lifetimeOverlaps[i]->size > (REGISTER_COUNT - 1))
 		{
 			int bestHeuristic = -1;
 			struct Lifetime *bestLifetime = NULL;
@@ -73,7 +72,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			{
 				struct Lifetime *thisLifetime = overlapRunner->data;
 				int thisHeuristic = thisLifetime->end;
-				if(thisHeuristic > bestHeuristic)
+				if (thisHeuristic > bestHeuristic)
 				{
 					bestHeuristic = thisHeuristic;
 					bestLifetime = thisLifetime;
@@ -81,18 +80,49 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 
 				// printf("%s, ", thisLifetime->variable);
 			}
-			printf("spill %s\n", bestLifetime->variable);
-
-			for(int j = bestLifetime->start; j <= bestLifetime->end; j++)
+			for (int j = bestLifetime->start; j <= bestLifetime->end; j++)
 			{
 				LinkedList_delete(lifetimeOverlaps[j], compareLifetimes, bestLifetime);
 			}
-			LinkedList_append(spilledLifetimes, bestLifetime);
+			bestLifetime->isSpilled = 1;
+			Stack_push(spilledLifetimes, bestLifetime);
 		}
-		
-		
 	}
-	// struct Stack *activeLifetimesByStep = Stack_new();
+
+	// sort the list of spilled lifetimes by size of the variable so they can be laid out cleanly on the stack
+	for (int i = 0; i < spilledLifetimes->size; i++)
+	{
+		for (int j = 0; j < spilledLifetimes->size - i - 1; j++)
+		{
+			int thisSize = Scope_getSizeOfVariable(function->mainScope, ((struct Lifetime *)spilledLifetimes->data[j])->variable);
+			int compSize = Scope_getSizeOfVariable(function->mainScope, ((struct Lifetime *)spilledLifetimes->data[j + 1])->variable);
+			if (thisSize < compSize)
+			{
+				struct Lifetime *swap = spilledLifetimes->data[j];
+				spilledLifetimes->data[j] = spilledLifetimes->data[j + 1];
+				spilledLifetimes->data[j + 1] = swap;
+			}
+		}
+	}
+
+	int stackOffset = 0;
+	for (int i = 0; i < spilledLifetimes->size; i++)
+	{
+		struct Lifetime *thisLifetime = spilledLifetimes->data[i];
+		int thisSize = Scope_getSizeOfVariable(function->mainScope, thisLifetime->variable);
+		thisLifetime->stackOrRegLocation = stackOffset;
+		stackOffset += thisSize;
+	}
+
+	printf("spilled variables:");
+	for (int i = 0; i < spilledLifetimes->size; i++)
+	{
+		struct Lifetime *thisSpill = spilledLifetimes->data[i];
+		printf("%s (offset %d),", thisSpill->variable, thisSpill->stackOrRegLocation);
+	}
+	printf("\n");
+
+	printf("\nRegister variables:\n");
 
 	for (int i = 0; i <= largestTacIndex; i++)
 	{
@@ -104,7 +134,65 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			printf("%s, ", thisLifetime->variable);
 		}
 		printf("\n");
-		LinkedList_free(lifetimeOverlaps[i], NULL);
+	}
+
+	// flag registers in use at any given TAC index so we can easily assign
+	char registers[REGISTER_COUNT];
+	for (int i = 0; i < REGISTER_COUNT; i++)
+	{
+		registers[i] = 0;
+	}
+	registers[0] = 1;
+
+	for (int i = 0; i <= largestTacIndex; i++)
+	{
+		// first pass - expire all old lifetimes
+		for (struct LinkedListNode *ltRunner = unprocessedLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
+		{
+			struct Lifetime *thisLifetime = ltRunner->data;
+			if (thisLifetime->end < i)
+			{
+				registers[thisLifetime->stackOrRegLocation] = 0;
+			}
+		}
+
+		// second pass, assign any new lifetimes
+		for (struct LinkedListNode *ltRunner = unprocessedLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
+		{
+			struct Lifetime *thisLifetime = ltRunner->data;
+			if (thisLifetime->isSpilled == 0 && thisLifetime->stackOrRegLocation == 0)
+			{
+				if (thisLifetime->start == i)
+				{
+					for (int j = 1; j < REGISTER_COUNT; j++)
+					{
+						if (registers[j] == 0)
+						{
+							thisLifetime->stackOrRegLocation = j;
+							registers[j] = 1;
+							break;
+						}
+					}
+					if (thisLifetime->stackOrRegLocation == 0)
+					{
+						ErrorAndExit(ERROR_INTERNAL, "Unable to find register for variable %s!\n", thisLifetime->variable);
+					}
+				}
+			}
+		}
+	}
+
+	for (struct LinkedListNode *ltRunner = unprocessedLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
+	{
+		struct Lifetime *thisLt = ltRunner->data;
+		if (thisLt->isSpilled)
+		{
+			printf("Offset 0x%02x: %s\n", thisLt->stackOrRegLocation, thisLt->variable);
+		}
+		else
+		{
+			printf("       %%r%d: %s\n", thisLt->stackOrRegLocation, thisLt->variable);
+		}
 	}
 
 	printf("done in generatecode for %s\n", function->name);
