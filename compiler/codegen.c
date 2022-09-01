@@ -29,7 +29,7 @@ struct ASMblock *generateCodeForScope(struct Scope *scope, FILE *outFile)
 struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *outFile)
 {
 	printf("Generate code for function %s\n", function->name);
-	struct LinkedList *unprocessedLifetimes = findLifetimes(function);
+	struct LinkedList *allLifetimes = findLifetimes(function);
 
 	struct Stack *spilledLifetimes = Stack_new();
 
@@ -37,7 +37,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 
 	// find all overlapping lifetimes, to figure out which variables can live in registers vs being spilled
 	int largestTacIndex = 0;
-	for (struct LinkedListNode *runner = unprocessedLifetimes->head; runner != NULL; runner = runner->next)
+	for (struct LinkedListNode *runner = allLifetimes->head; runner != NULL; runner = runner->next)
 	{
 		struct Lifetime *thisLifetime = runner->data;
 		if (thisLifetime->end > largestTacIndex)
@@ -52,7 +52,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		lifetimeOverlaps[i] = LinkedList_new();
 	}
 
-	for (struct LinkedListNode *runner = unprocessedLifetimes->head; runner != NULL; runner = runner->next)
+	for (struct LinkedListNode *runner = allLifetimes->head; runner != NULL; runner = runner->next)
 	{
 		struct Lifetime *thisLifetime = runner->data;
 		for (int i = thisLifetime->start; i <= thisLifetime->end; i++)
@@ -114,28 +114,6 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		stackOffset += thisSize;
 	}
 
-	printf("spilled variables:");
-	for (int i = 0; i < spilledLifetimes->size; i++)
-	{
-		struct Lifetime *thisSpill = spilledLifetimes->data[i];
-		printf("%s (offset %d),", thisSpill->variable, thisSpill->stackOrRegLocation);
-	}
-	printf("\n");
-
-	printf("\nRegister variables:\n");
-
-	for (int i = 0; i <= largestTacIndex; i++)
-	{
-		printf("%02x: ", i);
-
-		for (struct LinkedListNode *overlapRunner = lifetimeOverlaps[i]->head; overlapRunner != NULL; overlapRunner = overlapRunner->next)
-		{
-			struct Lifetime *thisLifetime = overlapRunner->data;
-			printf("%s, ", thisLifetime->variable);
-		}
-		printf("\n");
-	}
-
 	// flag registers in use at any given TAC index so we can easily assign
 	char registers[REGISTER_COUNT];
 	for (int i = 0; i < REGISTER_COUNT; i++)
@@ -147,7 +125,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	for (int i = 0; i <= largestTacIndex; i++)
 	{
 		// first pass - expire all old lifetimes
-		for (struct LinkedListNode *ltRunner = unprocessedLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
+		for (struct LinkedListNode *ltRunner = allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
 		{
 			struct Lifetime *thisLifetime = ltRunner->data;
 			if (thisLifetime->end < i)
@@ -157,7 +135,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		}
 
 		// second pass, assign any new lifetimes
-		for (struct LinkedListNode *ltRunner = unprocessedLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
+		for (struct LinkedListNode *ltRunner = allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
 		{
 			struct Lifetime *thisLifetime = ltRunner->data;
 			if (thisLifetime->isSpilled == 0 && thisLifetime->stackOrRegLocation == 0)
@@ -182,7 +160,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		}
 	}
 
-	for (struct LinkedListNode *ltRunner = unprocessedLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
+	for (struct LinkedListNode *ltRunner = allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
 	{
 		struct Lifetime *thisLt = ltRunner->data;
 		if (thisLt->isSpilled)
@@ -191,16 +169,21 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		}
 		else
 		{
-			printf("       %%r%d: %s\n", thisLt->stackOrRegLocation, thisLt->variable);
+			printf("        %%r%d: %s\n", thisLt->stackOrRegLocation, thisLt->variable);
 		}
 	}
 
-	printf("done in generatecode for %s\n", function->name);
-	return NULL;
+	struct ASMBlock *functionBlock = newASMblock();
+
+	printf("done in generatecode for %s\n\n", function->name);
+	return functionBlock;
+
+
+
 }
 
 /*
-while(unprocessedLifetimes->size > 0 || activeLifetimes->size > 0)
+while(allLifetimes->size > 0 || activeLifetimes->size > 0)
 {
 	for(struct LinkedListNode *regRunner = registerLifetimes->head; regRunner != NULL; regRunner = regRunner->next)
 	{
@@ -220,7 +203,7 @@ while(unprocessedLifetimes->size > 0 || activeLifetimes->size > 0)
 		}
 	}
 
-	for(struct LinkedListNode *unprocessedRunner = unprocessedLifetimes->head; unprocessedRunner != NULL; unprocessedRunner = unprocessedRunner->next)
+	for(struct LinkedListNode *unprocessedRunner = allLifetimes->head; unprocessedRunner != NULL; unprocessedRunner = unprocessedRunner->next)
 	{
 
 	}

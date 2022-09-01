@@ -1338,7 +1338,6 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 
 void collapseScopes(struct Scope *scope, struct Dictionary *dict)
 {
-	printf("recurse in collapsescopes (%s)\n", scope->name);
 	for (int i = 0; i < scope->entries->size; i++)
 	{
 		struct ScopeMember *thisMember = scope->entries->data[i];
@@ -1370,7 +1369,6 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict)
 						char *scopeName = Scope_lookupVarScopeName(scope, thisTAC->operands[i]);
 						char *mangledName = malloc(strlen(originalName) + strlen(scopeName) + 1);
 						sprintf(mangledName, "%s%s", originalName, scopeName);
-						printf("collapse %s to %s\n", originalName, mangledName);
 						thisTAC->operands[i] = DictionaryLookupOrInsert(dict, mangledName);
 						free(mangledName);
 					}
@@ -1383,7 +1381,6 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict)
 			break;
 		}
 	}
-	printf("unrecurse\n");
 }
 
 // given an AST and a populated symbol table, generate three address code for the function entries
