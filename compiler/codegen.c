@@ -33,8 +33,6 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 
 	struct Stack *spilledLifetimes = Stack_new();
 
-	// struct LinkedList *activeLifetimes = LinkedList_new();
-
 	// find all overlapping lifetimes, to figure out which variables can live in registers vs being spilled
 	int largestTacIndex = 0;
 	for (struct LinkedListNode *runner = allLifetimes->head; runner != NULL; runner = runner->next)
@@ -60,7 +58,6 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			LinkedList_append(lifetimeOverlaps[i], thisLifetime);
 		}
 	}
-
 	for (int i = 0; i <= largestTacIndex; i++)
 	{
 		// need to leave a scratch register
@@ -122,7 +119,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	}
 	registers[0] = 1;
 
-	for (int i = 0; i <= largestTacIndex; i++)
+	for (int i = 0; i < largestTacIndex; i++)
 	{
 		// first pass - expire all old lifetimes
 		for (struct LinkedListNode *ltRunner = allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
@@ -159,7 +156,6 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			}
 		}
 	}
-
 	for (struct LinkedListNode *ltRunner = allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
 	{
 		struct Lifetime *thisLt = ltRunner->data;
@@ -173,8 +169,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		}
 	}
 
-	struct ASMBlock *functionBlock = newASMblock();
-
+	struct ASMblock *functionBlock = newASMblock();
 	printf("done in generatecode for %s\n\n", function->name);
 	return functionBlock;
 

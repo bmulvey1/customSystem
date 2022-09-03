@@ -28,6 +28,7 @@ struct Lifetime *updateOrInsertLifetime(struct LinkedList *ltList,
 										int newEnd)
 {
 	struct Lifetime *thisLt = LinkedList_find(ltList, &compareLifetimes, variable);
+	 
 	if (thisLt != NULL)
 	{
 		// this should never fire with well-formed TAC
@@ -68,7 +69,7 @@ void recordVariableRead(struct LinkedList *ltList,
 	updateOrInsertLifetime(ltList, variable, type, newEnd)->nreads++;
 }
 
-int placeOperandInRegister(struct LinkedList *lifetimes, char *variable, struct ASMBlock *currentBlock)
+int placeOperandInRegister(struct LinkedList *lifetimes, char *variable, struct ASMblock *currentBlock)
 {
 	struct Lifetime *relevantLifetime = LinkedList_find(lifetimes, compareLifetimes, variable);
 	if(relevantLifetime == NULL)
@@ -80,7 +81,7 @@ int placeOperandInRegister(struct LinkedList *lifetimes, char *variable, struct 
 		char *copyLine = malloc(32);
 		sprintf(copyLine, "mov %%r0, %d(%%bp)", relevantLifetime->stackOrRegLocation);
 		ASMblock_append(currentBlock, copyLine);
-		printf("copy variable %s from stack to scratch register\n");
+		printf("copy variable %s from stack to scratch register\n", variable);
 		return 0;
 	}
 	else
