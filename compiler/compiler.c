@@ -360,9 +360,13 @@ int main(int argc, char **argv)
 	// struct Lifetime *theseLifetimes = findLifetimes(theTable);
 
 	
-	struct ASMblock *output;
-	output = generateCode(theTable, outFile);
-	output += 1;
+	struct Stack *outputBlocks;
+	outputBlocks = generateCode(theTable, outFile);
+	fprintf(outFile, "#include \"CPU.asm\"\n");
+	for(int i = 0; i < outputBlocks->size; i++)
+	{
+		ASMblock_output(outputBlocks->data[i], outFile);
+	}
 	// ASMblock_output(output, outFile);
 	// ASMblock_free(output);
 

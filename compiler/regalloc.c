@@ -69,7 +69,9 @@ void recordVariableRead(struct LinkedList *ltList,
 	updateOrInsertLifetime(ltList, variable, type, newEnd)->nreads++;
 }
 
-int placeOperandInRegister(struct LinkedList *lifetimes, char *variable, struct ASMblock *currentBlock)
+// places an operand by name into the specified register, or returns the register containing if it's already in a register
+// does *NOT* guarantee that returned register indices are modifiable in the case where the variable is found in a register
+int placeOperandInRegister(struct LinkedList *lifetimes, char *variable, struct ASMblock *currentBlock, int registerIndex)
 {
 	struct Lifetime *relevantLifetime = LinkedList_find(lifetimes, compareLifetimes, variable);
 	if(relevantLifetime == NULL)
@@ -79,10 +81,9 @@ int placeOperandInRegister(struct LinkedList *lifetimes, char *variable, struct 
 	if(relevantLifetime->isSpilled)
 	{
 		char *copyLine = malloc(32);
-		sprintf(copyLine, "mov %%r0, %d(%%bp)", relevantLifetime->stackOrRegLocation);
+		sprintf(copyLine, "mov %%r%d, %d(%%bp)", registerIndex, relevantLifetime->stackOrRegLocation);
 		ASMblock_append(currentBlock, copyLine);
-		printf("copy variable %s from stack to scratch register\n", variable);
-		return 0;
+		return registerIndex;
 	}
 	else
 	{

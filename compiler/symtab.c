@@ -32,7 +32,7 @@ struct SymbolTable *SymbolTable_new(char *name)
 
 	// manually insert a basic block for global code so we can give it the custom name of "globalblock"
 	Scope_insert(wip->globalScope, "globalblock", globalBlock, e_basicblock);
-	
+
 	return wip;
 }
 
@@ -120,7 +120,7 @@ struct Scope *Scope_createSubScope(struct Scope *parentScope)
 		ErrorAndExit(ERROR_INTERNAL, "Too many subscopes of scope %s\n", parentScope->name);
 	}
 	char *newScopeName = malloc(3 + strlen(parentScope->name) + 1);
-	sprintf(newScopeName, "%s_%02x", parentScope->name, parentScope->subScopeCount);
+	sprintf(newScopeName, ".%02x", parentScope->subScopeCount);
 	parentScope->subScopeCount++;
 
 	struct Scope *newScope = Scope_new(parentScope, newScopeName);
@@ -144,10 +144,40 @@ char Scope_contains(struct Scope *scope, char *name)
 	return 0;
 }
 
-// if a member with the given name exists in this scope or any of its parents,
-// return it
+// if a member with the given name exists in this scope or any of its parents, return it
+// also looks up entries from deeper scopes, but only as their mangled names specify
 struct ScopeMember *Scope_lookup(struct Scope *scope, char *name)
 {
+	int nameLen = strlen(name);
+	char nameModified = 0;
+	for (int i = 0; i < nameLen; i++)
+	{
+		if (name[i] == '.' && i > 0)
+		{
+			char subScopeName[4];
+			subScopeName[0] = name[i];
+			subScopeName[1] = name[i + 1];
+			subScopeName[2] = name[i + 2];
+			subScopeName[3] = '\0';
+			scope = Scope_lookupSubScope(scope, subScopeName);
+			if (scope == NULL)
+			{
+				ErrorAndExit(ERROR_INTERNAL, "can't find subscope %s\n", subScopeName);
+			}
+			else
+			{
+				char *newName = malloc(strlen(name) - 2);
+				for (int j = 0; j < i; j++)
+				{
+					newName[j] = name[j];
+				}
+				strcpy(newName + i, name + (i + 3));
+				nameModified = 1;
+				name = newName;
+			}
+			break;
+		}
+	}
 	while (scope != NULL)
 	{
 		for (int i = 0; i < scope->entries->size; i++)
@@ -155,10 +185,19 @@ struct ScopeMember *Scope_lookup(struct Scope *scope, char *name)
 			struct ScopeMember *examinedEntry = scope->entries->data[i];
 			if (!strcmp(examinedEntry->name, name))
 			{
+				if (nameModified)
+				{
+					free(name);
+				}
 				return examinedEntry;
 			}
 		}
+
 		scope = scope->parentScope;
+	}
+	if (nameModified)
+	{
+		free(name);
 	}
 	return NULL;
 }
@@ -199,6 +238,8 @@ struct FunctionEntry *Scope_lookupFun(struct Scope *scope, char *name)
 	}
 }
 
+// return the name of a variable's scope based on a lookup starting at the supplied scope
+// name string is heap-allocated
 char *Scope_lookupVarScopeName(struct Scope *scope, char *name)
 {
 	while (scope != NULL)
@@ -208,7 +249,17 @@ char *Scope_lookupVarScopeName(struct Scope *scope, char *name)
 			struct ScopeMember *examinedEntry = scope->entries->data[i];
 			if (!strcmp(examinedEntry->name, name))
 			{
-				return scope->name;
+				char *scopeName = malloc(1);
+				scopeName[0] = '\0';
+				while(scope != NULL && scope->parentScope != NULL && scope->parentScope->parentScope != NULL)
+				{
+					char *newScopeName = malloc(strlen(scopeName) + 4);
+					sprintf(newScopeName, "%s%s", scope->name, scopeName);
+					free(scopeName);
+					scopeName = newScopeName;
+					scope = scope->parentScope;
+				}
+				return scopeName;
 			}
 		}
 		scope = scope->parentScope;
@@ -237,7 +288,7 @@ struct Scope *Scope_lookupSubScope(struct Scope *scope, char *name)
 struct Scope *Scope_lookupSubScopeByNumber(struct Scope *scope, unsigned char subScopeNumber)
 {
 	char *subScopeName = malloc(strlen(scope->name) + 4);
-	sprintf(subScopeName, "%s_%02x", scope->name, subScopeNumber);
+	sprintf(subScopeName, "%s.%02x", scope->name, subScopeNumber);
 	struct Scope *lookedUp = Scope_lookupSubScope(scope, subScopeName);
 	free(subScopeName);
 	return lookedUp;
@@ -309,6 +360,7 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 				}
 			}
 			Scope_print(theFunction->mainScope, depth + 1, printTAC);
+			printf("\n");
 		}
 		break;
 

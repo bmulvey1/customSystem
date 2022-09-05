@@ -4,7 +4,7 @@
 #include "asm.h"
 #include "tac.h"
 
-#define REGISTER_COUNT 3
+#define REGISTER_COUNT 4
 
 struct Lifetime
 {
@@ -41,6 +41,6 @@ void recordVariableRead(struct LinkedList *ltList,
 						int newEnd);
 
 // places a variable in a register, with no guarantee that it is modifiable
-int placeOperandInRegister(struct LinkedList *lifetimes, char *variable, struct ASMblock *currentBlock);
+int placeOperandInRegister(struct LinkedList *lifetimes, char *variable, struct ASMblock *currentBlock, int registerIndex);
 
 struct LinkedList *findLifetimes(struct FunctionEntry *function);

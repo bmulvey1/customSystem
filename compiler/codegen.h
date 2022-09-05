@@ -1,7 +1,9 @@
 #include "regalloc.h"
 
-struct ASMblock *generateCode(struct SymbolTable *table, FILE *outFile);
+struct Stack *generateCode(struct SymbolTable *table, FILE *outFile);
 
-struct ASMblock *generateCodeForScope(struct Scope *scope, FILE *outFile);
+struct Stack *generateCodeForScope(struct Scope *scope, FILE *outFile);
 
 struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *outFile);
+
+void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *allLifetimes, struct ASMblock *asmBlock, char *functionName);

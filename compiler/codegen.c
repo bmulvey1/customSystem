@@ -1,14 +1,14 @@
 #include "codegen.h"
 
-struct ASMblock *generateCode(struct SymbolTable *table, FILE *outFile)
+struct Stack *generateCode(struct SymbolTable *table, FILE *outFile)
 {
 	printf("generate code for [%s]\n", table->name);
-	generateCodeForScope(table->globalScope, outFile);
-	return NULL;
+	return generateCodeForScope(table->globalScope, outFile);
 };
 
-struct ASMblock *generateCodeForScope(struct Scope *scope, FILE *outFile)
+struct Stack *generateCodeForScope(struct Scope *scope, FILE *outFile)
 {
+	struct Stack *scopeBlocks = Stack_new();
 	printf("generate code for scope [%s] (size %d)\n", scope->name, scope->entries->size);
 	for (int i = 0; i < scope->entries->size; i++)
 	{
@@ -16,14 +16,22 @@ struct ASMblock *generateCodeForScope(struct Scope *scope, FILE *outFile)
 		switch (thisMember->type)
 		{
 		case e_function:
-			generateCodeForFunction(thisMember->entry, outFile);
+			Stack_push(scopeBlocks, generateCodeForFunction(thisMember->entry, outFile));
 			break;
+
+		case e_basicblock:
+		{
+			struct ASMblock *blockBlock = newASMblock();
+			GenerateCodeForBasicBlock(thisMember->entry, NULL, blockBlock, "global");
+			Stack_push(scopeBlocks, blockBlock);
+		}
+		break;
 
 		default:
 			break;
 		}
 	}
-	return NULL;
+	return scopeBlocks;
 }
 
 struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *outFile)
@@ -44,12 +52,14 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		}
 	}
 
+	// generate an array of lists corresponding to which lifetimes are active at a given TAC step by index in the array
 	struct LinkedList **lifetimeOverlaps = malloc((largestTacIndex + 1) * sizeof(struct LinkedList *));
 	for (int i = 0; i <= largestTacIndex; i++)
 	{
 		lifetimeOverlaps[i] = LinkedList_new();
 	}
 
+	// populate the array of active lifetimes
 	for (struct LinkedListNode *runner = allLifetimes->head; runner != NULL; runner = runner->next)
 	{
 		struct Lifetime *thisLifetime = runner->data;
@@ -58,24 +68,27 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			LinkedList_append(lifetimeOverlaps[i], thisLifetime);
 		}
 	}
+
+	// look through the populated array of active lifetimes
+	// if a given index has too many active lifetimes, figure out which lifetime(s) to spill
+	// then allocate registers for any lifetimes without a home
 	for (int i = 0; i <= largestTacIndex; i++)
 	{
-		// need to leave a scratch register
-		while (lifetimeOverlaps[i]->size > (REGISTER_COUNT - 1))
+		// need to leave ourselves 2 scratch registers for arithmetic operations
+		while (lifetimeOverlaps[i]->size > (REGISTER_COUNT - 2))
 		{
-			int bestHeuristic = -1;
+			float bestHeuristic = -1.0;
 			struct Lifetime *bestLifetime = NULL;
 			for (struct LinkedListNode *overlapRunner = lifetimeOverlaps[i]->head; overlapRunner != NULL; overlapRunner = overlapRunner->next)
 			{
 				struct Lifetime *thisLifetime = overlapRunner->data;
-				int thisHeuristic = thisLifetime->end;
+				float thisHeuristic = ((thisLifetime->end - thisLifetime->start) + thisLifetime->nreads) * (thisLifetime->nwrites + 1);
+				// printf("%s has heuristic of %f\n", thisLifetime->variable, thisHeuristic);
 				if (thisHeuristic > bestHeuristic)
 				{
 					bestHeuristic = thisHeuristic;
 					bestLifetime = thisLifetime;
 				}
-
-				// printf("%s, ", thisLifetime->variable);
 			}
 			for (int j = bestLifetime->start; j <= bestLifetime->end; j++)
 			{
@@ -107,8 +120,17 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	{
 		struct Lifetime *thisLifetime = spilledLifetimes->data[i];
 		int thisSize = Scope_getSizeOfVariable(function->mainScope, thisLifetime->variable);
-		thisLifetime->stackOrRegLocation = stackOffset;
-		stackOffset += thisSize;
+		struct ScopeMember *thisVariableEntry = Scope_lookup(function->mainScope, thisLifetime->variable);
+		if (thisVariableEntry->type == e_argument)
+		{
+			struct VariableEntry *thisVariable = thisVariableEntry->entry;
+			thisLifetime->stackOrRegLocation = thisVariable->stackOffset;
+		}
+		else
+		{
+			thisLifetime->stackOrRegLocation = stackOffset;
+			stackOffset += thisSize;
+		}
 	}
 
 	// flag registers in use at any given TAC index so we can easily assign
@@ -117,7 +139,10 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	{
 		registers[i] = 0;
 	}
+
+	// reserve r0 and r1 as scratch registers for arithmetic
 	registers[0] = 1;
+	registers[1] = 1;
 
 	for (int i = 0; i < largestTacIndex; i++)
 	{
@@ -161,7 +186,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		struct Lifetime *thisLt = ltRunner->data;
 		if (thisLt->isSpilled)
 		{
-			printf("Offset 0x%02x: %s\n", thisLt->stackOrRegLocation, thisLt->variable);
+			printf("Offset %4d: %s\n", thisLt->stackOrRegLocation, thisLt->variable);
 		}
 		else
 		{
@@ -170,11 +195,419 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	}
 
 	struct ASMblock *functionBlock = newASMblock();
+
+	char *functionSetup = malloc(64);
+	sprintf(functionSetup, "%s:", function->name);
+	ASMblock_append(functionBlock, functionSetup);
+
+	if (stackOffset > 0)
+	{
+		functionSetup = malloc(64);
+		sprintf(functionSetup, "sub %%sp, %%sp, $%d", stackOffset);
+		ASMblock_append(functionBlock, functionSetup);
+	}
+
+	// move any applicable arguments into registers if we are expecting them not to be spilled
+	for(struct LinkedListNode *ltRunner = allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
+	{
+		struct Lifetime *thisLifetime = ltRunner->data;
+		struct ScopeMember *thisEntry = Scope_lookup(function->mainScope, thisLifetime->variable);
+		
+		// if this lifetime is an argument, and the argument lives in a register, retrieve it from the stack and place it there
+		if(thisEntry->type == e_argument && !thisLifetime->isSpilled)
+		{
+
+		}
+	}
+
+	for (struct LinkedListNode *blockRunner = function->BasicBlockList->head; blockRunner != NULL; blockRunner = blockRunner->next)
+	{
+		struct BasicBlock *thisBlock = blockRunner->data;
+		GenerateCodeForBasicBlock(thisBlock, allLifetimes, functionBlock, function->name);
+	}
+
+	functionSetup = malloc(64);
+	sprintf(functionSetup, "%s_done:", function->name);
+	ASMblock_append(functionBlock, functionSetup);
+
+	if (stackOffset > 0)
+	{
+		functionSetup = malloc(64);
+		sprintf(functionSetup, "add %%sp, %%sp, $%d", stackOffset);
+		ASMblock_append(functionBlock, functionSetup);
+	}
+
+	functionSetup = malloc(64);
+	sprintf(functionSetup, "add %%sp, %%sp, $%d", stackOffset);
+	ASMblock_append(functionBlock, functionSetup);
+
 	printf("done in generatecode for %s\n\n", function->name);
 	return functionBlock;
+}
 
+void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *allLifetimes, struct ASMblock *asmBlock, char *functionName)
+{
+	char *blockLabel = malloc(64);
+	if (thisBlock->labelNum > 0)
+	{
+		sprintf(blockLabel, "%s_%d:", functionName, thisBlock->labelNum);
+	}
+	ASMblock_append(asmBlock, blockLabel);
 
+	for (struct LinkedListNode *TACRunner = thisBlock->TACList->head; TACRunner != NULL; TACRunner = TACRunner->next)
+	{
+		struct TACLine *thisTAC = TACRunner->data;
+		char *thisLine = malloc(64);
+		sprintf(thisLine, ";%s", sPrintTACLine(thisTAC));
+		ASMblock_append(asmBlock, thisLine);
 
+		thisLine = malloc(64);
+		switch (thisTAC->operation)
+		{
+		case tt_asm:
+			ASMblock_append(asmBlock, thisTAC->operands[0]);
+			break;
+
+		case tt_assign:
+		{
+			struct Lifetime *assignedLifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
+			struct Lifetime *assignerLifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[1]);
+
+			// assign to register
+			if (assignedLifetime->isSpilled == 0)
+			{
+				switch (thisTAC->operandPermutations[1])
+				{
+				case vp_standard:
+				case vp_temp:
+					if (!assignerLifetime->isSpilled)
+					{
+						sprintf(thisLine, "mov %%r%d, %%r%d", assignedLifetime->stackOrRegLocation, assignerLifetime->stackOrRegLocation);
+					}
+					else
+					{
+						sprintf(thisLine, "mov %%r%d, %d(%%bp)", assignedLifetime->stackOrRegLocation, assignerLifetime->stackOrRegLocation);
+					}
+					break;
+
+				case vp_literal:
+					sprintf(thisLine, "mov %%r%d, $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
+					break;
+				}
+			}
+			// assign to spilled
+			else
+			{
+				switch (thisTAC->operandPermutations[1])
+				{
+				case vp_standard:
+				case vp_temp:
+					if (!assignerLifetime->isSpilled)
+					{
+						sprintf(thisLine, "mov %d(%%bp), %%r%d", assignedLifetime->stackOrRegLocation, assignerLifetime->stackOrRegLocation);
+					}
+					else
+					{
+						// in this case, the value being read needs to be pulled down to a register
+						// then put back up onto the stack to assign to the spilled variable
+						ErrorAndExit(ERROR_INTERNAL, "assign from spilled to spilled!\n");
+					}
+					break;
+
+				case vp_literal:
+					sprintf(thisLine, "mov %d(%%bp), $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
+					break;
+				}
+			}
+			ASMblock_append(asmBlock, thisLine);
+		}
+		break;
+
+		// ignore
+		case tt_declare:
+			break;
+
+		case tt_add:
+		case tt_subtract:
+		case tt_mul:
+		case tt_div:
+		{
+			struct Lifetime *assignedLifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
+			struct Lifetime *operand1Lifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[1]);
+			struct Lifetime *operand2Lifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[2]);
+			int destinationRegister;
+			char op1[12];
+			char op2[12];
+			char reordering = 0;
+			if (assignedLifetime->isSpilled)
+			{
+				destinationRegister = 0;
+			}
+			else
+			{
+				destinationRegister = assignedLifetime->stackOrRegLocation;
+			}
+
+			if (thisTAC->operandPermutations[1] == vp_literal && thisTAC->operandPermutations[2] == vp_literal)
+			{
+				ErrorAndExit(ERROR_INTERNAL, "Arithmetic between two literals!\n");
+			}
+
+			// examine the first operand, place it in regisetr if necessary, and handle reordering (if possible/beneficial)
+			switch (thisTAC->operandPermutations[1])
+			{
+			case vp_standard:
+			case vp_temp:
+				if (!operand1Lifetime->isSpilled)
+				{
+					sprintf(op1, "%%r%d", operand1Lifetime->stackOrRegLocation);
+				}
+				else
+				{
+					placeOperandInRegister(allLifetimes, operand1Lifetime->variable, asmBlock, 0);
+					sprintf(op1, "%%r0");
+				}
+				break;
+
+			case vp_literal:
+				if (thisTAC->reorderable)
+				{
+					reordering = 1;
+					sprintf(op1, "$%s", thisTAC->operands[1]);
+				}
+				break;
+			}
+
+			// examine the second operand, place it in register
+			switch (thisTAC->operandPermutations[2])
+			{
+			case vp_standard:
+			case vp_temp:
+				if (!operand1Lifetime->isSpilled)
+				{
+					sprintf(op2, "%%r%d", operand2Lifetime->stackOrRegLocation);
+				}
+				else
+				{
+					placeOperandInRegister(allLifetimes, operand2Lifetime->variable, asmBlock, 1);
+					sprintf(op2, "%%r1");
+				}
+				break;
+
+			case vp_literal:
+				sprintf(op2, "$%s", thisTAC->operands[2]);
+				break;
+			}
+
+			if (reordering)
+			{
+				sprintf(thisLine, "%s %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op2, op1);
+			}
+			else
+			{
+				sprintf(thisLine, "%s %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op1, op2);
+			}
+			ASMblock_append(asmBlock, thisLine);
+		}
+		break;
+
+		case tt_dereference:
+			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
+			break;
+
+		case tt_reference:
+			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
+			break;
+
+		case tt_memw_1:
+			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
+			break;
+
+		case tt_memw_2:
+			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
+			break;
+
+		case tt_memw_3:
+			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
+			break;
+
+		case tt_memr_1:
+			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
+			break;
+
+		case tt_memr_2:
+			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
+			break;
+
+		case tt_memr_3:
+			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
+			break;
+
+		case tt_cmp:
+		{
+			struct Lifetime *operand1Lifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[1]);
+			struct Lifetime *operand2Lifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[2]);
+			char op1[12];
+			char op2[12];
+
+			if (thisTAC->operandPermutations[1] == vp_literal && thisTAC->operandPermutations[2] == vp_literal)
+			{
+				ErrorAndExit(ERROR_INTERNAL, "Cmp between two literals!\n");
+			}
+
+			// examine the first operand, place it in regisetr if necessary, and handle reordering (if possible/beneficial)
+			switch (thisTAC->operandPermutations[1])
+			{
+			case vp_standard:
+			case vp_temp:
+				if (!operand1Lifetime->isSpilled)
+				{
+					sprintf(op1, "%%r%d", operand1Lifetime->stackOrRegLocation);
+				}
+				else
+				{
+					placeOperandInRegister(allLifetimes, operand1Lifetime->variable, asmBlock, 0);
+					sprintf(op1, "%%r0");
+				}
+				break;
+
+			case vp_literal:
+				ErrorAndExit(ERROR_INTERNAL, "First operand of comparison is a literal\n");
+				break;
+			}
+
+			// examine the second operand, place it in register
+			switch (thisTAC->operandPermutations[2])
+			{
+			case vp_standard:
+			case vp_temp:
+				if (!operand1Lifetime->isSpilled)
+				{
+					sprintf(op2, "%%r%d", operand2Lifetime->stackOrRegLocation);
+				}
+				else
+				{
+					placeOperandInRegister(allLifetimes, operand2Lifetime->variable, asmBlock, 1);
+					sprintf(op2, "%%r1");
+				}
+				break;
+
+			case vp_literal:
+				sprintf(op2, "$%s", thisTAC->operands[2]);
+				break;
+			}
+
+			sprintf(thisLine, "%s %s, %s", getAsmOp(thisTAC->operation), op1, op2);
+			ASMblock_append(asmBlock, thisLine);
+		}
+		break;
+
+		case tt_jg:
+		case tt_jge:
+		case tt_jl:
+		case tt_jle:
+		case tt_je:
+		case tt_jne:
+		{
+			sprintf(thisLine, "%s %s_%ld", getAsmOp(thisTAC->operation), functionName, (long int)thisTAC->operands[0]);
+			ASMblock_append(asmBlock, thisLine);
+		}
+		break;
+
+		case tt_jmp:
+		{
+			sprintf(thisLine, "jmp %s_%d", functionName, (int)(long int)thisTAC->operands[0]);
+			ASMblock_append(asmBlock, thisLine);
+		}
+		break;
+
+		case tt_push:
+		{
+			switch (thisTAC->operandPermutations[0])
+			{
+			case vp_standard:
+			case vp_temp:
+			{
+				int registerIndex = placeOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, 0);
+				sprintf(thisLine, "push %%r%d", registerIndex);
+			}
+			break;
+
+			case vp_literal:
+				sprintf(thisLine, "push $%s", thisTAC->operands[0]);
+				break;
+			}
+			ASMblock_append(asmBlock, thisLine);
+		}
+		break;
+
+		case tt_call:
+		{
+			sprintf(thisLine, "call %s", thisTAC->operands[1]);
+			ASMblock_append(asmBlock, thisLine);
+			thisLine = malloc(64);
+
+			// the call returns a value
+			if (thisTAC->operands[0] != NULL)
+			{
+				struct Lifetime *returnedLifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
+				if (!returnedLifetime->isSpilled)
+				{
+					sprintf(thisLine, "mov %%r%d, %%rr", returnedLifetime->stackOrRegLocation);
+				}
+				else
+				{
+					sprintf(thisLine, "mov %d(%%bp), %%rr", returnedLifetime->stackOrRegLocation);
+				}
+				ASMblock_append(asmBlock, thisLine);
+			}
+		}
+		break;
+
+		case tt_label:
+			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
+			break;
+
+		case tt_return:
+			switch (thisTAC->operandPermutations[0])
+			{
+			case vp_literal:
+			{
+				sprintf(thisLine, "mov %%rr, $%s", thisTAC->operands[0]);
+				ASMblock_append(asmBlock, thisLine);
+			}
+			break;
+
+			case vp_standard:
+			case vp_temp:
+			{
+				int destReg = placeOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, 0);
+				if (destReg != 0)
+				{
+					sprintf(thisLine, "mov %%rr, %%r%d", destReg);
+					ASMblock_append(asmBlock, thisLine);
+					thisLine = malloc(64);
+				}
+				// ASMblock_append(outputBlock, trimmedStr);
+			}
+			break;
+
+			default:
+				perror("unexpected type in return TAC!\n");
+			}
+			break;
+
+		case tt_do:
+		case tt_enddo:
+			break;
+
+		case tt_pushstate:
+		case tt_restorestate:
+		case tt_resetstate:
+		case tt_popstate:
+			break;
+		}
+	}
 }
 
 /*

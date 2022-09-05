@@ -1111,7 +1111,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 
 		for (int i = 0; i < scopeNesting->size; i++)
 		{
-			sprintf(thisScopeName + strlen(thisScopeName), "_%02x", *(unsigned char *)scopeNesting->data[i]);
+			sprintf(thisScopeName + strlen(thisScopeName), ".%02x", *(unsigned char *)scopeNesting->data[i]);
 		}
 		scope = Scope_lookupSubScope(scope, thisScopeName);
 		free(thisScopeName);
@@ -1336,21 +1336,22 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 	return r;
 }
 
-void collapseScopes(struct Scope *scope, struct Dictionary *dict)
+void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 {
+	// first pass: recurse and rename basic block operands relevant to the current scope
 	for (int i = 0; i < scope->entries->size; i++)
 	{
 		struct ScopeMember *thisMember = scope->entries->data[i];
 		switch (thisMember->type)
 		{
 		case e_scope: // recurse to subscopes
-			collapseScopes(thisMember->entry, dict);
+			collapseScopes(thisMember->entry, dict, depth + 1);
 			break;
 
 		case e_function: // recurse to functions
 		{
 			struct FunctionEntry *thisFunction = thisMember->entry;
-			collapseScopes(thisFunction->mainScope, dict);
+			collapseScopes(thisFunction->mainScope, dict, 0);
 			// potential for wild performance gains by avoiding strlen and malloc for each name
 		}
 		break;
@@ -1366,9 +1367,13 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict)
 					if (thisTAC->operandTypes[i] != vt_null && thisTAC->operandPermutations[i] == vp_standard)
 					{
 						char *originalName = thisTAC->operands[i];
+
+						// TODO: make scope_lookupVarScopeName properly scrape all parent scopes for the real name
+						// since subscopes don't contain detailed name nesting anymore
 						char *scopeName = Scope_lookupVarScopeName(scope, thisTAC->operands[i]);
 						char *mangledName = malloc(strlen(originalName) + strlen(scopeName) + 1);
 						sprintf(mangledName, "%s%s", originalName, scopeName);
+						free(scopeName);
 						thisTAC->operands[i] = DictionaryLookupOrInsert(dict, mangledName);
 						free(mangledName);
 					}
@@ -1376,6 +1381,60 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict)
 			}
 		}
 		break;
+
+		case e_variable:
+		case e_argument:
+			break;
+		}
+	}
+
+	// second pass: move nested members (basic blocks and variables) to parent scope since names have been mangled
+	for (int i = 0; i < scope->entries->size; i++)
+	{
+		struct ScopeMember *thisMember = scope->entries->data[i];
+		switch (thisMember->type)
+		{
+		case e_scope:
+		case e_function:
+			break;
+
+		case e_basicblock:
+			if (depth > 0 && scope->parentScope != NULL)
+			{
+				printf("kick basic block %s up to parent\n", thisMember->name);
+				Scope_insert(scope->parentScope, thisMember->name, thisMember->entry, thisMember->type);
+				scope->entries->size--;
+				free(scope->entries->data[i]);
+				for (int j = i; j < scope->entries->size; j++)
+				{
+					scope->entries->data[j] = scope->entries->data[j + 1];
+				}
+			}
+			break;
+
+		case e_variable:
+		case e_argument:
+			if (depth > 0)
+			{
+				struct ScopeMember *thisMember = scope->entries->data[i];
+				// struct VariableEntry *thisVariable = thisMember->entry;
+				char *originalName = thisMember->name;
+				char *scopeName = scope->name;
+				// char *scopeName = Scope_lookupVarScopeName(scope, originalName);
+				char *mangledName = malloc(strlen(originalName) + strlen(scopeName) + 1);
+				sprintf(mangledName, "%s%s", originalName, scopeName);
+				char *newName = DictionaryLookupOrInsert(dict, mangledName);
+				// thisVariable-> = newName;
+				free(mangledName);
+				printf("collapse %s to %s\n", thisMember->name, newName);
+				Scope_insert(scope->parentScope, newName, thisMember->entry, thisMember->type);
+				scope->entries->size--;
+				free(scope->entries->data[i]);
+				for (int j = i; j < scope->entries->size; j++)
+				{
+					scope->entries->data[j] = scope->entries->data[j + 1];
+				}
+			}
 
 		default:
 			break;
@@ -1447,7 +1506,9 @@ void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dict
 		runner = runner->sibling;
 	}
 
-	collapseScopes(globalScope, dict);
+	printf("symbol table before collapse:\n");
+	Scope_print(globalScope, 0, 0);
+	collapseScopes(globalScope, dict, 1);
 
 	printf("done linearizing\n\n\n");
 }
