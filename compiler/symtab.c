@@ -148,6 +148,7 @@ char Scope_contains(struct Scope *scope, char *name)
 // also looks up entries from deeper scopes, but only as their mangled names specify
 struct ScopeMember *Scope_lookup(struct Scope *scope, char *name)
 {
+	/*
 	int nameLen = strlen(name);
 	char nameModified = 0;
 	for (int i = 0; i < nameLen; i++)
@@ -178,6 +179,7 @@ struct ScopeMember *Scope_lookup(struct Scope *scope, char *name)
 			break;
 		}
 	}
+	*/
 	while (scope != NULL)
 	{
 		for (int i = 0; i < scope->entries->size; i++)
@@ -185,19 +187,11 @@ struct ScopeMember *Scope_lookup(struct Scope *scope, char *name)
 			struct ScopeMember *examinedEntry = scope->entries->data[i];
 			if (!strcmp(examinedEntry->name, name))
 			{
-				if (nameModified)
-				{
-					free(name);
-				}
 				return examinedEntry;
 			}
 		}
 
 		scope = scope->parentScope;
-	}
-	if (nameModified)
-	{
-		free(name);
 	}
 	return NULL;
 }
@@ -287,10 +281,9 @@ struct Scope *Scope_lookupSubScope(struct Scope *scope, char *name)
 
 struct Scope *Scope_lookupSubScopeByNumber(struct Scope *scope, unsigned char subScopeNumber)
 {
-	char *subScopeName = malloc(strlen(scope->name) + 4);
-	sprintf(subScopeName, "%s.%02x", scope->name, subScopeNumber);
+	char subScopeName[4];
+	sprintf(subScopeName, ".%02x", subScopeNumber);
 	struct Scope *lookedUp = Scope_lookupSubScope(scope, subScopeName);
-	free(subScopeName);
 	return lookedUp;
 }
 

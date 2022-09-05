@@ -212,7 +212,6 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	{
 		struct Lifetime *thisLifetime = ltRunner->data;
 		struct ScopeMember *thisEntry = Scope_lookup(function->mainScope, thisLifetime->variable);
-		
 		// if this lifetime is an argument, and the argument lives in a register, retrieve it from the stack and place it there
 		if(thisEntry->type == e_argument && !thisLifetime->isSpilled)
 		{

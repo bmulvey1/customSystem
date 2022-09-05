@@ -1106,15 +1106,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 	// if we are descending into a nested scope, look up the correct scope
 	if (scopeNesting->size > 0)
 	{
-		char *thisScopeName = malloc((3 * scopeNesting->size) + 1);
-		thisScopeName[0] = '\0';
-
-		for (int i = 0; i < scopeNesting->size; i++)
-		{
-			sprintf(thisScopeName + strlen(thisScopeName), ".%02x", *(unsigned char *)scopeNesting->data[i]);
-		}
-		scope = Scope_lookupSubScope(scope, thisScopeName);
-		free(thisScopeName);
+		scope = Scope_lookupSubScopeByNumber(scope, *(long int *)Stack_peek(scopeNesting));
 	}
 
 	// locally scope a variable for scope count at this depth, push it to the stack
