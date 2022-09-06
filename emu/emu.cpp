@@ -650,12 +650,14 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
-        /*printState();
+        // printState();
+        /*
         for (int i = 0; i < 0xffffff; i++)
         {
         }
-
-        printf("\n");*/
+        */
+        // printf("\n");
+        
         instructionCount++;
     }
     printState();

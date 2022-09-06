@@ -4,14 +4,15 @@
 #include "asm.h"
 #include "tac.h"
 /*
-	2: 545
-	3: 472
-	4: 403
-	5: 403
-	6: 403
+	4: 3941
+	5: 3615
+	6: 3364
+	7:
+	8:
+	9:
 
 */
-#define REGISTER_COUNT 3
+#define REGISTER_COUNT 6
 
 struct Lifetime
 {

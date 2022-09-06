@@ -34,6 +34,24 @@ struct Stack *generateCodeForScope(struct Scope *scope, FILE *outFile)
 	return scopeBlocks;
 }
 
+int calculateRegisterLoading(struct LinkedList *activeLifetimes, int index)
+{
+	int trueLoad = 0;
+	for(struct LinkedListNode *runner = activeLifetimes->head; runner != NULL; runner = runner->next)
+	{
+		struct Lifetime *thisLifetime = runner->data;
+		if(thisLifetime->start <= index && index < thisLifetime->end)
+		{
+			trueLoad++;
+		}
+		else if(thisLifetime->end >= index)
+		{
+			trueLoad--;
+		}
+	}
+	return trueLoad;
+}
+
 struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *outFile)
 {
 	printf("Generate code for function %s\n", function->name);
@@ -100,8 +118,8 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	// then allocate registers for any lifetimes without a home
 	for (int i = 0; i <= largestTacIndex; i++)
 	{
-		// need to leave ourselves 2 scratch registers for arithmetic operations
-		while (lifetimeOverlaps[i]->size > MAXREG)
+
+		while (calculateRegisterLoading(lifetimeOverlaps[i], i) > MAXREG)
 		{
 			float bestHeuristic = -1.0;
 			struct Lifetime *bestLifetime = NULL;
@@ -189,6 +207,8 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		// reserve r0 and r1 as scratch registers for arithmetic because we have spilled variables
 		registers[0] = 1;
 		registers[1] = 1;
+		touchedRegisters[0] = 1;
+		touchedRegisters[1] = 1;
 	}
 
 	for (int i = 0; i < largestTacIndex; i++)

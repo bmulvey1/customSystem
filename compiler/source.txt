@@ -11,6 +11,13 @@ code:
 	hlt
 };
 
+fun print(var a)
+{
+	asm{
+		out %r0
+	};
+}
+
 fun mul(var x, var y)
 {
 	var retval = 0;
@@ -51,5 +58,4 @@ fun gradient()
 	}
 	i = 0;
 }
-
 $$
