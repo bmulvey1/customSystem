@@ -1383,6 +1383,7 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 	// second pass: move nested members (basic blocks and variables) to parent scope since names have been mangled
 	for (int i = 0; i < scope->entries->size; i++)
 	{
+		printf("%d/%d\n", i, scope->entries->size);
 		struct ScopeMember *thisMember = scope->entries->data[i];
 		switch (thisMember->type)
 		{
@@ -1395,12 +1396,13 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 			{
 				printf("kick basic block %s up to parent\n", thisMember->name);
 				Scope_insert(scope->parentScope, thisMember->name, thisMember->entry, thisMember->type);
-				scope->entries->size--;
 				free(scope->entries->data[i]);
 				for (int j = i; j < scope->entries->size; j++)
 				{
 					scope->entries->data[j] = scope->entries->data[j + 1];
 				}
+				scope->entries->size--;
+				i--;
 			}
 			break;
 
@@ -1420,18 +1422,21 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 				free(mangledName);
 				printf("collapse %s to %s\n", thisMember->name, newName);
 				Scope_insert(scope->parentScope, newName, thisMember->entry, thisMember->type);
-				scope->entries->size--;
 				free(scope->entries->data[i]);
 				for (int j = i; j < scope->entries->size; j++)
 				{
 					scope->entries->data[j] = scope->entries->data[j + 1];
 				}
+				scope->entries->size--;
+				i--;
 			}
+			break;
 
 		default:
 			break;
 		}
 	}
+	printf("done with second pass\n\n");
 }
 
 // given an AST and a populated symbol table, generate three address code for the function entries

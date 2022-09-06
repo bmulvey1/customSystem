@@ -1,4 +1,4 @@
-//will make a nice grid in the hex editor of memdump at address 512
+
 asm{
 	entry code
 	;data@ data
@@ -40,22 +40,30 @@ fun mul(var x, var y)
 	return retval;
 }
 
+//will make a nice grid in the hex editor of memdump at address 512
 fun gradient()
 {
+	var longLife = 0;
+	var loopCount = 0;
 	var **g = 512;
 	var i = 0;
 	while(i < 8)
 	{
-		*(g + i) = g + mul(i, 16) + 16;
+		var *dest = g + mul(i, 16) + 16;
+		*(g + i) = dest;
+
 		var j = 0;
 		while(j < 8)
 		{
 			var *addr = *(g + i);
 			*(addr + j) = mul(j + 1, i + 1) + 48;
 			j = j + 1;
+			loopCount = loopCount + 1;
 		}
 		i = i + 1;
+		print(dest);
 	}
-	i = 0;
+	print(loopCount);
+	longLife = 1;
 }
 $$

@@ -236,6 +236,9 @@ struct FunctionEntry *Scope_lookupFun(struct Scope *scope, char *name)
 // name string is heap-allocated
 char *Scope_lookupVarScopeName(struct Scope *scope, char *name)
 {
+	char *scopeName = malloc(1);
+	scopeName[0] = '\0';
+	
 	while (scope != NULL)
 	{
 		for (int i = 0; i < scope->entries->size; i++)
@@ -243,8 +246,6 @@ char *Scope_lookupVarScopeName(struct Scope *scope, char *name)
 			struct ScopeMember *examinedEntry = scope->entries->data[i];
 			if (!strcmp(examinedEntry->name, name))
 			{
-				char *scopeName = malloc(1);
-				scopeName[0] = '\0';
 				while (scope != NULL && scope->parentScope != NULL && scope->parentScope->parentScope != NULL)
 				{
 					char *newScopeName = malloc(strlen(scopeName) + 4);
@@ -258,7 +259,7 @@ char *Scope_lookupVarScopeName(struct Scope *scope, char *name)
 		}
 		scope = scope->parentScope;
 	}
-	ErrorAndExit(ERROR_INTERNAL, "Error looking up parent scope of variable [%s] - doesn't exist!\n", name);
+	return scopeName;
 }
 
 struct Scope *Scope_lookupSubScope(struct Scope *scope, char *name)
