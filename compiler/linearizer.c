@@ -1499,7 +1499,7 @@ void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dict
 	}
 
 	printf("symbol table before collapse:\n");
-	Scope_print(globalScope, 0, 1);
+	// Scope_print(globalScope, 0, 1);
 	collapseScopes(globalScope, dict, 1);
 
 	printf("done linearizing\n\n\n");

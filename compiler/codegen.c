@@ -306,8 +306,6 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	sprintf(functionSetup, "%s:", function->name);
 	ASMblock_prepend(functionBlock, functionSetup);
 
-	
-
 	if (stackOffset > 0)
 	{
 		functionSetup = malloc(64);
@@ -327,6 +325,22 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	ASMblock_append(functionBlock, functionSetup);
 
 	printf("done in generatecode for %s\n\n", function->name);
+
+	/*
+
+	struct LinkedList *allLifetimes = findLifetimes(function);
+
+	struct Stack *spilledLifetimes = Stack_new();
+	*/
+	Stack_free(spilledLifetimes);
+	LinkedList_free(allLifetimes, free);
+
+	for (int i = 0; i <= largestTacIndex; i++)
+	{
+		LinkedList_free(lifetimeOverlaps[i], NULL);
+	}
+	free(lifetimeOverlaps);
+
 	return functionBlock;
 }
 
@@ -343,10 +357,11 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 	{
 		struct TACLine *thisTAC = TACRunner->data;
 		char *thisLine = malloc(64);
-		sprintf(thisLine, ";%s", sPrintTACLine(thisTAC));
+		char *printedTAC = sPrintTACLine(thisTAC);
+		sprintf(thisLine, ";%s", printedTAC);
 		ASMblock_append(asmBlock, thisLine);
+		free(printedTAC);
 
-		thisLine = malloc(64);
 		switch (thisTAC->operation)
 		{
 		case tt_asm:
@@ -357,7 +372,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		{
 			struct Lifetime *assignedLifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
 			struct Lifetime *assignerLifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[1]);
-
+			thisLine = malloc(64);
 			// assign to register
 			if (assignedLifetime->isSpilled == 0)
 			{
@@ -417,6 +432,8 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		case tt_mul:
 		case tt_div:
 		{
+			thisLine = malloc(64);
+
 			struct Lifetime *assignedLifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
 			struct Lifetime *operand1Lifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[1]);
 			struct Lifetime *operand2Lifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[2]);
@@ -520,8 +537,15 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			break;
 
 		case tt_memw_3:
-			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
-			break;
+		{
+			thisLine = malloc(64);
+			int baseReg = placeOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, 0);
+			int offsetReg = placeOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, 1);
+			int sourceReg = placeOperandInRegister(allLifetimes, thisTAC->operands[3], asmBlock, 16);
+			sprintf(thisLine, "mov %%r%d(%%r%d, $%d), %%r%d", offsetReg, baseReg, (int)(long int)thisTAC->operands[2], sourceReg);
+			ASMblock_append(asmBlock, thisLine);
+		}
+		break;
 
 		case tt_memr_1:
 			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
@@ -532,11 +556,20 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			break;
 
 		case tt_memr_3:
-			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
-			break;
+		{
+			thisLine = malloc(64);
+			int destReg = placeOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, 0);
+			int baseReg = placeOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, 1);
+			int offsetReg = placeOperandInRegister(allLifetimes, thisTAC->operands[2], asmBlock, 16);
+			sprintf(thisLine, "mov %%r%d, %%r%d(%%r%d, $%d)", destReg, offsetReg, baseReg, (int)(long int)thisTAC->operands[3]);
+			ASMblock_append(asmBlock, thisLine);
+		}
+		break;
 
 		case tt_cmp:
 		{
+			thisLine = malloc(64);
+
 			struct Lifetime *operand1Lifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[1]);
 			struct Lifetime *operand2Lifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[2]);
 			char op1[12];
@@ -601,6 +634,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		case tt_je:
 		case tt_jne:
 		{
+			thisLine = malloc(64);
 			sprintf(thisLine, "%s %s_%ld", getAsmOp(thisTAC->operation), functionName, (long int)thisTAC->operands[0]);
 			ASMblock_append(asmBlock, thisLine);
 		}
@@ -608,6 +642,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 
 		case tt_jmp:
 		{
+			thisLine = malloc(64);
 			sprintf(thisLine, "jmp %s_%d", functionName, (int)(long int)thisTAC->operands[0]);
 			ASMblock_append(asmBlock, thisLine);
 		}
@@ -615,6 +650,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 
 		case tt_push:
 		{
+			thisLine = malloc(64);
 			switch (thisTAC->operandPermutations[0])
 			{
 			case vp_standard:
@@ -635,6 +671,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 
 		case tt_call:
 		{
+			thisLine = malloc(64);
 			sprintf(thisLine, "call %s", thisTAC->operands[1]);
 			ASMblock_append(asmBlock, thisLine);
 			thisLine = malloc(64);
@@ -661,6 +698,8 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			break;
 
 		case tt_return:
+		{
+			thisLine = malloc(64);
 			switch (thisTAC->operandPermutations[0])
 			{
 			case vp_literal:
@@ -676,8 +715,6 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				int destReg = placeOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, 0);
 				sprintf(thisLine, "mov %%rr, %%r%d", destReg);
 				ASMblock_append(asmBlock, thisLine);
-				thisLine = malloc(64);
-
 				// ASMblock_append(outputBlock, trimmedStr);
 			}
 			break;
@@ -685,7 +722,8 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			default:
 				perror("unexpected type in return TAC!\n");
 			}
-			break;
+		}
+		break;
 
 		case tt_do:
 		case tt_enddo:

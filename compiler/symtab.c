@@ -245,7 +245,7 @@ char *Scope_lookupVarScopeName(struct Scope *scope, char *name)
 			{
 				char *scopeName = malloc(1);
 				scopeName[0] = '\0';
-				while(scope != NULL && scope->parentScope != NULL && scope->parentScope->parentScope != NULL)
+				while (scope != NULL && scope->parentScope != NULL && scope->parentScope->parentScope != NULL)
 				{
 					char *newScopeName = malloc(strlen(scopeName) + 4);
 					sprintf(newScopeName, "%s%s", scope->name, scopeName);
@@ -356,11 +356,11 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 
 		case e_basicblock:
 		{
-			printf("> Basic Block %s\n", thisMember->name);
-			if (printTAC)
-			{
-				printBasicBlock(thisMember->entry, depth + 1);
-			}
+				printf("> Basic Block %s\n", thisMember->name);
+				if (printTAC)
+				{
+					printBasicBlock(thisMember->entry, depth + 1);
+				}
 		}
 		break;
 		}

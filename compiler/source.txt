@@ -1,79 +1,7 @@
-/*
-Pointer optimization:
-Before - 8706 instructions
-Mild pointer optimizations - use of offset(base, scale): 7483
-
-*/
-asm{
-	entry code
-	data@ data
-code:
-	push $3
-	mov %r0, $4660
-	mov %r1, $4661
-	mov %r2, $4662
-	mov %r3, $4663
-	call mulTest
-	hlt
-data:
-};
-
-//var totalLoops = 0;
-
-
-fun print(var n){
-	asm{
-		out %r0
-	};
-}
-
-fun mul(var x, var y)
-{
-	var retval = 0;
-	if(x < y)
-	{
-		while(x > 0)
-		{
-			retval = retval + y;
-			x = x - 1;
-		}
-	}
-	else
-	{
-		while(y > 0)
-		{
-			retval = retval + x;
-			y = y - 1;
-		}
-	}
-	return retval;
-}
-
-
-fun mulTest(var a)
-{
-	var x = 1;
-	while(x <= a)
-	{
-		var y = 1;
-		while(y <= a)
-		{
-			var result = mul(x, y);
-			print(result);
-			y = y + 1;
-		}
-		x = x + 1;
-	}
-}
-
-/*
-
-//should execute 3438 instructions
 //will make a nice grid in the hex editor of memdump at address 512
 asm{
-	#include "CPU.asm"
 	entry code
-	data@ data
+	;data@ data
 code:
 	push $4664
 	;call mm_init
@@ -124,5 +52,4 @@ fun gradient()
 	i = 0;
 }
 
-*/
 $$

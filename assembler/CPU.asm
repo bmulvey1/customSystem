@@ -2,7 +2,7 @@
 #bits 8
 
 #ruledef reg{
-    r0 => 0b00000 ; mips-style unwriteable, always reads 0
+    r0 => 0b00000
     r1 => 0b00001
     r2 => 0b00010
     r3 => 0b00011
@@ -19,6 +19,7 @@
     re => 0b01110
     rf => 0b01111
     rr => 0b10000 ;return register
+    r16 =>0b10000
     sp => 0b10001
     bp => 0b10010
     ;13 registers to spare - status/flags/paging?

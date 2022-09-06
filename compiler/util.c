@@ -331,7 +331,7 @@ char *strTrim(char *s, int l)
 char *TempList_getString(struct TempList *tempList, int tempNum)
 {
 	int sizeDiff = tempNum - tempList->temps->size;
-	while (sizeDiff-- > 0)
+	while (sizeDiff-- >= 0)
 	{
 		char *thisTemp = malloc(6 * sizeof(char));
 		sprintf(thisTemp, ".t%d", tempList->temps->size);
