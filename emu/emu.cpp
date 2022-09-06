@@ -174,8 +174,8 @@ void arithmeticOp(uint8_t RD, uint32_t S1, uint32_t S2, uint8_t opCode)
     // set result if not CMP
     if ((opCode & 0b1111) != 0xc)
     {
-        if (RD != 0)
-            registers[RD] = result;
+        // if (RD != 0)
+        registers[RD] = result;
     }
 }
 
@@ -199,6 +199,10 @@ int main(int argc, char *argv[])
         // std::cout << opcodeNames[opCode] << std::endl;
         // printState();
         // for(int i = 0; i < 0xffffff; i++){}
+
+        // printf("%04x\t%02x - ", registers[ip], opCode);
+        // std::cout << opcodeNames[opCode] << std::endl;
+
         switch (opCode)
         {
             // hlt/no instruction
@@ -337,15 +341,15 @@ int main(int argc, char *argv[])
         case 0x58:
         case 0x59:
         case 0x5a:
-        // immediate arithmetic
-        {
-            uint16_t operands = consumeWord(registers[ip]);
-            uint8_t RD = operands >> 11;
-            uint8_t RS1 = operands >> 6 & 0b11111;
-            uint16_t IMM = consumeWord(registers[ip]);
-            arithmeticOp(RD, registers[RS1], IMM, opCode);
-        }
-        break;
+            // immediate arithmetic
+            {
+                uint16_t operands = consumeWord(registers[ip]);
+                uint8_t RD = operands >> 11;
+                uint8_t RS1 = operands >> 6 & 0b11111;
+                uint16_t IMM = consumeWord(registers[ip]);
+                arithmeticOp(RD, registers[RS1], IMM, opCode);
+            }
+            break;
 
         case 0x5c: // cmpi
         {
@@ -480,11 +484,11 @@ int main(int argc, char *argv[])
         }
         break;
 
-        case 0xac: // MOV
+        case 0xac: // MOV offset(rd), rs
         {
             uint16_t operands = consumeWord(registers[ip]);
             uint8_t RS = operands >> 11;
-            uint8_t RD = operands >> 6 & 0b11111;
+            uint8_t RD = (operands >> 6) & 0b11111;
             int16_t offset = consumeWord(registers[ip]);
             writeByte(registers[RD] + offset, registers[RS] >> 8);
             writeByte(registers[RD] + offset + 1, registers[RS] & 0b11111111);
@@ -504,7 +508,7 @@ int main(int argc, char *argv[])
         }
         break;
 
-        case 0xae: // MOV roffset(rs, scale), rd
+        case 0xae: // MOV roffset(rd, scale), rS
         {
             uint16_t operands = consumeWord(registers[ip]);
             uint8_t RS = operands >> 11;
@@ -518,12 +522,39 @@ int main(int argc, char *argv[])
         }
         break;
 
-        case 0xaf: // MOV imm
+        case 0xaf: // MOV reg, imm
         {
             uint8_t insByte2 = consumeByte(registers[ip]);
             uint8_t RD = insByte2 & 0b11111;
             uint16_t imm = consumeWord(registers[ip]);
             registers[RD] = imm;
+        }
+        break;
+
+        case 0xb0:
+        {
+            uint16_t operands = consumeByte(registers[ip]);
+            uint16_t offset = consumeWord(registers[ip]);
+            uint16_t immediate = consumeWord(registers[ip]);
+            uint8_t RD = operands & 0b11111;
+
+            uint16_t address = registers[RD] + offset;
+            writeByte(address, immediate >> 8);
+            writeByte(address + 1, immediate & 0b11111111);
+        }
+        break;
+
+        case 0xb1:
+        {
+            uint16_t operands = consumeWord(registers[ip]);
+            uint16_t immediate = consumeWord(registers[ip]);
+            uint8_t RD = operands >> 6 & 0b11111;
+            uint8_t RO = operands >> 1 & 0b11111;
+            uint8_t scale = consumeByte(registers[ip]);
+
+            uint16_t address = registers[RD] + (scale * registers[RO]);
+            writeByte(address, immediate >> 8);
+            writeByte(address + 1, immediate & 0b11111111);
         }
         break;
 
@@ -613,14 +644,18 @@ int main(int argc, char *argv[])
         case 0xff:
             running = false;
             break;
+
+        default:
+            printf("\n\n\nError: Undefined opcode %02x at memory loctaion %02x\n", opCode, registers[ip - 1]);
+            exit(1);
         }
 
-        // printf("%4x\t%02x - ", registers[ip], opCode);
-        // std::cout << opcodeNames[opCode] << std::endl;
-        // printState();
-        // for (int i = 0; i < 0xffffff; i++){}
+        /*printState();
+        for (int i = 0; i < 0xffffff; i++)
+        {
+        }
 
-        // printf("\n");
+        printf("\n");*/
         instructionCount++;
     }
     printState();

@@ -59,6 +59,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		lifetimeOverlaps[i] = LinkedList_new();
 	}
 
+	int mostConcurrentLifetimes = 0;
 	// populate the array of active lifetimes
 	for (struct LinkedListNode *runner = allLifetimes->head; runner != NULL; runner = runner->next)
 	{
@@ -66,7 +67,32 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		for (int i = thisLifetime->start; i <= thisLifetime->end; i++)
 		{
 			LinkedList_append(lifetimeOverlaps[i], thisLifetime);
+			if (lifetimeOverlaps[i]->size > mostConcurrentLifetimes)
+			{
+				mostConcurrentLifetimes = lifetimeOverlaps[i]->size;
+			}
 		}
+	}
+
+	int MAXREG = REGISTER_COUNT;
+	// if we have just enough room, simply use all registers
+	// if we need to spill, ensure 2 scratch registers
+	if (mostConcurrentLifetimes > REGISTER_COUNT)
+	{
+		MAXREG -= 2;
+	}
+	printf("MAXREG: %d, REGISTER_COUNT: %d\n", MAXREG, REGISTER_COUNT);
+
+	for (int i = 0; i <= largestTacIndex; i++)
+	{
+		printf("%02x: ", i);
+		struct LinkedList *liveNow = lifetimeOverlaps[i];
+		for (struct LinkedListNode *runner = liveNow->head; runner != NULL; runner = runner->next)
+		{
+			struct Lifetime *this = runner->data;
+			printf("%s, ", this->variable);
+		}
+		printf("\n");
 	}
 
 	// look through the populated array of active lifetimes
@@ -75,7 +101,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	for (int i = 0; i <= largestTacIndex; i++)
 	{
 		// need to leave ourselves 2 scratch registers for arithmetic operations
-		while (lifetimeOverlaps[i]->size > (REGISTER_COUNT - 2))
+		while (lifetimeOverlaps[i]->size > MAXREG)
 		{
 			float bestHeuristic = -1.0;
 			struct Lifetime *bestLifetime = NULL;
@@ -92,11 +118,24 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			}
 			for (int j = bestLifetime->start; j <= bestLifetime->end; j++)
 			{
-				LinkedList_delete(lifetimeOverlaps[j], compareLifetimes, bestLifetime);
+				LinkedList_delete(lifetimeOverlaps[j], compareLifetimes, bestLifetime->variable);
 			}
 			bestLifetime->isSpilled = 1;
 			Stack_push(spilledLifetimes, bestLifetime);
 		}
+	}
+
+	printf("after determining which are spilled:\n");
+	for (int i = 0; i <= largestTacIndex; i++)
+	{
+		printf("%02x: ", i);
+		struct LinkedList *liveNow = lifetimeOverlaps[i];
+		for (struct LinkedListNode *runner = liveNow->head; runner != NULL; runner = runner->next)
+		{
+			struct Lifetime *this = runner->data;
+			printf("%s, ", this->variable);
+		}
+		printf("\n");
 	}
 
 	// sort the list of spilled lifetimes by size of the variable so they can be laid out cleanly on the stack
@@ -121,38 +160,47 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		struct Lifetime *thisLifetime = spilledLifetimes->data[i];
 		int thisSize = Scope_getSizeOfVariable(function->mainScope, thisLifetime->variable);
 		struct ScopeMember *thisVariableEntry = Scope_lookup(function->mainScope, thisLifetime->variable);
-		if (thisVariableEntry->type == e_argument)
+		if (thisVariableEntry != NULL && thisVariableEntry->type == e_argument)
 		{
 			struct VariableEntry *thisVariable = thisVariableEntry->entry;
 			thisLifetime->stackOrRegLocation = thisVariable->stackOffset;
 		}
 		else
 		{
-			thisLifetime->stackOrRegLocation = stackOffset;
+			thisLifetime->stackOrRegLocation = (-1 * stackOffset) - 2;
 			stackOffset += thisSize;
 		}
 	}
 
 	// flag registers in use at any given TAC index so we can easily assign
 	char registers[REGISTER_COUNT];
+	struct Lifetime *occupiedBy[REGISTER_COUNT];
+	// flag registers which have *ever* been used so we know what to callee-save
+	char touchedRegisters[REGISTER_COUNT];
 	for (int i = 0; i < REGISTER_COUNT; i++)
 	{
 		registers[i] = 0;
+		touchedRegisters[i] = 0;
+		occupiedBy[i] = NULL;
 	}
 
-	// reserve r0 and r1 as scratch registers for arithmetic
-	registers[0] = 1;
-	registers[1] = 1;
+	if (MAXREG < REGISTER_COUNT)
+	{
+		// reserve r0 and r1 as scratch registers for arithmetic because we have spilled variables
+		registers[0] = 1;
+		registers[1] = 1;
+	}
 
 	for (int i = 0; i < largestTacIndex; i++)
 	{
-		// first pass - expire all old lifetimes
-		for (struct LinkedListNode *ltRunner = allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
+		// free any registers inhabited by expired lifetimes
+		for (int j = 2; j < REGISTER_COUNT; j++)
 		{
-			struct Lifetime *thisLifetime = ltRunner->data;
-			if (thisLifetime->end < i)
+			if (occupiedBy[j] != NULL && occupiedBy[j]->end <= i)
 			{
-				registers[thisLifetime->stackOrRegLocation] = 0;
+				registers[j] = 0;
+				printf("kicked out %s from %%r%d at %d\n", occupiedBy[j]->variable, j, i);
+				occupiedBy[j] = NULL;
 			}
 		}
 
@@ -164,16 +212,21 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			{
 				if (thisLifetime->start == i)
 				{
-					for (int j = 1; j < REGISTER_COUNT; j++)
+					char registerFound = 0;
+					for (int j = 0; j < REGISTER_COUNT; j++)
 					{
 						if (registers[j] == 0)
 						{
 							thisLifetime->stackOrRegLocation = j;
 							registers[j] = 1;
+							occupiedBy[j] = thisLifetime;
+							touchedRegisters[j] = 1;
+							printf("assigned %s to %%r%d at %d\n", thisLifetime->variable, j, i);
+							registerFound = 1;
 							break;
 						}
 					}
-					if (thisLifetime->stackOrRegLocation == 0)
+					if (!registerFound)
 					{
 						ErrorAndExit(ERROR_INTERNAL, "Unable to find register for variable %s!\n", thisLifetime->variable);
 					}
@@ -195,27 +248,26 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	}
 
 	struct ASMblock *functionBlock = newASMblock();
-
-	char *functionSetup = malloc(64);
-	sprintf(functionSetup, "%s:", function->name);
-	ASMblock_append(functionBlock, functionSetup);
-
-	if (stackOffset > 0)
-	{
-		functionSetup = malloc(64);
-		sprintf(functionSetup, "sub %%sp, %%sp, $%d", stackOffset);
-		ASMblock_append(functionBlock, functionSetup);
-	}
+	char *functionSetup;
 
 	// move any applicable arguments into registers if we are expecting them not to be spilled
-	for(struct LinkedListNode *ltRunner = allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
+	for (struct LinkedListNode *ltRunner = allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
 	{
 		struct Lifetime *thisLifetime = ltRunner->data;
-		struct ScopeMember *thisEntry = Scope_lookup(function->mainScope, thisLifetime->variable);
-		// if this lifetime is an argument, and the argument lives in a register, retrieve it from the stack and place it there
-		if(thisEntry->type == e_argument && !thisLifetime->isSpilled)
-		{
 
+		// (short-circuit away from looking up temps since they can't be arguments)
+		if (thisLifetime->variable[0] != '.')
+		{
+			struct ScopeMember *thisEntry = Scope_lookup(function->mainScope, thisLifetime->variable);
+			// if this lifetime is an argument, and the argument lives in a register, retrieve it from the stack and place it there
+			if (thisEntry->type == e_argument && !thisLifetime->isSpilled)
+			{
+				struct VariableEntry *theArgument = thisEntry->entry;
+				functionSetup = malloc(64);
+				sprintf(functionSetup, "mov %%r%d, %d(%%bp) ;place %s", thisLifetime->stackOrRegLocation, theArgument->stackOffset, thisLifetime->variable);
+				touchedRegisters[thisLifetime->stackOrRegLocation] = 1;
+				ASMblock_append(functionBlock, functionSetup);
+			}
 		}
 	}
 
@@ -229,6 +281,33 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	sprintf(functionSetup, "%s_done:", function->name);
 	ASMblock_append(functionBlock, functionSetup);
 
+	for (int i = REGISTER_COUNT - 1; i >= 0; i--)
+	{
+		if (touchedRegisters[i])
+		{
+			functionSetup = malloc(64);
+			sprintf(functionSetup, "pop %%r%d", i);
+			ASMblock_append(functionBlock, functionSetup);
+
+			functionSetup = malloc(64);
+			sprintf(functionSetup, "push %%r%d", i);
+			ASMblock_prepend(functionBlock, functionSetup);
+		}
+	}
+
+	if (stackOffset > 0)
+	{
+		functionSetup = malloc(64);
+		sprintf(functionSetup, "sub %%sp, %%sp, $%d", stackOffset);
+		ASMblock_prepend(functionBlock, functionSetup);
+	}
+
+	functionSetup = malloc(64);
+	sprintf(functionSetup, "%s:", function->name);
+	ASMblock_prepend(functionBlock, functionSetup);
+
+	
+
 	if (stackOffset > 0)
 	{
 		functionSetup = malloc(64);
@@ -237,7 +316,14 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	}
 
 	functionSetup = malloc(64);
-	sprintf(functionSetup, "add %%sp, %%sp, $%d", stackOffset);
+	if (function->argStackSize > 0)
+	{
+		sprintf(functionSetup, "ret %d", function->argStackSize);
+	}
+	else
+	{
+		sprintf(functionSetup, "ret");
+	}
 	ASMblock_append(functionBlock, functionSetup);
 
 	printf("done in generatecode for %s\n\n", function->name);
@@ -382,7 +468,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			{
 			case vp_standard:
 			case vp_temp:
-				if (!operand1Lifetime->isSpilled)
+				if (!operand2Lifetime->isSpilled)
 				{
 					sprintf(op2, "%%r%d", operand2Lifetime->stackOrRegLocation);
 				}
@@ -407,6 +493,13 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				sprintf(thisLine, "%s %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op1, op2);
 			}
 			ASMblock_append(asmBlock, thisLine);
+
+			if (assignedLifetime->isSpilled)
+			{
+				thisLine = malloc(64);
+				sprintf(thisLine, "mov %d(%%bp), %%r%d;replace %s", assignedLifetime->stackOrRegLocation, destinationRegister, assignedLifetime->variable);
+				ASMblock_append(asmBlock, thisLine);
+			}
 		}
 		break;
 
@@ -480,7 +573,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			{
 			case vp_standard:
 			case vp_temp:
-				if (!operand1Lifetime->isSpilled)
+				if (!operand2Lifetime->isSpilled)
 				{
 					sprintf(op2, "%%r%d", operand2Lifetime->stackOrRegLocation);
 				}
@@ -581,12 +674,10 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			case vp_temp:
 			{
 				int destReg = placeOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, 0);
-				if (destReg != 0)
-				{
-					sprintf(thisLine, "mov %%rr, %%r%d", destReg);
-					ASMblock_append(asmBlock, thisLine);
-					thisLine = malloc(64);
-				}
+				sprintf(thisLine, "mov %%rr, %%r%d", destReg);
+				ASMblock_append(asmBlock, thisLine);
+				thisLine = malloc(64);
+
 				// ASMblock_append(outputBlock, trimmedStr);
 			}
 			break;

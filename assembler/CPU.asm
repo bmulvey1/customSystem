@@ -55,16 +55,16 @@
     cmp %{rs1: reg}, %{rs2: reg}                    => 0x4c @ 0b00000 @ rs1 @ rs2 @ 0b0
 
         ; immediate
-    addi %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x50 @ rd @ rs1 @ 0b000000 @ imm
-    subi %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x51 @ rd @ rs1 @ 0b000000 @ imm
-    muli %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x52 @ rd @ rs1 @ 0b000000 @ imm
-    divi %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x53 @ rd @ rs1 @ 0b000000 @ imm
-    shri %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x54 @ rd @ rs1 @ 0b000000 @ imm
-    shli %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x55 @ rd @ rs1 @ 0b000000 @ imm
-    andi %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x58 @ rd @ rs1 @ 0b000000 @ imm
-    ori  %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x59 @ rd @ rs1 @ 0b000000 @ imm
-    xori %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x5a @ rd @ rs1 @ 0b000000 @ imm
-    cmpi %{rs1: reg}, ${imm: i16}                   => 0x5c @ 0b000 @ rs1 @ imm
+    add %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x50 @ rd @ rs1 @ 0b000000 @ imm
+    sub %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x51 @ rd @ rs1 @ 0b000000 @ imm
+    mul %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x52 @ rd @ rs1 @ 0b000000 @ imm
+    div %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x53 @ rd @ rs1 @ 0b000000 @ imm
+    shr %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x54 @ rd @ rs1 @ 0b000000 @ imm
+    shl %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x55 @ rd @ rs1 @ 0b000000 @ imm
+    and %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x58 @ rd @ rs1 @ 0b000000 @ imm
+    or  %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x59 @ rd @ rs1 @ 0b000000 @ imm
+    xor %{rd: reg}, %{rs1: reg}, ${imm: i16}       => 0x5a @ rd @ rs1 @ 0b000000 @ imm
+    cmp %{rs1: reg}, ${imm: i16}                   => 0x5c @ 0b000 @ rs1 @ imm
 
 
     ; data movement (byte)
@@ -75,7 +75,7 @@
     movb {off:i16}(%{rbase: reg}), %{rs: reg}                   => 0xa4 @ rs @ rbase @ off
     movb %{rd: reg}, %{roffset: reg}(%{rbase: reg},{scl: i8})   => 0xa5 @ rd @ rbase @ roffset @ scl
     movb %{roffset: reg}(%{rbase: reg},{scl:i8}), %{rs: reg}    => 0xa6 @ rs @ rbase @ roffset @ scl
-    movb %{rd: reg}, ${imm: i8}                                 => 0xa7 @ 0b0000 @ rd @ imm
+    movb %{rd: reg}, ${imm: i8}                                 => 0xa7 @ 0b00000 @ rd @ imm
 
     ; data movement (word)
     mov %{rd: reg}, %{rs: reg}                               => 0xa8 @ rs @ rd @ 0b000000
@@ -86,6 +86,8 @@
     mov %{rd: reg}, %{ro: reg}(%{rs: reg}, ${scl:i8})        => 0xad @ rs @ rd @ ro @ 0b0 @ scl
     mov %{ro: reg}(%{rd: reg}, ${scl:i8}), %{rs: reg}        => 0xae @ rs @ rd @ ro @ 0b0 @ scl
     mov %{rd: reg}, ${imm: i16}                              => 0xaf @ 0b000 @ rd @ imm
+    mov {off:i16}(%{rd: reg}), ${imm: i16}                   => 0xb0 @ 0b000 @ rd @ off @ imm
+    mov %{ro: reg}(%{rd: reg}, ${scl:i8}), ${imm: i16}       => 0xb1 @ 0b00000 @ rd @ ro @ 0b0 @ scl @ imm
 
     push %{rs: reg}                          => 0xc0 @ 0b000 @ rs
     ;push (%{rs: reg})                        => 0xc1 @ 0b0000 @ rs

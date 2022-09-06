@@ -17,7 +17,7 @@ void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum v
 	Scope_insert(func->mainScope, name, newArgument, e_argument);
 	int argSize = Scope_getSizeOfVariable(func->mainScope, name);
 	func->argStackSize += argSize;
-	newArgument->stackOffset = -1 * (func->argStackSize + argSize);
+	newArgument->stackOffset = func->argStackSize + argSize;
 
 	// return newArgument;
 }
@@ -289,20 +289,8 @@ struct Scope *Scope_lookupSubScopeByNumber(struct Scope *scope, unsigned char su
 
 int Scope_getSizeOfVariable(struct Scope *scope, char *name)
 {
-	struct ScopeMember *examinedEntry = Scope_lookup(scope, name);
-	struct VariableEntry *theVariable;
-	switch (examinedEntry->type)
-	{
-	case e_argument:
-	case e_variable:
-		theVariable = examinedEntry->entry;
-		break;
-
-	default:
-		ErrorAndExit(ERROR_INTERNAL, "Expected variable entry in scope, got entry type %d instead!\n", examinedEntry->type);
-		break;
-	}
-
+	return 2;
+	/*
 	switch (theVariable->type)
 	{
 	case vt_var:
@@ -312,6 +300,7 @@ int Scope_getSizeOfVariable(struct Scope *scope, char *name)
 		ErrorAndExit(ERROR_INTERNAL, "Unexpected variable type %d!\n", theVariable->type);
 		break;
 	}
+	*/
 }
 
 void Scope_print(struct Scope *it, int depth, char printTAC)

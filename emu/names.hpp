@@ -210,8 +210,8 @@ std::string opcodeNames[256] =
         "MOVW offreg(basereg, scale) <- reg",
         "MOVW reg <- imm16",
         // 0xb0
-        "UND",
-        "UND",
+        "MOVW off(reg) <- imm16",
+        "MOVW off(basereg, scale) <- imm16",
         "UND",
         "UND",
         "UND",

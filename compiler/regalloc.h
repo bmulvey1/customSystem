@@ -3,8 +3,15 @@
 #include "symtab.h"
 #include "asm.h"
 #include "tac.h"
+/*
+	2: 545
+	3: 472
+	4: 403
+	5: 403
+	6: 403
 
-#define REGISTER_COUNT 4
+*/
+#define REGISTER_COUNT 3
 
 struct Lifetime
 {

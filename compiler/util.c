@@ -261,7 +261,7 @@ void *LinkedList_delete(struct LinkedList *l, char (*compareFunction)(), void *e
 {
 	for (struct LinkedListNode *runner = l->head; runner != NULL; runner = runner->next)
 	{
-		if (compareFunction(runner->data, element))
+		if (!compareFunction(runner->data, element))
 		{
 			if (l->size > 1)
 			{

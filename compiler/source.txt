@@ -8,7 +8,11 @@ asm{
 	entry code
 	data@ data
 code:
-	push $10
+	push $3
+	mov %r0, $4660
+	mov %r1, $4661
+	mov %r2, $4662
+	mov %r3, $4663
 	call mulTest
 	hlt
 data:
@@ -18,12 +22,11 @@ data:
 
 
 fun print(var n){
-	var i = n;
 	asm{
 		out %r0
 	};
 }
-/*
+
 fun mul(var x, var y)
 {
 	var retval = 0;
@@ -44,19 +47,16 @@ fun mul(var x, var y)
 		}
 	}
 	return retval;
-}*/
-fun mul(var x, var y)
-{
-	return 1;
 }
+
 
 fun mulTest(var a)
 {
 	var x = 1;
-	while(x < a)
+	while(x <= a)
 	{
 		var y = 1;
-		while(y < a)
+		while(y <= a)
 		{
 			var result = mul(x, y);
 			print(result);

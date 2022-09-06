@@ -134,9 +134,8 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 						if (examinedLifetime->variable[0] != '.')
 						{
 							if (examinedLifetime->end < extendTo)
+								// TODO: +1 needed?
 								examinedLifetime->end = extendTo + 1;
-							// if (examinedLifetime->start > extendFrom)
-							// examinedLifetime->start = extendFrom;
 						}
 					}
 				}
