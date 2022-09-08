@@ -28,7 +28,7 @@ struct Lifetime *updateOrInsertLifetime(struct LinkedList *ltList,
 										int newEnd)
 {
 	struct Lifetime *thisLt = LinkedList_find(ltList, &compareLifetimes, variable);
-	 
+
 	if (thisLt != NULL)
 	{
 		// this should never fire with well-formed TAC
@@ -56,7 +56,8 @@ void recordVariableWrite(struct LinkedList *ltList,
 						 enum variableTypes type,
 						 int newEnd)
 {
-	updateOrInsertLifetime(ltList, variable, type, newEnd)->nwrites++;
+	struct Lifetime *updatedLifetime = updateOrInsertLifetime(ltList, variable, type, newEnd);
+	updatedLifetime->nwrites = updatedLifetime->nwrites + 1;
 }
 
 // wrapper function for updateOrInsertLifetime
@@ -66,7 +67,8 @@ void recordVariableRead(struct LinkedList *ltList,
 						enum variableTypes type,
 						int newEnd)
 {
-	updateOrInsertLifetime(ltList, variable, type, newEnd)->nreads++;
+	struct Lifetime *updatedLifetime = updateOrInsertLifetime(ltList, variable, type, newEnd);
+	updatedLifetime->nwrites = updatedLifetime->nreads + 1;
 }
 
 // places an operand by name into the specified register, or returns the register containing if it's already in a register
@@ -74,11 +76,11 @@ void recordVariableRead(struct LinkedList *ltList,
 int placeOperandInRegister(struct LinkedList *lifetimes, char *variable, struct ASMblock *currentBlock, int registerIndex)
 {
 	struct Lifetime *relevantLifetime = LinkedList_find(lifetimes, compareLifetimes, variable);
-	if(relevantLifetime == NULL)
+	if (relevantLifetime == NULL)
 	{
 		ErrorAndExit(ERROR_INTERNAL, "Unable to find lifetime for variable %s!\n", variable);
 	}
-	if(relevantLifetime->isSpilled)
+	if (relevantLifetime->isSpilled)
 	{
 		char *copyLine = malloc(32);
 		sprintf(copyLine, "mov %%r%d, %d(%%bp)", registerIndex, relevantLifetime->stackOrRegLocation);
@@ -133,10 +135,7 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 					{
 						if (examinedLifetime->variable[0] != '.')
 						{
-							if (examinedLifetime->end < extendTo)
-							{
 								examinedLifetime->end = extendTo + 1;
-							}
 						}
 					}
 				}
@@ -153,33 +152,37 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 			case tt_call:
 				if (thisLine->operandTypes[0] != vt_null)
 				{
-					updateOrInsertLifetime(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
+					recordVariableWrite(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
 				}
 				break;
 
 			case tt_assign:
-				updateOrInsertLifetime(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
+			{
+				recordVariableWrite(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
 				if (thisLine->operandPermutations[1] != vp_literal)
 				{
-					updateOrInsertLifetime(lifetimes, thisLine->operands[1], thisLine->operandTypes[1], TACIndex);
+					recordVariableRead(lifetimes, thisLine->operands[1], thisLine->operandTypes[1], TACIndex);
 				}
-				break;
+			}
+			break;
 
 			// single operand in slot 0
 			case tt_push:
 			case tt_return:
+			{
 				if (thisLine->operandPermutations[0] != vp_literal)
 				{
 					switch (thisLine->operandTypes[0])
 					{
 					case vt_var:
-						updateOrInsertLifetime(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
+						recordVariableRead(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
 						break;
 
 					default:
 					}
 				}
-				break;
+			}
+			break;
 
 			case tt_add:
 			case tt_subtract:
@@ -192,7 +195,13 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 			case tt_memw_1:
 			case tt_memw_2:
 			case tt_memw_3:
-				for (int i = 0; i < 4; i++)
+			{
+				if (thisLine->operandTypes[0] != vt_null)
+				{
+					recordVariableWrite(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
+				}
+
+				for (int i = 1; i < 4; i++)
 				{
 					// lifetimes for every permutation except literal
 					if (thisLine->operandPermutations[i] != vp_literal)
@@ -201,13 +210,14 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 						switch (thisLine->operandTypes[i])
 						{
 						case vt_var:
-							updateOrInsertLifetime(lifetimes, thisLine->operands[i], thisLine->operandTypes[i], TACIndex);
+							recordVariableRead(lifetimes, thisLine->operands[i], thisLine->operandTypes[i], TACIndex);
 							break;
 						default:
 						}
 					}
 				}
-				break;
+			}
+			break;
 
 			default:
 				break;
@@ -218,6 +228,6 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 	}
 
 	Stack_free(doDepth);
+
 	return lifetimes;
 }
-

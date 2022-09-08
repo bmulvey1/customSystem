@@ -377,7 +377,6 @@ void Scope_addBasicBlock(struct Scope *scope, struct BasicBlock *b)
 
 void Function_addBasicBlock(struct FunctionEntry *function, struct BasicBlock *b)
 {
-	printf("adding basic block %d to function %s\n", b->labelNum, function->name);
 	LinkedList_append(function->BasicBlockList, b);
 }
 

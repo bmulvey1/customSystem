@@ -1345,7 +1345,6 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 	// second pass: move nested members (basic blocks and variables) to parent scope since names have been mangled
 	for (int i = 0; i < scope->entries->size; i++)
 	{
-		printf("%d/%d\n", i, scope->entries->size);
 		struct ScopeMember *thisMember = scope->entries->data[i];
 		switch (thisMember->type)
 		{
@@ -1356,7 +1355,6 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 		case e_basicblock:
 			if (depth > 0 && scope->parentScope != NULL)
 			{
-				printf("kick basic block %s up to parent\n", thisMember->name);
 				Scope_insert(scope->parentScope, thisMember->name, thisMember->entry, thisMember->type);
 				free(scope->entries->data[i]);
 				for (int j = i; j < scope->entries->size; j++)
@@ -1380,7 +1378,6 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 				char *newName = DictionaryLookupOrInsert(dict, mangledName);
 				
 				free(mangledName);
-				printf("collapse %s to %s\n", thisMember->name, newName);
 				Scope_insert(scope->parentScope, newName, thisMember->entry, thisMember->type);
 				free(scope->entries->data[i]);
 				for (int j = i; j < scope->entries->size; j++)
@@ -1396,7 +1393,6 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 			break;
 		}
 	}
-	printf("done with second pass\n\n");
 }
 
 // given an AST and a populated symbol table, generate three address code for the function entries
@@ -1462,11 +1458,7 @@ void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dict
 		runner = runner->sibling;
 	}
 
-	printf("symbol table before collapse:\n");
-	// Scope_print(globalScope, 0, 1);
 	collapseScopes(globalScope, dict, 1);
-
-	printf("done linearizing\n\n\n");
 }
 
 /*

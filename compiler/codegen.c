@@ -54,8 +54,11 @@ int calculateRegisterLoading(struct LinkedList *activeLifetimes, int index)
 
 struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *outFile)
 {
-	printf("Generate code for function %s\n", function->name);
+	printf("Generate code for function %s", function->name);
 	struct LinkedList *allLifetimes = findLifetimes(function);
+
+	// found lifetimes
+	printf(".");
 
 	struct Stack *spilledLifetimes = Stack_new();
 
@@ -91,6 +94,9 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			}
 		}
 	}
+	
+	// placed lifetimes into array, ready to allocate registers
+	printf(".");
 
 	int MAXREG = REGISTER_COUNT;
 	// if we have just enough room, simply use all registers
@@ -99,26 +105,12 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	{
 		MAXREG -= 2;
 	}
-	printf("MAXREG: %d, REGISTER_COUNT: %d\n", MAXREG, REGISTER_COUNT);
-
-	for (int i = 0; i <= largestTacIndex; i++)
-	{
-		printf("%02x: ", i);
-		struct LinkedList *liveNow = lifetimeOverlaps[i];
-		for (struct LinkedListNode *runner = liveNow->head; runner != NULL; runner = runner->next)
-		{
-			struct Lifetime *this = runner->data;
-			printf("%s, ", this->variable);
-		}
-		printf("\n");
-	}
 
 	// look through the populated array of active lifetimes
 	// if a given index has too many active lifetimes, figure out which lifetime(s) to spill
 	// then allocate registers for any lifetimes without a home
 	for (int i = 0; i <= largestTacIndex; i++)
 	{
-
 		while (calculateRegisterLoading(lifetimeOverlaps[i], i) > MAXREG)
 		{
 			float bestHeuristic = -1.0;
@@ -141,19 +133,6 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			bestLifetime->isSpilled = 1;
 			Stack_push(spilledLifetimes, bestLifetime);
 		}
-	}
-
-	printf("after determining which are spilled:\n");
-	for (int i = 0; i <= largestTacIndex; i++)
-	{
-		printf("%02x: ", i);
-		struct LinkedList *liveNow = lifetimeOverlaps[i];
-		for (struct LinkedListNode *runner = liveNow->head; runner != NULL; runner = runner->next)
-		{
-			struct Lifetime *this = runner->data;
-			printf("%s, ", this->variable);
-		}
-		printf("\n");
 	}
 
 	// sort the list of spilled lifetimes by size of the variable so they can be laid out cleanly on the stack
@@ -190,6 +169,9 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		}
 	}
 
+	// variables placed into registers or stack offsets
+	printf(".");
+
 	// flag registers in use at any given TAC index so we can easily assign
 	char registers[REGISTER_COUNT];
 	struct Lifetime *occupiedBy[REGISTER_COUNT];
@@ -219,7 +201,6 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			if (occupiedBy[j] != NULL && occupiedBy[j]->end <= i)
 			{
 				registers[j] = 0;
-				printf("kicked out %s from %%r%d at %d\n", occupiedBy[j]->variable, j, i);
 				occupiedBy[j] = NULL;
 			}
 		}
@@ -241,7 +222,6 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 							registers[j] = 1;
 							occupiedBy[j] = thisLifetime;
 							touchedRegisters[j] = 1;
-							printf("assigned %s to %%r%d at %d\n", thisLifetime->variable, j, i);
 							registerFound = 1;
 							break;
 						}
@@ -254,18 +234,9 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			}
 		}
 	}
-	for (struct LinkedListNode *ltRunner = allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
-	{
-		struct Lifetime *thisLt = ltRunner->data;
-		if (thisLt->isSpilled)
-		{
-			printf("Offset %4d: %s\n", thisLt->stackOrRegLocation, thisLt->variable);
-		}
-		else
-		{
-			printf("        %%r%d: %s\n", thisLt->stackOrRegLocation, thisLt->variable);
-		}
-	}
+
+	// actual registers have been assigned to variables
+	printf(".");
 
 	struct ASMblock *functionBlock = newASMblock();
 	char *functionSetup;
@@ -291,11 +262,17 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		}
 	}
 
+	// arguments placed into registers
+	printf(".");
+
 	for (struct LinkedListNode *blockRunner = function->BasicBlockList->head; blockRunner != NULL; blockRunner = blockRunner->next)
 	{
 		struct BasicBlock *thisBlock = blockRunner->data;
 		GenerateCodeForBasicBlock(thisBlock, allLifetimes, functionBlock, function->name);
 	}
+
+	// meaningful code generated
+	printf(".");
 
 	functionSetup = malloc(64);
 	sprintf(functionSetup, "%s_done:", function->name);
@@ -344,14 +321,9 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	}
 	ASMblock_append(functionBlock, functionSetup);
 
-	printf("done in generatecode for %s\n\n", function->name);
+	// function setup and teardown code generated
+	printf(".");
 
-	/*
-
-	struct LinkedList *allLifetimes = findLifetimes(function);
-
-	struct Stack *spilledLifetimes = Stack_new();
-	*/
 	Stack_free(spilledLifetimes);
 	LinkedList_free(allLifetimes, free);
 
@@ -361,6 +333,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	}
 	free(lifetimeOverlaps);
 
+	printf("\n");
 	return functionBlock;
 }
 
