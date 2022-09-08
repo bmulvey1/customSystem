@@ -13,7 +13,7 @@
 	10:
 
 */
-#define REGISTER_COUNT 4
+#define REGISTER_COUNT 12
 
 struct Lifetime
 {

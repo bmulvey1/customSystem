@@ -37,13 +37,16 @@ int linearizeDereference(struct Scope *scope,
 	{
 		// directly dereference variables
 	case t_name:
+	{
 		thisDereference->operands[1] = it->value;
 		thisDereference->operandTypes[1] = vt_var;
 		thisDereference->indirectionLevels[1] = Scope_lookupVar(scope, it->value)->indirectionLevel;
+	}
 		break;
 
 		// recursively dereference nested dereferences
 	case t_dereference:
+	{
 		thisDereference->operands[1] = TempList_getString(temps, *tempNum);
 		thisDereference->operandPermutations[1] = vp_temp;
 
@@ -51,12 +54,13 @@ int linearizeDereference(struct Scope *scope,
 		struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
 		thisDereference->operandTypes[1] = recursiveDereference->operandTypes[0];
 		thisDereference->indirectionLevels[1] = recursiveDereference->indirectionLevels[0];
-
+	}
 		break;
 
 		// handle pointer arithmetic to evalute the correct adddress to dereference
 	case t_un_add:
 	case t_un_sub:
+	{
 		thisDereference->operands[1] = it->child->value; // base
 		int LHSSize;
 		switch (it->child->type)
@@ -191,6 +195,7 @@ int linearizeDereference(struct Scope *scope,
 		default:
 			ErrorAndExit(ERROR_INTERNAL, "Malformed parse tree in RHS of dereference arithmetic!\n");
 		}
+	}
 		break;
 
 	default:
@@ -599,7 +604,6 @@ int linearizeExpression(struct Scope *scope,
 					char *scaledLiteral = malloc(16);
 					sprintf(scaledLiteral, "%d", atoi(thisExpression->operands[1]) * 2);
 					thisExpression->operands[1] = scaledLiteral;
-					thisExpression->operands[1] = scaledLiteral;
 					thisExpression->indirectionLevels[1] = thisExpression->indirectionLevels[2];
 					break;
 
@@ -724,7 +728,7 @@ int linearizeAssignment(struct Scope *scope,
 		RHS->operands[0] = TempList_getString(temps, *tempNum);
 		RHS->operandPermutations[0] = vp_temp;
 		(*tempNum)++;
-		RHS->operandTypes[0] = RHS->operandTypes[0];
+		RHS->operandTypes[0] = RHS->operandTypes[1];
 		RHS->indirectionLevels[0] = RHS->indirectionLevels[1];
 		switch (it->child->type)
 		{
@@ -1312,19 +1316,19 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 			for (struct LinkedListNode *TACRunner = thisBlock->TACList->head; TACRunner != NULL; TACRunner = TACRunner->next)
 			{
 				struct TACLine *thisTAC = TACRunner->data;
-				for (int i = 0; i < 4; i++)
+				for (int j = 0; j < 4; j++)
 				{
-					if (thisTAC->operandTypes[i] != vt_null && thisTAC->operandPermutations[i] == vp_standard)
+					if (thisTAC->operandTypes[j] != vt_null && thisTAC->operandPermutations[j] == vp_standard)
 					{
-						char *originalName = thisTAC->operands[i];
+						char *originalName = thisTAC->operands[j];
 
 						// TODO: make scope_lookupVarScopeName properly scrape all parent scopes for the real name
 						// since subscopes don't contain detailed name nesting anymore
-						char *scopeName = Scope_lookupVarScopeName(scope, thisTAC->operands[i]);
+						char *scopeName = Scope_lookupVarScopeName(scope, thisTAC->operands[j]);
 						char *mangledName = malloc(strlen(originalName) + strlen(scopeName) + 1);
 						sprintf(mangledName, "%s%s", originalName, scopeName);
 						free(scopeName);
-						thisTAC->operands[i] = DictionaryLookupOrInsert(dict, mangledName);
+						thisTAC->operands[j] = DictionaryLookupOrInsert(dict, mangledName);
 						free(mangledName);
 					}
 				}
@@ -1368,15 +1372,13 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 		case e_argument:
 			if (depth > 0)
 			{
-				struct ScopeMember *thisMember = scope->entries->data[i];
-				// struct VariableEntry *thisVariable = thisMember->entry;
 				char *originalName = thisMember->name;
 				char *scopeName = scope->name;
-				// char *scopeName = Scope_lookupVarScopeName(scope, originalName);
+
 				char *mangledName = malloc(strlen(originalName) + strlen(scopeName) + 1);
 				sprintf(mangledName, "%s%s", originalName, scopeName);
 				char *newName = DictionaryLookupOrInsert(dict, mangledName);
-				// thisVariable-> = newName;
+				
 				free(mangledName);
 				printf("collapse %s to %s\n", thisMember->name, newName);
 				Scope_insert(scope->parentScope, newName, thisMember->entry, thisMember->type);
@@ -1418,8 +1420,7 @@ void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dict
 			int funTempNum = 0; // track the number of temporary variables used
 			int labelCount = 0;
 			struct FunctionEntry *theFunction = Scope_lookupFun(globalScope, runner->child->value);
-			// struct LinkedList *functionBlockList = LinkedList_new();
-			// theFunction->mainScope-> = functionBlockList;
+
 			struct BasicBlock *functionBlock = BasicBlock_new(funTempNum);
 			functionBlock->hintLabel = theFunction->name;
 

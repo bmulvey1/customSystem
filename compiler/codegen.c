@@ -280,10 +280,6 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		{
 			struct ScopeMember *thisEntry = Scope_lookup(function->mainScope, thisLifetime->variable);
 			// if this lifetime is an argument, and the argument lives in a register, retrieve it from the stack and place it there
-			if(thisEntry == NULL)
-			{
-				Scope_print(function->mainScope, 0, 0);
-			}
 			if (thisEntry->type == e_argument && !thisLifetime->isSpilled)
 			{
 				struct VariableEntry *theArgument = thisEntry->entry;
