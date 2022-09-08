@@ -91,17 +91,6 @@ char *getAsmOp(enum TACType t)
 	case tt_jmp:
 		return "jmp";
 
-	case tt_pushstate:
-		return "PUSHSTATE";
-
-	case tt_restorestate:
-		return "RESTORESTATE";
-
-	case tt_resetstate:
-		return "RESETSTATE";
-
-	case tt_popstate:
-		return "POPSTATE";
 	}
 	return "";
 }
@@ -262,21 +251,6 @@ void printTACLine(struct TACLine *it)
 		width += printf("end do");
 		break;
 
-	case tt_pushstate:
-		width += printf("PUSHSTATE");
-		break;
-
-	case tt_restorestate:
-		width += printf("RESTORESTATE (interval %2lx)", (long int)it->operands[0]);
-		break;
-
-	case tt_resetstate:
-		width += printf("RESETSTATE");
-		break;
-
-	case tt_popstate:
-		width += printf("POPSTATE");
-		break;
 	}
 	while (width++ < 24)
 	{
@@ -434,21 +408,6 @@ char *sPrintTACLine(struct TACLine *it)
 		width += sprintf(tacString, "end do");
 		break;
 
-	case tt_pushstate:
-		width += sprintf(tacString, "PUSHSTATE");
-		break;
-
-	case tt_restorestate:
-		width += sprintf(tacString, "RESTORESTATE (interval %2lx)", (long int)it->operands[0]);
-		break;
-
-	case tt_resetstate:
-		width += sprintf(tacString, "RESETSTATE");
-		break;
-
-	case tt_popstate:
-		width += sprintf(tacString, "POPSTATE");
-		break;
 	}
 
 	char *trimmedString = malloc(width + 1);
@@ -466,10 +425,6 @@ char TACLine_isEffective(struct TACLine *it)
 {
 	switch (it->operation)
 	{
-	case tt_pushstate:
-	case tt_popstate:
-	case tt_restorestate:
-	case tt_resetstate:
 	case tt_do:
 	case tt_enddo:
 		return 0;

@@ -3,7 +3,7 @@ asm{
 	entry code
 	;data@ data
 code:
-	push $4664
+	push $5
 	;call mm_init
 	;call doublePointer
 	;push $4660
@@ -17,6 +17,7 @@ fun print(var a)
 		out %r0
 	};
 }
+
 
 fun mul(var x, var y)
 {
@@ -45,7 +46,7 @@ fun gradient()
 {
 	var longLife = 0;
 	var loopCount = 0;
-	var **g = 512;
+	var **g = 768;
 	var i = 0;
 	while(i < 8)
 	{
@@ -66,4 +67,5 @@ fun gradient()
 	print(loopCount);
 	longLife = 1;
 }
+
 $$

@@ -753,11 +753,6 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		case tt_enddo:
 			break;
 
-		case tt_pushstate:
-		case tt_restorestate:
-		case tt_resetstate:
-		case tt_popstate:
-			break;
 		}
 	}
 }

@@ -49,10 +49,6 @@ enum TACType
 	tt_return,
 	tt_do,
 	tt_enddo,
-	tt_pushstate,
-	tt_restorestate,
-	tt_resetstate,
-	tt_popstate
 };
 
 struct TACLine

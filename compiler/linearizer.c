@@ -987,10 +987,6 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 	// linearize the expression we will test
 	currentTACIndex = linearizeExpression(scope, currentTACIndex, currentBlock, it->child, tempNum);
 
-	// save state before branch
-	struct TACLine *pushState = newTACLine(currentTACIndex, tt_pushstate, it);
-	BasicBlock_append(currentBlock, pushState);
-
 	// generate a label and figure out condition to jump when the if statement isn't executed
 	struct TACLine *noifJump = linearizeConditionalJump(currentTACIndex++, it->child->value, it->child);
 
@@ -1011,10 +1007,6 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 		elseBlock->hintLabel = "else block";
 		Scope_addBasicBlock(scope, elseBlock);
 		Function_addBasicBlock(scope->parentFunction, elseBlock);
-
-		// need to ensure the else block starts from the same state as the if
-		struct TACLine *resetLine = newTACLine(elseTACIndex, tt_resetstate, it);
-		BasicBlock_append(elseBlock, resetLine);
 
 		// bit hax (⌐▨_▨)
 		// store the label index using the char* for this TAC line to avoid more fields in the struct
@@ -1043,11 +1035,6 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 											   int *labelCount,
 											   struct Stack *scopeNesting)
 {
-	int entryTACIndex = currentTACIndex;
-	// save state before while block
-	struct TACLine *pushState = newTACLine(currentTACIndex, tt_pushstate, it);
-	BasicBlock_append(currentBlock, pushState);
-
 	struct BasicBlock *whileBlock = BasicBlock_new(++(*labelCount));
 	whileBlock->hintLabel = "while block";
 	int whileSubScopeIndex = scope->subScopeCount - 1;
@@ -1063,11 +1050,6 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 	// linearize the expression we will test
 	currentTACIndex = linearizeExpression(scope, currentTACIndex, whileBlock, it->child, tempNum);
 
-	// restore state before the conditional jump that exits the loop
-	struct TACLine *beforeNoWhileRestore = newTACLine(currentTACIndex, tt_restorestate, it);
-	beforeNoWhileRestore->operands[0] = (char *)((long int)entryTACIndex);
-	BasicBlock_append(whileBlock, beforeNoWhileRestore);
-
 	struct TACLine *noWhileJump = linearizeConditionalJump(currentTACIndex++, it->child->value, it->child);
 	noWhileJump->operands[0] = (char *)((long int)afterWhileBlock->labelNum);
 	BasicBlock_append(whileBlock, noWhileJump);
@@ -1076,16 +1058,6 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 	struct LinearizationResult *r = linearizeScope(scope, currentTACIndex, whileBlock, whileBlock, it->child->sibling->child, tempNum, labelCount, scopeNesting);
 	// insert the conditional checks into that scope
 	Scope_addBasicBlock(Scope_lookupSubScopeByNumber(scope, whileSubScopeIndex), whileBlock);
-
-	for (struct LinkedListNode *TACRunner = r->block->TACList->tail; TACRunner != NULL; TACRunner = TACRunner->prev)
-	{
-		struct TACLine *examinedTAC = TACRunner->data;
-		if (examinedTAC->operation == tt_restorestate)
-		{
-			examinedTAC->operands[0] = beforeNoWhileRestore->operands[0];
-			break;
-		}
-	}
 
 	struct TACLine *whileEndDo = newTACLine(r->endingTACIndex, tt_enddo, it);
 	BasicBlock_append(r->block, whileEndDo);
@@ -1248,17 +1220,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 			while (results->size > 0)
 			{
 				struct LinearizationResult *poppedResult = Stack_pop(results);
-				for (struct LinkedListNode *TACRunner = poppedResult->block->TACList->tail; TACRunner != NULL; TACRunner = TACRunner->prev)
-				{
-					struct TACLine *examinedTAC = TACRunner->data;
-					if (examinedTAC->operation == tt_restorestate)
-					{
-						Stack_push(beforeConvergeRestores, examinedTAC);
-						break;
-					}
-				}
 				// skip the current TAC index as far forward as possible so code generated from here on out is always after previous code
-
 				if (poppedResult->endingTACIndex > currentTACIndex)
 					currentTACIndex = poppedResult->endingTACIndex + 1;
 
@@ -1277,8 +1239,6 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 
 			// we are now linearizing code into the block which the branches converge to
 			currentBlock = afterIfBlock;
-			struct TACLine *endPop = newTACLine(currentTACIndex, tt_popstate, runner);
-			BasicBlock_append(currentBlock, endPop);
 		}
 		break;
 
@@ -1294,8 +1254,6 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 			free(r);
 
 			currentBlock = afterWhileBlock;
-			struct TACLine *endPop = newTACLine(currentTACIndex, tt_popstate, runner);
-			BasicBlock_append(currentBlock, endPop);
 		}
 		break;
 
@@ -1307,15 +1265,15 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 
 	if (controlConvergesTo != NULL)
 	{
-		struct TACLine *lastLine = currentBlock->TACList->tail->data;
-		if (lastLine->operation != tt_return)
+		if (currentBlock->TACList->tail != NULL)
 		{
-			struct TACLine *beforeConvergeRestore = newTACLine(currentTACIndex, tt_restorestate, runner);
-			BasicBlock_append(currentBlock, beforeConvergeRestore);
-
-			struct TACLine *convergeControlJump = newTACLine(currentTACIndex++, tt_jmp, runner);
-			convergeControlJump->operands[0] = (char *)((long int)controlConvergesTo->labelNum);
-			BasicBlock_append(currentBlock, convergeControlJump);
+			struct TACLine *lastLine = currentBlock->TACList->tail->data;
+			if (lastLine->operation != tt_return)
+			{
+				struct TACLine *convergeControlJump = newTACLine(currentTACIndex++, tt_jmp, runner);
+				convergeControlJump->operands[0] = (char *)((long int)controlConvergesTo->labelNum);
+				BasicBlock_append(currentBlock, convergeControlJump);
+			}
 		}
 	}
 
