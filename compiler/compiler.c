@@ -41,7 +41,7 @@ int main(int argc, char **argv)
 	printf("Linearizing code to basic blocks\n");
 	linearizeProgram(program, theTable->globalScope, parseDict);
 
-	// SymbolTable_print(theTable, 0);
+	SymbolTable_print(theTable, 0);
 
 	FILE *outFile = fopen(argv[2], "wb");
 
@@ -51,12 +51,15 @@ int main(int argc, char **argv)
 	for(int i = 0; i < outputBlocks->size; i++)
 	{
 		ASMblock_output(outputBlocks->data[i], outFile);
+		ASMblock_free(outputBlocks->data[i]);
 	}
+	SymbolTable_free(theTable);
+
+	Stack_free(outputBlocks);
 
 	fclose(outFile);
 	freeDictionary(parseDict);
 	ASTNode_free(program);
-	SymbolTable_free(theTable);
 
 	printf("done printing\n");
 }

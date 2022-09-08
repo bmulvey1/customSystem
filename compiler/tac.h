@@ -79,8 +79,6 @@ struct BasicBlock
 {
 	struct LinkedList *TACList;
 	int labelNum;
-	char *hintLabel;
-
 	// only set when the block contains TAC lines containing operations other than code generator directives
 	char containsEffectiveCode;
 };

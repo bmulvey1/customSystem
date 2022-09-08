@@ -349,11 +349,12 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 	for (struct LinkedListNode *TACRunner = thisBlock->TACList->head; TACRunner != NULL; TACRunner = TACRunner->next)
 	{
 		struct TACLine *thisTAC = TACRunner->data;
-		char *thisLine = malloc(64);
-		char *printedTAC = sPrintTACLine(thisTAC);
-		sprintf(thisLine, ";%s", printedTAC);
-		ASMblock_append(asmBlock, thisLine);
-		free(printedTAC);
+		char *thisLine;
+		// char *thisLine = malloc(64);
+		// char *printedTAC = sPrintTACLine(thisTAC);
+		// sprintf(thisLine, ";%s", printedTAC);
+		// ASMblock_append(asmBlock, thisLine);
+		// free(printedTAC);
 
 		switch (thisTAC->operation)
 		{

@@ -1008,7 +1008,6 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 	{
 		// create a basicblock for the else statement
 		struct BasicBlock *elseBlock = BasicBlock_new(++(*labelCount));
-		elseBlock->hintLabel = "else block";
 		Scope_addBasicBlock(scope, elseBlock);
 		Function_addBasicBlock(scope->parentFunction, elseBlock);
 
@@ -1040,7 +1039,6 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 											   struct Stack *scopeNesting)
 {
 	struct BasicBlock *whileBlock = BasicBlock_new(++(*labelCount));
-	whileBlock->hintLabel = "while block";
 	int whileSubScopeIndex = scope->subScopeCount - 1;
 	Function_addBasicBlock(scope->parentFunction, whileBlock);
 
@@ -1211,7 +1209,6 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 		{
 			// this is the block that control will be passed to after the branch, regardless of what happens
 			struct BasicBlock *afterIfBlock = BasicBlock_new(++(*labelCount));
-			afterIfBlock->hintLabel = "after if block";
 
 			// linearize the if statement and attached else if it exists
 			struct Stack *results = linearizeIfStatement(scope, currentTACIndex, currentBlock, afterIfBlock, runner, tempNum, labelCount, scopeNesting);
@@ -1249,7 +1246,6 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 		case t_while:
 		{
 			struct BasicBlock *afterWhileBlock = BasicBlock_new(++(*labelCount));
-			afterWhileBlock->hintLabel = "after while block";
 
 			struct LinearizationResult *r = linearizeWhileLoop(scope, currentTACIndex, currentBlock, afterWhileBlock, runner, tempNum, labelCount, scopeNesting);
 			currentTACIndex = r->endingTACIndex;
@@ -1418,7 +1414,6 @@ void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dict
 			struct FunctionEntry *theFunction = Scope_lookupFun(globalScope, runner->child->value);
 
 			struct BasicBlock *functionBlock = BasicBlock_new(funTempNum);
-			functionBlock->hintLabel = theFunction->name;
 
 			Scope_addBasicBlock(theFunction->mainScope, functionBlock);
 			Function_addBasicBlock(theFunction, functionBlock);

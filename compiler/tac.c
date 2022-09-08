@@ -418,6 +418,7 @@ char *sPrintTACLine(struct TACLine *it)
 
 void freeTAC(struct TACLine *it)
 {
+	printTACLine(it);
 	free(it);
 }
 
@@ -439,14 +440,13 @@ struct BasicBlock *BasicBlock_new(int labelNum)
 	struct BasicBlock *wip = malloc(sizeof(struct BasicBlock));
 	wip->TACList = LinkedList_new();
 	wip->labelNum = labelNum;
-	wip->hintLabel = NULL;
 	wip->containsEffectiveCode = 0;
 	return wip;
 }
 
 void BasicBlock_free(struct BasicBlock *b)
 {
-	LinkedList_free(b->TACList, &freeTAC);
+	LinkedList_free(b->TACList, free);
 	free(b);
 }
 
@@ -482,7 +482,7 @@ void printBasicBlock(struct BasicBlock *b, int indentLevel)
 	{
 		printf("\t");
 	}
-	printf("BASIC BLOCK %d (%s)\n", b->labelNum, b->hintLabel);
+	printf("BASIC BLOCK %d\n", b->labelNum);
 	for (struct LinkedListNode *runner = b->TACList->head; runner != NULL; runner = runner->next)
 	{
 		struct TACLine *this = runner->data;

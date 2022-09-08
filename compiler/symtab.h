@@ -73,6 +73,8 @@ struct SymbolTable *SymbolTable_new(char *name);
 // scope functions
 struct Scope *Scope_new(struct Scope *parentScope, char *name);
 
+void Scope_free(struct Scope *scope, int depth);
+
 void Scope_print(struct Scope *it, int depth, char printTAC);
 
 void Scope_insert(struct Scope *scope, char *name, void *newEntry, enum ScopeMemberType type);

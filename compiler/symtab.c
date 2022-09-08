@@ -28,7 +28,6 @@ struct SymbolTable *SymbolTable_new(char *name)
 	wip->name = name;
 	wip->globalScope = Scope_new(NULL, "Global");
 	struct BasicBlock *globalBlock = BasicBlock_new(0);
-	globalBlock->hintLabel = "globalblock";
 
 	// manually insert a basic block for global code so we can give it the custom name of "globalblock"
 	Scope_insert(wip->globalScope, "globalblock", globalBlock, e_basicblock);
@@ -44,7 +43,8 @@ void SymbolTable_print(struct SymbolTable *it, char printTAC)
 
 void SymbolTable_free(struct SymbolTable *it)
 {
-	// TODO: free function for symbol table and entries/scopes
+	Scope_free(it->globalScope, 0);
+	free(it);
 }
 
 /*
@@ -63,6 +63,50 @@ struct Scope *Scope_new(struct Scope *parentScope, char *name)
 	wip->name = name;
 	wip->subScopeCount = 0;
 	return wip;
+}
+
+void Scope_free(struct Scope *scope, int depth)
+{
+	for (int i = 0; i < scope->entries->size; i++)
+	{
+		struct ScopeMember *examinedEntry = scope->entries->data[i];
+		switch (examinedEntry->type)
+		{
+		case e_scope:
+			Scope_free(examinedEntry->entry, depth + 1);
+			break;
+
+		case e_function:
+		{
+			struct FunctionEntry *theFunction = examinedEntry->entry;
+			LinkedList_free(theFunction->BasicBlockList, NULL);
+			Scope_free(theFunction->mainScope, depth);
+			free(theFunction);
+		}
+		break;
+
+		case e_variable:
+		case e_argument:
+		{
+			struct VariableEntry *theVariable = examinedEntry->entry;
+			free(theVariable);
+		}
+		break;
+
+		case e_basicblock:
+			BasicBlock_free(examinedEntry->entry);
+			break;
+		}
+
+		free(examinedEntry);
+	}
+
+	if (depth > 0)
+	{
+		free(scope->name);
+	}
+	Stack_free(scope->entries);
+	free(scope);
 }
 
 // insert a member with a given name and pointer to entry, along with info about the entry type
@@ -148,38 +192,6 @@ char Scope_contains(struct Scope *scope, char *name)
 // also looks up entries from deeper scopes, but only as their mangled names specify
 struct ScopeMember *Scope_lookup(struct Scope *scope, char *name)
 {
-	/*
-	int nameLen = strlen(name);
-	char nameModified = 0;
-	for (int i = 0; i < nameLen; i++)
-	{
-		if (name[i] == '.' && i > 0)
-		{
-			char subScopeName[4];
-			subScopeName[0] = name[i];
-			subScopeName[1] = name[i + 1];
-			subScopeName[2] = name[i + 2];
-			subScopeName[3] = '\0';
-			scope = Scope_lookupSubScope(scope, subScopeName);
-			if (scope == NULL)
-			{
-				ErrorAndExit(ERROR_INTERNAL, "can't find subscope %s\n", subScopeName);
-			}
-			else
-			{
-				char *newName = malloc(strlen(name) - 2);
-				for (int j = 0; j < i; j++)
-				{
-					newName[j] = name[j];
-				}
-				strcpy(newName + i, name + (i + 3));
-				nameModified = 1;
-				name = newName;
-			}
-			break;
-		}
-	}
-	*/
 	while (scope != NULL)
 	{
 		for (int i = 0; i < scope->entries->size; i++)
@@ -238,7 +250,7 @@ char *Scope_lookupVarScopeName(struct Scope *scope, char *name)
 {
 	char *scopeName = malloc(1);
 	scopeName[0] = '\0';
-	
+
 	while (scope != NULL)
 	{
 		for (int i = 0; i < scope->entries->size; i++)
@@ -357,11 +369,11 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 
 		case e_basicblock:
 		{
-				printf("> Basic Block %s\n", thisMember->name);
-				if (printTAC)
-				{
-					printBasicBlock(thisMember->entry, depth + 1);
-				}
+			printf("> Basic Block %s\n", thisMember->name);
+			if (printTAC)
+			{
+				printBasicBlock(thisMember->entry, depth + 1);
+			}
 		}
 		break;
 		}
