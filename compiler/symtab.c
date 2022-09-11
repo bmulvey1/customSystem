@@ -1,5 +1,7 @@
 #include "symtab.h"
 
+extern struct Dictionary *parseDict;
+
 char *symbolNames[] = {
 	"variable",
 	"function"};
@@ -28,7 +30,8 @@ struct SymbolTable *SymbolTable_new(char *name)
 	wip->name = name;
 	wip->globalScope = Scope_new(NULL, "Global");
 	struct BasicBlock *globalBlock = BasicBlock_new(0);
-
+	// char *globalBlockName = malloc(12);
+	// sprintf(globalBlockName, "globalblock");
 	// manually insert a basic block for global code so we can give it the custom name of "globalblock"
 	Scope_insert(wip->globalScope, "globalblock", globalBlock, e_basicblock);
 
@@ -100,11 +103,6 @@ void Scope_free(struct Scope *scope, int depth)
 
 		free(examinedEntry);
 	}
-
-	if (depth > 0)
-	{
-		free(scope->name);
-	}
 	Stack_free(scope->entries);
 	free(scope);
 }
@@ -163,8 +161,10 @@ struct Scope *Scope_createSubScope(struct Scope *parentScope)
 	{
 		ErrorAndExit(ERROR_INTERNAL, "Too many subscopes of scope %s\n", parentScope->name);
 	}
-	char *newScopeName = malloc(3 + strlen(parentScope->name) + 1);
-	sprintf(newScopeName, ".%02x", parentScope->subScopeCount);
+	char *helpStr = malloc(3 + strlen(parentScope->name) + 1);
+	sprintf(helpStr, ".%02x", parentScope->subScopeCount);
+	char *newScopeName = DictionaryLookupOrInsert(parseDict, helpStr);
+	free(helpStr);
 	parentScope->subScopeCount++;
 
 	struct Scope *newScope = Scope_new(parentScope, newScopeName);
@@ -369,10 +369,11 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 
 		case e_basicblock:
 		{
-			printf("> Basic Block %s\n", thisMember->name);
+			struct BasicBlock *thisBlock = thisMember->entry;
+			printf("> Basic Block %d\n", thisBlock->labelNum);
 			if (printTAC)
 			{
-				printBasicBlock(thisMember->entry, depth + 1);
+				printBasicBlock(thisBlock, depth + 1);
 			}
 		}
 		break;
@@ -384,7 +385,8 @@ void Scope_addBasicBlock(struct Scope *scope, struct BasicBlock *b)
 {
 	char *blockName = malloc(10);
 	sprintf(blockName, "Block%d", b->labelNum);
-	Scope_insert(scope, blockName, b, e_basicblock);
+	Scope_insert(scope, DictionaryLookupOrInsert(parseDict, blockName), b, e_basicblock);
+	free(blockName);
 }
 
 void Function_addBasicBlock(struct FunctionEntry *function, struct BasicBlock *b)

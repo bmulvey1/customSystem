@@ -12,6 +12,8 @@
 #include "codegen.h"
 #include "serialize.h"
 
+struct Dictionary *parseDict = NULL;
+
 int main(int argc, char **argv)
 {
 	if (argc < 2)
@@ -26,7 +28,7 @@ int main(int argc, char **argv)
 	printf("Parsing program from %s\n", argv[1]);
 
 	printf("Generating output to %s\n", argv[2]);
-	struct Dictionary *parseDict = newDictionary(10);
+	parseDict = newDictionary(10);
 	struct ASTNode *program = parseProgram(argv[1], parseDict);
 
 	serializeAST("astdump", program);

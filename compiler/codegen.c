@@ -37,14 +37,14 @@ struct Stack *generateCodeForScope(struct Scope *scope, FILE *outFile)
 int calculateRegisterLoading(struct LinkedList *activeLifetimes, int index)
 {
 	int trueLoad = 0;
-	for(struct LinkedListNode *runner = activeLifetimes->head; runner != NULL; runner = runner->next)
+	for (struct LinkedListNode *runner = activeLifetimes->head; runner != NULL; runner = runner->next)
 	{
 		struct Lifetime *thisLifetime = runner->data;
-		if(thisLifetime->start <= index && index < thisLifetime->end)
+		if (thisLifetime->start <= index && index < thisLifetime->end)
 		{
 			trueLoad++;
 		}
-		else if(thisLifetime->end >= index)
+		else if (thisLifetime->end >= index)
 		{
 			trueLoad--;
 		}
@@ -94,7 +94,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			}
 		}
 	}
-	
+
 	// placed lifetimes into array, ready to allocate registers
 	printf(".");
 
@@ -264,7 +264,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 
 	// arguments placed into registers
 	printf(".");
-
+	
 	for (struct LinkedListNode *blockRunner = function->BasicBlockList->head; blockRunner != NULL; blockRunner = blockRunner->next)
 	{
 		struct BasicBlock *thisBlock = blockRunner->data;
@@ -343,6 +343,10 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 	if (thisBlock->labelNum > 0)
 	{
 		sprintf(blockLabel, "%s_%d:", functionName, thisBlock->labelNum);
+	}
+	else
+	{
+		sprintf(blockLabel, "%s", functionName);
 	}
 	ASMblock_append(asmBlock, blockLabel);
 
@@ -722,7 +726,6 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		case tt_do:
 		case tt_enddo:
 			break;
-
 		}
 	}
 }
