@@ -34,7 +34,7 @@ int main(int argc, char **argv)
 	serializeAST("astdump", program);
 	printf("\n");
 
-	// ASTNode_print(program, 0);
+	ASTNode_print(program, 0);
 	printf("Generating symbol table from AST");
 	struct SymbolTable *theTable = walkAST(program);
 	printf("\n");
@@ -43,7 +43,7 @@ int main(int argc, char **argv)
 	printf("Linearizing code to basic blocks\n");
 	linearizeProgram(program, theTable->globalScope, parseDict);
 
-	SymbolTable_print(theTable, 0);
+	SymbolTable_print(theTable, 1);
 
 	FILE *outFile = fopen(argv[2], "wb");
 

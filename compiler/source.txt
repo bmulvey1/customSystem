@@ -4,10 +4,8 @@ asm{
 	;data@ data
 code:
 	push $5
-	;call mm_init
-	;call doublePointer
-	;push $4660
-	call gradient
+	;call gradient
+	call fibArr
 	hlt
 };
 
@@ -19,6 +17,22 @@ fun print(var a)
 }
 
 
+fun fibArr(var a)
+{
+	var fibArray[10];
+	fibArray[0] = 0;
+	fibArray[1] = 1;
+	//var i = 2;
+	//while(i < a)
+	//{
+	//	fibArray[i] = fibArray[i - 1] + fibArray[i - 2];
+	//	print(fibArray[i]);
+	//	i = i + 1;
+	//}
+}
+
+
+/*
 fun mul(var x, var y)
 {
 	var retval = 0;
@@ -44,19 +58,20 @@ fun mul(var x, var y)
 //will make a nice grid in the hex editor of memdump at address 512
 fun gradient()
 {
-	var **g = 768;
+	var **g = 512;
 	var i = 0;
 	while(i < 8)
 	{
-		*(g + i) = g + mul(i, 16) + 16;
+		g[i] = g + mul(i, 16) + 16;
 		var j = 0;
 		while(j < 8)
 		{
-			var *addr = *(g + i);
-			*(addr + j) = mul(j + 1, i + 1) + 48;
+			var *addr = g[i];
+			addr[j] = mul(j + 1, i + 1) + 48;
 			j = j + 1;
 		}
 		i = i + 1;
 	}
 }
+*/
 $$

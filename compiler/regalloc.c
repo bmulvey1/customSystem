@@ -73,7 +73,7 @@ void recordVariableRead(struct LinkedList *ltList,
 
 // places an operand by name into the specified register, or returns the register containing if it's already in a register
 // does *NOT* guarantee that returned register indices are modifiable in the case where the variable is found in a register
-int placeOperandInRegister(struct LinkedList *lifetimes, char *variable, struct ASMblock *currentBlock, int registerIndex)
+int placeOperandInRegister(struct LinkedList *lifetimes, char *variable, struct ASMblock *currentBlock, int registerIndex, char *touchedRegisters)
 {
 	struct Lifetime *relevantLifetime = LinkedList_find(lifetimes, compareLifetimes, variable);
 	if (relevantLifetime == NULL)
@@ -85,6 +85,7 @@ int placeOperandInRegister(struct LinkedList *lifetimes, char *variable, struct 
 		char *copyLine = malloc(32);
 		sprintf(copyLine, "mov %%r%d, %d(%%bp)", registerIndex, relevantLifetime->stackOrRegLocation);
 		ASMblock_append(currentBlock, copyLine);
+		touchedRegisters[registerIndex] = 1;
 		return registerIndex;
 	}
 	else

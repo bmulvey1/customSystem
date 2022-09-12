@@ -33,6 +33,10 @@ struct ASTNode *parseAssignment(struct ASTNode *name, struct Dictionary *dict);
 
 struct ASTNode *parseScope(struct Dictionary *dict);
 
+struct ASTNode *parseName(struct Dictionary *dict);
+
+struct ASTNode *parseDeclaration(struct Dictionary *dict);
+
 struct ASTNode *parseStatement(struct Dictionary *dict);
 
 struct ASTNode *parseExpression(struct Dictionary *dict);

@@ -51,11 +51,13 @@ struct FunctionEntry
 struct VariableEntry
 {
 	int stackOffset;
+	int arraySize;
 	enum variableTypes type;
 	int indirectionLevel;
 	int assignedAt;
 	int declaredAt;
 	char isAssigned;
+	char mustSpill;
 };
 
 struct SymbolTable
@@ -65,7 +67,7 @@ struct SymbolTable
 };
 
 
-void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum variableTypes type, int indirectionLevel);
+void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum variableTypes type, int indirectionLevel, int arraySize);
 
 // symbol table functions
 struct SymbolTable *SymbolTable_new(char *name);
@@ -79,7 +81,7 @@ void Scope_print(struct Scope *it, int depth, char printTAC);
 
 void Scope_insert(struct Scope *scope, char *name, void *newEntry, enum ScopeMemberType type);
 
-void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes type, int indirectionLevel);
+void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes type, int indirectionLevel, int arraySize);
 
 struct FunctionEntry *Scope_createFunction(struct Scope *scope, char *name);
 

@@ -28,10 +28,11 @@ char *token_names[] = {
 	"r paren",
 	"l curly",
 	"r curly",
+	"l bracket",
+	"r bracket",
 	"call",
 	"scope",
-	"EOF"
-};
+	"EOF"};
 
 void ParserError(char *production, char *info)
 {
@@ -158,7 +159,7 @@ char lookahead()
 	return r;
 }
 
-#define RESERVED_COUNT 24
+#define RESERVED_COUNT 26
 
 char *reserved[RESERVED_COUNT] = {
 	"asm",
@@ -173,6 +174,8 @@ char *reserved[RESERVED_COUNT] = {
 	")",
 	"{",
 	"}",
+	"[",
+	"]",
 	";",
 	"=",
 	"+",
@@ -199,6 +202,8 @@ enum token reserved_t[RESERVED_COUNT] = {
 	t_rParen,
 	t_lCurly,
 	t_rCurly,
+	t_lBracket,
+	t_rBracket,
 	t_semicolon,
 	t_assign,
 	t_un_add,
@@ -275,6 +280,8 @@ enum token scan(char trackPos)
 		case ')':
 		case '{':
 		case '}':
+		case '[':
+		case ']':
 		case ';':
 		case '\n':
 		case '\t':
@@ -383,7 +390,7 @@ struct ASTNode *parseTLD(struct Dictionary *dict)
 	case t_var:
 	{
 		TLD = match(t_var, dict);
-		struct ASTNode *name = match(t_name, dict);
+		struct ASTNode *name = parseDeclaration(dict);
 		if (lookahead() == '=')
 		{
 			struct ASTNode *assignment = match(t_assign, dict);
@@ -392,7 +399,9 @@ struct ASTNode *parseTLD(struct Dictionary *dict)
 			ASTNode_insertChild(TLD, assignment);
 		}
 		else
+		{
 			ASTNode_insertChild(TLD, name);
+		}
 
 		consume(t_semicolon);
 	}
@@ -436,6 +445,88 @@ struct ASTNode *parseScope(struct Dictionary *dict)
 	return scope;
 }
 
+struct ASTNode *parseName(struct Dictionary *dict)
+{
+	struct ASTNode *name = match(t_name, dict);
+	if (lookahead() == '[')
+	{
+		struct ASTNode *bracketOp = ASTNode_new(t_un_add, "+");
+		ASTNode_insertChild(bracketOp, name);
+		consume(t_lBracket);
+		switch (lookaheadToken())
+		{
+		case t_name:
+		case t_literal:
+			ASTNode_insertChild(bracketOp, parseExpression(dict));
+			break;
+
+		default:
+			ParserError("statement", "Expected name or literal in square brackets after identifier");
+		}
+
+
+		consume(t_rBracket);
+
+		name = ASTNode_new(t_dereference, "*");
+		ASTNode_insertChild(name, bracketOp);
+		// name = newName;
+	}
+	return name;
+}
+
+struct ASTNode *parseDeclaration(struct Dictionary *dict)
+{
+	struct ASTNode *declared = NULL;
+	struct ASTNode *declaredRunner = NULL;
+	enum token upcomingToken = lookaheadToken();
+	while (upcomingToken == t_dereference)
+	{
+		if (declaredRunner == NULL)
+		{
+			declared = match(t_dereference, dict);
+			declaredRunner = declared;
+		}
+		else
+		{
+			ASTNode_insertChild(declaredRunner, match(t_dereference, dict));
+			declaredRunner = declaredRunner->child;
+		}
+		upcomingToken = lookaheadToken();
+	}
+
+	struct ASTNode *identifier = match(t_name, dict);
+
+	if (lookahead() == '[')
+	{
+		consume(t_lBracket);
+		struct ASTNode *arrayDecl = ASTNode_new(t_array, "[]");
+		ASTNode_insertChild(arrayDecl, identifier);
+		ASTNode_insertChild(arrayDecl, match(t_literal, dict));
+		if(declaredRunner != NULL)
+		{
+			ASTNode_insertChild(declaredRunner, arrayDecl);
+
+		}
+		else
+		{
+			declared = arrayDecl;
+		}
+		consume(t_rBracket);
+	}
+	else
+	{
+		if(declaredRunner != NULL)
+		{
+			ASTNode_insertChild(declaredRunner, identifier);
+		}
+		else
+		{
+			declared = identifier;
+		}
+	}
+	return declared;
+}
+
 struct ASTNode *parseStatement(struct Dictionary *dict)
 {
 	struct ASTNode *statement = NULL;
@@ -453,18 +544,15 @@ struct ASTNode *parseStatement(struct Dictionary *dict)
 	{
 		struct ASTNode *type = match(upcomingToken, dict);
 		statement = type;
-		upcomingToken = lookaheadToken();
-		while (upcomingToken == t_dereference)
+
+		struct ASTNode *name = parseDeclaration(dict);
+
+		if (lookahead() == '[')
 		{
-			ASTNode_insertChild(type, match(upcomingToken, dict));
-			type = type->child;
-			upcomingToken = lookaheadToken();
 		}
-		struct ASTNode *name = match(t_name, dict);
 
 		ASTNode_insertChild(type, name);
 
-		// check whether or not whether this is an assignment or just a declaration
 		if (lookaheadToken() == t_assign)
 		{
 			struct ASTNode *assignedName = malloc(sizeof(struct ASTNode));
@@ -481,7 +569,8 @@ struct ASTNode *parseStatement(struct Dictionary *dict)
 	// [variable name] = [expression];
 	case t_name:
 	{
-		struct ASTNode *name = match(t_name, dict);
+		struct ASTNode *name = parseName(dict);
+
 		switch (lookahead())
 		{
 		case '=':
@@ -511,7 +600,7 @@ struct ASTNode *parseStatement(struct Dictionary *dict)
 			break;
 
 		default:
-			ASTNode_insertChild(deref, match(t_name, dict));
+			ASTNode_insertChild(deref, parseName(dict));
 			break;
 		}
 		statement = parseAssignment(deref, dict);
@@ -552,7 +641,7 @@ struct ASTNode *parseExpression(struct Dictionary *dict)
 	struct ASTNode *lSide = NULL;
 	if (isalpha(lookahead()))
 	{
-		struct ASTNode *name = match(t_name, dict);
+		struct ASTNode *name = parseName(dict);
 		if (lookahead() == '(')
 		{
 			lSide = parseFunctionCall(name, dict);
@@ -588,7 +677,7 @@ struct ASTNode *parseExpression(struct Dictionary *dict)
 			break;
 
 		default:
-			ASTNode_insertChild(lSide, match(t_name, dict));
+			ASTNode_insertChild(lSide, parseName(dict));
 		}
 	}
 	else
@@ -630,6 +719,7 @@ struct ASTNode *parseExpression(struct Dictionary *dict)
 	case ';':
 	case ',':
 	case ')':
+	case ']':
 		expression = lSide;
 		break;
 

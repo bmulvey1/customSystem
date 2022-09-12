@@ -7,7 +7,7 @@ char *symbolNames[] = {
 	"function"};
 
 // create a variable denoted to be an argument within the given function entry
-void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum variableTypes type, int indirectionLevel)
+void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum variableTypes type, int indirectionLevel, int arraySize)
 {
 	struct VariableEntry *newArgument = malloc(sizeof(struct VariableEntry));
 	newArgument->type = type;
@@ -15,10 +15,19 @@ void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum v
 	newArgument->assignedAt = -1;
 	newArgument->declaredAt = -1;
 	newArgument->isAssigned = 0;
+	newArgument->arraySize = arraySize;
+	if(arraySize > 1)
+	{
+		newArgument->mustSpill = 1;
+	}
+	else
+	{
+		newArgument->mustSpill = 0;
+	}
 
 	Scope_insert(func->mainScope, name, newArgument, e_argument);
 	int argSize = Scope_getSizeOfVariable(func->mainScope, name);
-	func->argStackSize += argSize;
+	func->argStackSize += (argSize * arraySize);
 	newArgument->stackOffset = func->argStackSize + argSize;
 
 	// return newArgument;
@@ -122,20 +131,27 @@ void Scope_insert(struct Scope *scope, char *name, void *newEntry, enum ScopeMem
 }
 
 // create a variable within the given scope
-void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes type, int indirectionLevel)
+void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes type, int indirectionLevel, int arraySize)
 {
 	struct VariableEntry *newVariable = malloc(sizeof(struct VariableEntry));
 	newVariable->type = type;
 	newVariable->indirectionLevel = indirectionLevel;
-
-	// we'll see how well this works with structs but should hold together for now...
 	newVariable->stackOffset = 0;
 	newVariable->assignedAt = -1;
 	newVariable->declaredAt = -1;
 	newVariable->isAssigned = 0;
+	newVariable->arraySize = arraySize;
+	if(arraySize > 1)
+	{
+		newVariable->mustSpill = 1;
+	}
+	else
+	{
+		newVariable->mustSpill = 0;
+	}
 	Scope_insert(scope, name, newVariable, e_variable);
 	newVariable->stackOffset = scope->parentFunction->localStackSize;
-	scope->parentFunction->localStackSize += Scope_getSizeOfVariable(scope, name);
+	scope->parentFunction->localStackSize += (Scope_getSizeOfVariable(scope, name) * arraySize);
 	// return newVariable;
 }
 
@@ -332,14 +348,24 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 		case e_argument:
 		{
 			struct VariableEntry *theArgument = thisMember->entry;
-			printf("> Argument %s (stack offset %d)\n", thisMember->name, theArgument->stackOffset);
+			printf("> Argument %s", thisMember->name);
+			if (theArgument->arraySize > 1)
+			{
+				printf("[%d]", theArgument->arraySize);
+			}
+			printf(" (stack offset %d)\n", theArgument->stackOffset);
 		}
 		break;
 
 		case e_variable:
 		{
 			struct VariableEntry *theVariable = thisMember->entry;
-			printf("> Variable %s (stack offset %d)\n", thisMember->name, theVariable->stackOffset);
+			printf("> Variable %s", thisMember->name);
+			if (theVariable->arraySize > 1)
+			{
+				printf("[%d]", theVariable->arraySize);
+			}
+			printf(" (stack offset %d)\n", theVariable->stackOffset);
 		}
 		break;
 
@@ -408,6 +434,7 @@ void walkStatement(struct ASTNode *it, struct Scope *wip)
 
 	case t_var:
 		char *varName;
+		int arraySize;
 		int indirectionLevel = 0;
 		runner = it;
 		char scraping = 1;
@@ -427,14 +454,29 @@ void walkStatement(struct ASTNode *it, struct Scope *wip)
 		}
 
 		if (runner->type == t_assign)
+		{
 			varName = runner->child->value;
+		}
 		else
-			varName = runner->value;
+		{
+			if (runner->type == t_array)
+			{
+				varName = runner->child->value;
+				arraySize = atoi(runner->child->sibling->value);
+			}
+			else
+			{
+				varName = runner->value;
+				arraySize = 1;
+			}
+		}
 
 		// lookup the variable being assigned, only insert if unique
 		// also covers modification of argument values
 		if (!Scope_contains(wip, varName))
-			Scope_createVariable(wip, varName, vt_var, indirectionLevel);
+		{
+			Scope_createVariable(wip, varName, vt_var, indirectionLevel, arraySize);
+		}
 		else
 		{
 			ErrorAndExit(ERROR_CODE, "Error - redeclaration of symbol [%s]\n", varName);
@@ -572,6 +614,7 @@ void walkFunction(struct ASTNode *it, struct Scope *parentScope)
 			struct ASTNode *argumentRunner = functionRunner->child;
 			while (argumentRunner != NULL)
 			{
+
 				enum variableTypes theType;
 				switch (argumentRunner->type)
 				{
@@ -585,28 +628,56 @@ void walkFunction(struct ASTNode *it, struct Scope *parentScope)
 					break;
 				}
 
+				char *argName;
+				int arraySize;
 				int indirectionLevel = 0;
-				struct ASTNode *runner = argumentRunner->child;
-				while (runner->child != NULL)
+				struct ASTNode *runner = argumentRunner;
+				char scraping = 1;
+				while (scraping)
 				{
+					runner = runner->child;
 					switch (runner->type)
 					{
 					case t_dereference:
 						indirectionLevel++;
 						break;
 
-					case t_reference:
-						indirectionLevel--;
-						break;
-
 					default:
-						ErrorAndExit(ERROR_INTERNAL, "Unexpected token as child of argument definition!");
+						scraping = 0;
+						break;
 					}
-					runner = runner->child;
 				}
 
-				FunctionEntry_createArgument(func, runner->value, theType, indirectionLevel);
+				if (runner->type == t_assign)
+				{
+					argName = runner->child->value;
+				}
+				else
+				{
+					if (runner->type == t_array)
+					{
+						argName = runner->child->value;
+						arraySize = atoi(runner->child->sibling->value);
+					}
+					else
+					{
+						argName = runner->value;
+						arraySize = 1;
+					}
+				}
 
+				// lookup the variable being assigned, only insert if unique
+				// also covers modification of argument values
+				if (!Scope_contains(func->mainScope, argName))
+				{
+					FunctionEntry_createArgument(func, argName, theType, indirectionLevel, arraySize);
+				}
+				else
+				{
+					ErrorAndExit(ERROR_CODE, "Error - redeclaration of symbol [%s]\n", argName);
+				}
+
+				
 				argumentRunner = argumentRunner->sibling;
 			}
 		}

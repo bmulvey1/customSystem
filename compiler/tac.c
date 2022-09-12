@@ -221,6 +221,10 @@ void printTACLine(struct TACLine *it)
 
 	case tt_declare:
 		width += printf("declare %s", it->operands[0]);
+		if(it->operands[1] != NULL)
+		{
+			width += printf("[%s]", it->operands[1]);
+		}
 		break;
 
 	case tt_push:
@@ -335,7 +339,7 @@ char *sPrintTACLine(struct TACLine *it)
 
 	case tt_memw_2:
 		// operands: base offset source
-		width += sprintf(tacString, "%s + %d = %s", it->operands[0], (int)(long int)it->operands[1], it->operands[2]);
+		width += sprintf(tacString, "(%s + %d) = %s", it->operands[0], (int)(long int)it->operands[1], it->operands[2]);
 		break;
 
 	case tt_memw_3:

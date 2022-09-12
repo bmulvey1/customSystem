@@ -42,7 +42,7 @@ int linearizeDereference(struct Scope *scope,
 		thisDereference->operandTypes[1] = vt_var;
 		thisDereference->indirectionLevels[1] = Scope_lookupVar(scope, it->value)->indirectionLevel;
 	}
-		break;
+	break;
 
 		// recursively dereference nested dereferences
 	case t_dereference:
@@ -55,7 +55,7 @@ int linearizeDereference(struct Scope *scope,
 		thisDereference->operandTypes[1] = recursiveDereference->operandTypes[0];
 		thisDereference->indirectionLevels[1] = recursiveDereference->indirectionLevels[0];
 	}
-		break;
+	break;
 
 		// handle pointer arithmetic to evalute the correct adddress to dereference
 	case t_un_add:
@@ -196,7 +196,7 @@ int linearizeDereference(struct Scope *scope,
 			ErrorAndExit(ERROR_INTERNAL, "Malformed parse tree in RHS of dereference arithmetic!\n");
 		}
 	}
-		break;
+	break;
 
 	default:
 		ErrorAndExit(ERROR_INTERNAL, "Malformed parse tree when linearizing dereference!\n");
@@ -969,9 +969,20 @@ int linearizeDeclaration(struct Scope *scope,
 		it = it->child;
 	}
 
+	// if we are declaring an array, set the string with the size as the second operand
+	if (it->child->type == t_array)
+	{
+		it = it->child;
+		declarationLine->operands[1] = it->child->sibling->value;
+		declarationLine->operandPermutations[1] = vp_literal;
+		declarationLine->operandTypes[1] = vt_var;
+	}
+
 	declarationLine->operands[0] = it->child->value;
 	declarationLine->operandTypes[0] = declaredType;
 	declarationLine->indirectionLevels[0] = dereferenceLevel;
+
+
 	BasicBlock_append(currentBlock, declarationLine);
 	return currentTACIndex;
 }
@@ -1124,6 +1135,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 				break;
 
 			// if just a declaration, do nothing
+			case t_array:
 			case t_name:
 				currentTACIndex = linearizeDeclaration(scope, currentTACIndex, currentBlock, runner);
 				break;
@@ -1372,7 +1384,7 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 				char *mangledName = malloc(strlen(originalName) + strlen(scopeName) + 1);
 				sprintf(mangledName, "%s%s", originalName, scopeName);
 				char *newName = DictionaryLookupOrInsert(dict, mangledName);
-				
+
 				free(mangledName);
 				Scope_insert(scope->parentScope, newName, thisMember->entry, thisMember->type);
 				free(scope->entries->data[i]);
