@@ -15,20 +15,32 @@ void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum v
 	newArgument->assignedAt = -1;
 	newArgument->declaredAt = -1;
 	newArgument->isAssigned = 0;
-	newArgument->arraySize = arraySize;
+	newArgument->mustSpill = 0;
+	newArgument->name = name;
+
+	int argSize = Scope_getSizeOfVariable(func->mainScope, name);
+	newArgument->stackOffset = func->argStackSize + 4;
+	func->argStackSize += argSize;
+
 	if(arraySize > 1)
 	{
-		newArgument->mustSpill = 1;
+		struct StackObjectEntry *objForArg = malloc(sizeof(struct StackObjectEntry));
+		newArgument->localPointerTo = objForArg;
+		objForArg->localPointer = newArgument;
+
+		objForArg->size = argSize;
+		objForArg->arraySize = arraySize;
+		char *modName = malloc(strlen(name) + 5);
+		sprintf(modName, "%s.obj", name);
+		Scope_insert(func->mainScope, DictionaryLookupOrInsert(parseDict, modName), objForArg, e_stackobj);
+		free(modName);
 	}
 	else
 	{
-		newArgument->mustSpill = 0;
+		newArgument->localPointerTo = NULL;
 	}
 
 	Scope_insert(func->mainScope, name, newArgument, e_argument);
-	int argSize = Scope_getSizeOfVariable(func->mainScope, name);
-	func->argStackSize += (argSize * arraySize);
-	newArgument->stackOffset = func->argStackSize + argSize;
 
 	// return newArgument;
 }
@@ -108,6 +120,10 @@ void Scope_free(struct Scope *scope, int depth)
 		case e_basicblock:
 			BasicBlock_free(examinedEntry->entry);
 			break;
+
+		case e_stackobj:
+			free(examinedEntry->entry);
+			break;
 		}
 
 		free(examinedEntry);
@@ -140,18 +156,32 @@ void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes ty
 	newVariable->assignedAt = -1;
 	newVariable->declaredAt = -1;
 	newVariable->isAssigned = 0;
-	newVariable->arraySize = arraySize;
+	newVariable->mustSpill = 0;
+	newVariable->name = name;
+
+	int varSize = Scope_getSizeOfVariable(scope, name);
+
 	if(arraySize > 1)
 	{
-		newVariable->mustSpill = 1;
+		struct StackObjectEntry *objForvar = malloc(sizeof(struct StackObjectEntry));
+		newVariable->localPointerTo = objForvar;
+		objForvar->localPointer = newVariable;
+
+		objForvar->size = varSize;
+		objForvar->arraySize = arraySize;
+		objForvar->stackOffset = scope->parentFunction->localStackSize * -1;
+		scope->parentFunction->localStackSize += varSize * arraySize;
+		char *modName = malloc(strlen(name) + 5);
+		sprintf(modName, "%s.obj", name);
+		Scope_insert(scope, DictionaryLookupOrInsert(parseDict, modName), objForvar, e_stackobj);
+		free(modName);
 	}
 	else
 	{
-		newVariable->mustSpill = 0;
+		newVariable->localPointerTo = NULL;
 	}
 	Scope_insert(scope, name, newVariable, e_variable);
-	newVariable->stackOffset = scope->parentFunction->localStackSize;
-	scope->parentFunction->localStackSize += (Scope_getSizeOfVariable(scope, name) * arraySize);
+	// scope->parentFunction->localStackSize += ( * arraySize);
 	// return newVariable;
 }
 
@@ -349,9 +379,9 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 		{
 			struct VariableEntry *theArgument = thisMember->entry;
 			printf("> Argument %s", thisMember->name);
-			if (theArgument->arraySize > 1)
+			if (theArgument->localPointerTo != NULL)
 			{
-				printf("[%d]", theArgument->arraySize);
+				printf("[%d]", theArgument->localPointerTo->arraySize);
 			}
 			printf(" (stack offset %d)\n", theArgument->stackOffset);
 		}
@@ -361,11 +391,12 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 		{
 			struct VariableEntry *theVariable = thisMember->entry;
 			printf("> Variable %s", thisMember->name);
-			if (theVariable->arraySize > 1)
+			if (theVariable->localPointerTo != NULL)
 			{
-				printf("[%d]", theVariable->arraySize);
+				printf("[%d]", theVariable->localPointerTo->arraySize);
 			}
-			printf(" (stack offset %d)\n", theVariable->stackOffset);
+			printf("\n");
+			// printf(" (stack offset %d)\n", theVariable->stackOffset);
 		}
 		break;
 
@@ -401,6 +432,13 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 			{
 				printBasicBlock(thisBlock, depth + 1);
 			}
+		}
+		break;
+
+		case e_stackobj:
+		{
+			struct StackObjectEntry *thisObj = thisMember->entry;
+			printf("> Stack object (%d bytes * %d) for %s\n", thisObj->size, thisObj->arraySize, thisObj->localPointer->name);
 		}
 		break;
 		}

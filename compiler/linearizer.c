@@ -1347,6 +1347,9 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 		case e_variable:
 		case e_argument:
 			break;
+
+		case e_stackobj:
+			break;
 		}
 	}
 
@@ -1374,6 +1377,7 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 			}
 			break;
 
+		case e_stackobj:
 		case e_variable:
 		case e_argument:
 			if (depth > 0)

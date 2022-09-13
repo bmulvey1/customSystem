@@ -16,6 +16,7 @@ enum ScopeMemberType
 	e_argument,
 	e_scope,
 	e_basicblock,
+	e_stackobj,
 };
 
 
@@ -51,13 +52,25 @@ struct FunctionEntry
 struct VariableEntry
 {
 	int stackOffset;
-	int arraySize;
+	struct StackObjectEntry *localPointerTo;
+	char *name; // duplicate pointer from ScopeMember for ease of use
 	enum variableTypes type;
 	int indirectionLevel;
 	int assignedAt;
 	int declaredAt;
 	char isAssigned;
+	// if this variable has the address-of operator used on it
+	// we need to denote that it *must* live on the stack so it isn't lost
+	// and can have an address
 	char mustSpill;
+};
+
+struct StackObjectEntry
+{
+	int size;
+	int arraySize;
+	int stackOffset;
+	struct VariableEntry *localPointer;
 };
 
 struct SymbolTable

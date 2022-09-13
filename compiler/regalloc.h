@@ -22,6 +22,7 @@ struct Lifetime
 	int stackOrRegLocation;
 	enum variableTypes type;
 	char isSpilled;
+	struct StackObjectEntry *localPointerTo;
 };
 
 struct Lifetime *newLifetime(char *variable, enum variableTypes type, int start);

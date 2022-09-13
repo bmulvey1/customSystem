@@ -6,11 +6,12 @@ struct Lifetime *newLifetime(char *variable, enum variableTypes type, int start)
 	wip->variable = variable;
 	wip->start = start;
 	wip->end = start;
-	wip->stackOrRegLocation = 0;
+	wip->stackOrRegLocation = -1;
 	wip->type = type;
 	wip->nwrites = 0;
 	wip->nreads = 0;
 	wip->isSpilled = 0;
+	wip->localPointerTo = NULL;
 	return wip;
 }
 

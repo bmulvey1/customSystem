@@ -65,6 +65,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	printf(".");
 
 	struct Stack *spilledLifetimes = Stack_new();
+	struct Stack *localPointers = Stack_new();
 
 	// find all overlapping lifetimes, to figure out which variables can live in registers vs being spilled
 	int largestTacIndex = 0;
@@ -89,7 +90,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	for (struct LinkedListNode *runner = allLifetimes->head; runner != NULL; runner = runner->next)
 	{
 		struct Lifetime *thisLifetime = runner->data;
-		// if this lifetime must be spilled (array, struct, or has address-of operator used on it), add directly to the spilled list
+		// if this lifetime must be spilled (has address-of operator used), add directly to the spilled list
 		struct ScopeMember *thisVariableEntry = Scope_lookup(function->mainScope, thisLifetime->variable);
 		if (thisVariableEntry != NULL && ((struct VariableEntry *)thisVariableEntry->entry)->mustSpill)
 		{
@@ -99,6 +100,15 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		// otherwise, put this lifetime into contention for a register
 		else
 		{
+			// if we have a local pointer, make sure we track it in the localpointers stack
+			// but also put it into contention for a register, we will just prefer to spill localpointers first
+			if (thisVariableEntry != NULL && ((struct VariableEntry *)thisVariableEntry->entry)->localPointerTo != NULL)
+			{
+				printf("%s is a local pointer\n", thisVariableEntry->name);
+				thisLifetime->localPointerTo = ((struct VariableEntry *)thisVariableEntry->entry)->localPointerTo;
+				thisLifetime->stackOrRegLocation = -1;
+				Stack_push(localPointers, thisLifetime);
+			}
 			for (int i = thisLifetime->start; i <= thisLifetime->end; i++)
 			{
 				LinkedList_append(lifetimeOverlaps[i], thisLifetime);
@@ -142,6 +152,13 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			{
 				struct Lifetime *thisLifetime = overlapRunner->data;
 				float thisHeuristic = ((thisLifetime->end - thisLifetime->start) + thisLifetime->nreads) * (thisLifetime->nwrites + 1);
+				
+				// infloat localpointer heuristics to preferentially spill them
+				if(thisLifetime->localPointerTo != NULL)
+				{
+					thisHeuristic *= 1000.0;
+				}
+
 				// printf("%s has heuristic of %f\n", thisLifetime->variable, thisHeuristic);
 				if (thisHeuristic > bestHeuristic)
 				{
@@ -175,7 +192,8 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		}
 	}
 
-	int stackOffset = 0;
+	// find the total size of the function's stack frame containing local variables
+	int stackOffset = function->localStackSize;
 	for (int i = 0; i < spilledLifetimes->size; i++)
 	{
 		struct Lifetime *thisLifetime = spilledLifetimes->data[i];
@@ -184,7 +202,6 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		if (thisVariableEntry != NULL)
 		{
 			struct VariableEntry *thisVariable = thisVariableEntry->entry;
-			thisSize *= thisVariable->arraySize;
 			if (thisVariableEntry->type == e_argument)
 			{
 				thisLifetime->stackOrRegLocation = thisVariable->stackOffset;
@@ -216,7 +233,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	for (int i = 0; i < largestTacIndex; i++)
 	{
 		// free any registers inhabited by expired lifetimes
-		for (int j = 2; j < REGISTER_COUNT; j++)
+		for (int j = 0; j < REGISTER_COUNT; j++)
 		{
 			if (occupiedBy[j] != NULL && occupiedBy[j]->end <= i)
 			{
@@ -229,7 +246,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		for (struct LinkedListNode *ltRunner = allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
 		{
 			struct Lifetime *thisLifetime = ltRunner->data;
-			if (thisLifetime->isSpilled == 0 && thisLifetime->stackOrRegLocation == 0)
+			if (thisLifetime->isSpilled == 0 && thisLifetime->stackOrRegLocation == -1)
 			{
 				if (thisLifetime->start == i)
 				{
