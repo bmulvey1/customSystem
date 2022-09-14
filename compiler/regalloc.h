@@ -51,6 +51,8 @@ void recordVariableRead(struct LinkedList *ltList,
 						int newEnd);
 
 // places a variable in a register, with no guarantee that it is modifiable
-int placeOperandInRegister(struct LinkedList *lifetimes, char *variable, struct ASMblock *currentBlock, int registerIndex, char *touchedRegisters);
+int placeOrFindOperandInRegister(struct LinkedList *lifetimes, char *variable, struct ASMblock *currentBlock, int registerIndex, char *touchedRegisters);
 
 struct LinkedList *findLifetimes(struct FunctionEntry *function);
+
+

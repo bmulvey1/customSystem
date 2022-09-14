@@ -74,24 +74,58 @@ void recordVariableRead(struct LinkedList *ltList,
 
 // places an operand by name into the specified register, or returns the register containing if it's already in a register
 // does *NOT* guarantee that returned register indices are modifiable in the case where the variable is found in a register
-int placeOperandInRegister(struct LinkedList *lifetimes, char *variable, struct ASMblock *currentBlock, int registerIndex, char *touchedRegisters)
+int placeOrFindOperandInRegister(struct LinkedList *lifetimes, char *variable, struct ASMblock *currentBlock, int registerIndex, char *touchedRegisters)
 {
 	struct Lifetime *relevantLifetime = LinkedList_find(lifetimes, compareLifetimes, variable);
 	if (relevantLifetime == NULL)
 	{
 		ErrorAndExit(ERROR_INTERNAL, "Unable to find lifetime for variable %s!\n", variable);
 	}
-	if (relevantLifetime->isSpilled)
+
+	// if not a local pointer, the value for this variable *must* exist either in a register or spilled on the stack
+	if (relevantLifetime->localPointerTo == NULL)
 	{
-		char *copyLine = malloc(32);
-		sprintf(copyLine, "mov %%r%d, %d(%%bp)", registerIndex, relevantLifetime->stackOrRegLocation);
-		ASMblock_append(currentBlock, copyLine);
-		touchedRegisters[registerIndex] = 1;
-		return registerIndex;
+		if (relevantLifetime->isSpilled)
+		{
+			char *copyLine = malloc(32);
+			sprintf(copyLine, "mov %%r%d, %d(%%bp)", registerIndex, relevantLifetime->stackOrRegLocation);
+			ASMblock_append(currentBlock, copyLine);
+			touchedRegisters[registerIndex] = 1;
+			return registerIndex;
+		}
+		else
+		{
+			return relevantLifetime->stackOrRegLocation;
+		}
 	}
 	else
 	{
-		return relevantLifetime->stackOrRegLocation;
+		// if this local pointer doesn't live in a register, we will need to construct it on demant
+		if (relevantLifetime->stackOrRegLocation == -1)
+		{
+			char *constructLocalPointerLine = malloc(64);
+			int basepointerOffset = relevantLifetime->localPointerTo->stackOffset;
+			if (basepointerOffset > 0)
+			{
+				sprintf(constructLocalPointerLine, "add %%r%d, %%bp, $%d", registerIndex, basepointerOffset);
+			}
+			else if (basepointerOffset < 0)
+			{
+				sprintf(constructLocalPointerLine, "sub %%r%d, %%bp, $%d", registerIndex, -1 * basepointerOffset);
+			}
+			else
+			{
+				sprintf(constructLocalPointerLine, "mov %%r%d, %%bp", registerIndex);
+			}
+			ASMblock_append(currentBlock, constructLocalPointerLine);
+			touchedRegisters[registerIndex] = 1;
+			return registerIndex;
+		}
+		// if it does get a register, all we need to do is return it
+		else
+		{
+			return relevantLifetime->stackOrRegLocation;
+		}
 	}
 }
 
@@ -137,7 +171,7 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 					{
 						if (examinedLifetime->variable[0] != '.')
 						{
-								examinedLifetime->end = extendTo + 1;
+							examinedLifetime->end = extendTo + 1;
 						}
 					}
 				}
