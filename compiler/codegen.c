@@ -38,6 +38,11 @@ struct Stack *generateCodeForScope(struct Scope *scope, FILE *outFile)
 	return scopeBlocks;
 }
 
+/*
+ * code generation for funcitons (lifetime management, etc)
+ *
+ */
+
 int calculateRegisterLoading(struct LinkedList *activeLifetimes, int index)
 {
 	int trueLoad = 0;
@@ -56,46 +61,42 @@ int calculateRegisterLoading(struct LinkedList *activeLifetimes, int index)
 	return trueLoad;
 }
 
-struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *outFile)
+struct FunctionRegisterAllocationMetadata
 {
-	printf("Generate code for function %s", function->name);
-	struct LinkedList *allLifetimes = findLifetimes(function);
+	struct FunctionEntry *function;
+	struct LinkedList **lifetimeOverlaps;
+	struct LinkedList *allLifetimes;
+	struct Stack *spilledLifetimes;
+	struct Stack *localPointerLifetimes;
+	int largestTacIndex;
+	int reservedRegisters[2];
+};
 
-	// found lifetimes
-	printf(".");
-
-	struct Stack *spilledLifetimes = Stack_new();
-	struct Stack *localPointers = Stack_new();
-
-	// find all overlapping lifetimes, to figure out which variables can live in registers vs being spilled
-	int largestTacIndex = 0;
-	for (struct LinkedListNode *runner = allLifetimes->head; runner != NULL; runner = runner->next)
-	{
-		struct Lifetime *thisLifetime = runner->data;
-		if (thisLifetime->end > largestTacIndex)
-		{
-			largestTacIndex = thisLifetime->end;
-		}
-	}
-
-	// generate an array of lists corresponding to which lifetimes are active at a given TAC step by index in the array
-	struct LinkedList **lifetimeOverlaps = malloc((largestTacIndex + 1) * sizeof(struct LinkedList *));
-	for (int i = 0; i <= largestTacIndex; i++)
-	{
-		lifetimeOverlaps[i] = LinkedList_new();
-	}
-
+// populate a linkedlist array so that the list at index i contains all lifetimes active at TAC index i
+// then determine which variables should be spilled
+int generateLifetimeOverlaps(struct FunctionRegisterAllocationMetadata *metadata)
+{
 	int mostConcurrentLifetimes = 0;
+
 	// populate the array of active lifetimes
-	for (struct LinkedListNode *runner = allLifetimes->head; runner != NULL; runner = runner->next)
+	for (struct LinkedListNode *runner = metadata->allLifetimes->head; runner != NULL; runner = runner->next)
 	{
 		struct Lifetime *thisLifetime = runner->data;
-		// if this lifetime must be spilled (has address-of operator used), add directly to the spilled list
-		struct ScopeMember *thisVariableEntry = Scope_lookup(function->mainScope, thisLifetime->variable);
+
+		// if this lifetime must be spilled (has address-of operator used) (for future use - nothing currently uses(?)), add directly to the spilled list
+		struct ScopeMember *thisVariableEntry = Scope_lookup(metadata->function->mainScope, thisLifetime->variable);
+
+		// if we have an argument, make sure to note that it is active at index 0
+		// this ensures that arguments that aren't used in code are still tracked (applies particularly to asm-only functions)
+		if (thisLifetime->isArgument)
+		{
+			LinkedList_append(metadata->lifetimeOverlaps[0], thisLifetime);
+		}
+
 		if (thisVariableEntry != NULL && ((struct VariableEntry *)thisVariableEntry->entry)->mustSpill)
 		{
 			thisLifetime->isSpilled = 1;
-			Stack_push(spilledLifetimes, thisLifetime);
+			Stack_push(metadata->spilledLifetimes, thisLifetime);
 		}
 		// otherwise, put this lifetime into contention for a register
 		else
@@ -104,57 +105,65 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			// but also put it into contention for a register, we will just prefer to spill localpointers first
 			if (thisVariableEntry != NULL && ((struct VariableEntry *)thisVariableEntry->entry)->localPointerTo != NULL)
 			{
-				printf("%s is a local pointer\n", thisVariableEntry->name);
+				printf("\n%s is a local pointer\n", thisVariableEntry->name);
 				thisLifetime->localPointerTo = ((struct VariableEntry *)thisVariableEntry->entry)->localPointerTo;
 				thisLifetime->stackOrRegLocation = -1;
-				Stack_push(localPointers, thisLifetime);
+				Stack_push(metadata->localPointerLifetimes, thisLifetime);
 			}
 			for (int i = thisLifetime->start; i <= thisLifetime->end; i++)
 			{
-				LinkedList_append(lifetimeOverlaps[i], thisLifetime);
-				if (lifetimeOverlaps[i]->size > mostConcurrentLifetimes)
+				LinkedList_append(metadata->lifetimeOverlaps[i], thisLifetime);
+				if (metadata->lifetimeOverlaps[i]->size > mostConcurrentLifetimes)
 				{
-					mostConcurrentLifetimes = lifetimeOverlaps[i]->size;
+					mostConcurrentLifetimes = metadata->lifetimeOverlaps[i]->size;
 				}
 			}
 		}
 	}
+	printf("Function %s has at most %d concurrent lifetimes (largest TAC index %d)\n", metadata->function->name, mostConcurrentLifetimes, metadata->largestTacIndex);
 
-	// placed lifetimes into array, ready to allocate registers
-	printf(".");
+	for (int i = 0; i < metadata->largestTacIndex; i++)
+	{
+		printf("TAC Index %d: ", i);
+		for (struct LinkedListNode *n = metadata->lifetimeOverlaps[i]->head; n != NULL; n = n->next)
+		{
+			struct Lifetime *lt = n->data;
+			printf("%s, ", lt->variable);
+		}
+		printf("\n");
+	}
 
 	int MAXREG = REGISTER_COUNT;
-	int reservedRegisters[2];
 	// if we have just enough room, simply use all registers
 	// if we need to spill, ensure 2 scratch registers
 	if (mostConcurrentLifetimes >= REGISTER_COUNT)
 	{
 		MAXREG -= 2;
-		reservedRegisters[0] = 0;
-		reservedRegisters[1] = 1;
+		metadata->reservedRegisters[0] = 0;
+		metadata->reservedRegisters[1] = 1;
 	}
 	else
 	{
-		reservedRegisters[0] = mostConcurrentLifetimes;
-		reservedRegisters[1] = mostConcurrentLifetimes + 1;
+		metadata->reservedRegisters[0] = mostConcurrentLifetimes;
+		metadata->reservedRegisters[1] = mostConcurrentLifetimes + 1;
 	}
 
 	// look through the populated array of active lifetimes
 	// if a given index has too many active lifetimes, figure out which lifetime(s) to spill
 	// then allocate registers for any lifetimes without a home
-	for (int i = 0; i <= largestTacIndex; i++)
+	for (int i = 0; i <= metadata->largestTacIndex; i++)
 	{
-		while (calculateRegisterLoading(lifetimeOverlaps[i], i) > MAXREG)
+		while (calculateRegisterLoading(metadata->lifetimeOverlaps[i], i) > MAXREG)
 		{
 			float bestHeuristic = -1.0;
 			struct Lifetime *bestLifetime = NULL;
-			for (struct LinkedListNode *overlapRunner = lifetimeOverlaps[i]->head; overlapRunner != NULL; overlapRunner = overlapRunner->next)
+			for (struct LinkedListNode *overlapRunner = metadata->lifetimeOverlaps[i]->head; overlapRunner != NULL; overlapRunner = overlapRunner->next)
 			{
 				struct Lifetime *thisLifetime = overlapRunner->data;
 				float thisHeuristic = ((thisLifetime->end - thisLifetime->start) + thisLifetime->nreads) * (thisLifetime->nwrites + 1);
-				
-				// infloat localpointer heuristics to preferentially spill them
-				if(thisLifetime->localPointerTo != NULL)
+
+				// inflate localpointer heuristics to preferentially spill them
+				if (thisLifetime->localPointerTo != NULL)
 				{
 					thisHeuristic *= 1000.0;
 				}
@@ -168,35 +177,77 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			}
 			for (int j = bestLifetime->start; j <= bestLifetime->end; j++)
 			{
-				LinkedList_delete(lifetimeOverlaps[j], compareLifetimes, bestLifetime->variable);
+				LinkedList_delete(metadata->lifetimeOverlaps[j], compareLifetimes, bestLifetime->variable);
 			}
 			bestLifetime->isSpilled = 1;
-			Stack_push(spilledLifetimes, bestLifetime);
+			Stack_push(metadata->spilledLifetimes, bestLifetime);
 		}
 	}
 
+	return mostConcurrentLifetimes;
+}
+
+void sortSpilledLifetimes(struct FunctionRegisterAllocationMetadata *metadata)
+{
 	// TODO: handle arrays properly
 	// sort the list of spilled lifetimes by size of the variable so they can be laid out cleanly on the stack
-	for (int i = 0; i < spilledLifetimes->size; i++)
+	for (int i = 0; i < metadata->spilledLifetimes->size; i++)
 	{
-		for (int j = 0; j < spilledLifetimes->size - i - 1; j++)
+		for (int j = 0; j < metadata->spilledLifetimes->size - i - 1; j++)
 		{
-			int thisSize = Scope_getSizeOfVariable(function->mainScope, ((struct Lifetime *)spilledLifetimes->data[j])->variable);
-			int compSize = Scope_getSizeOfVariable(function->mainScope, ((struct Lifetime *)spilledLifetimes->data[j + 1])->variable);
+			int thisSize = Scope_getSizeOfVariable(metadata->function->mainScope, ((struct Lifetime *)metadata->spilledLifetimes->data[j])->variable);
+			int compSize = Scope_getSizeOfVariable(metadata->function->mainScope, ((struct Lifetime *)metadata->spilledLifetimes->data[j + 1])->variable);
 			if (thisSize < compSize)
 			{
-				struct Lifetime *swap = spilledLifetimes->data[j];
-				spilledLifetimes->data[j] = spilledLifetimes->data[j + 1];
-				spilledLifetimes->data[j + 1] = swap;
+				struct Lifetime *swap = metadata->spilledLifetimes->data[j];
+				metadata->spilledLifetimes->data[j] = metadata->spilledLifetimes->data[j + 1];
+				metadata->spilledLifetimes->data[j + 1] = swap;
 			}
 		}
 	}
+}
 
-	// find the total size of the function's stack frame containing local variables
-	int stackOffset = function->localStackSize;
-	for (int i = 0; i < spilledLifetimes->size; i++)
+struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *outFile)
+{
+	printf("Generate code for function %s", function->name);
+
+	struct FunctionRegisterAllocationMetadata metadata;
+	metadata.function = function;
+	metadata.allLifetimes = findLifetimes(function);
+
+	// find all overlapping lifetimes, to figure out which variables can live in registers vs being spilled
+	metadata.largestTacIndex = 0;
+	for (struct LinkedListNode *runner = metadata.allLifetimes->head; runner != NULL; runner = runner->next)
 	{
-		struct Lifetime *thisLifetime = spilledLifetimes->data[i];
+		struct Lifetime *thisLifetime = runner->data;
+		if (thisLifetime->end > metadata.largestTacIndex)
+		{
+			metadata.largestTacIndex = thisLifetime->end;
+		}
+	}
+
+	// generate an array of lists corresponding to which lifetimes are active at a given TAC step by index in the array
+	metadata.lifetimeOverlaps = malloc((metadata.largestTacIndex) * sizeof(struct LinkedList *));
+	for (int i = 0; i <= metadata.largestTacIndex; i++)
+	{
+		metadata.lifetimeOverlaps[i] = LinkedList_new();
+	}
+
+	metadata.spilledLifetimes = Stack_new();
+	metadata.localPointerLifetimes = Stack_new();
+
+	metadata.reservedRegisters[0] = -1;
+	metadata.reservedRegisters[1] = -1;
+
+	generateLifetimeOverlaps(&metadata);
+
+	sortSpilledLifetimes(&metadata);
+
+	// find the total size of the function's stack frame containing local variables *and* spilled variables
+	int stackOffset = function->localStackSize; // start with just the things guaranteed to be on the local stack
+	for (int i = 0; i < metadata.spilledLifetimes->size; i++)
+	{
+		struct Lifetime *thisLifetime = metadata.spilledLifetimes->data[i];
 		int thisSize = Scope_getSizeOfVariable(function->mainScope, thisLifetime->variable);
 		struct ScopeMember *thisVariableEntry = Scope_lookup(function->mainScope, thisLifetime->variable);
 		if (thisVariableEntry != NULL)
@@ -208,11 +259,19 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			}
 			else
 			{
+				// constant offset of -2 for return address
 				thisLifetime->stackOrRegLocation = (-1 * stackOffset) - 2;
 				stackOffset += thisSize;
 			}
 		}
 	}
+
+	/*
+
+
+
+
+
 	// flag registers in use at any given TAC index so we can easily assign
 	char registers[REGISTER_COUNT];
 	struct Lifetime *occupiedBy[REGISTER_COUNT];
@@ -232,6 +291,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 
 	for (int i = 0; i < largestTacIndex; i++)
 	{
+		printf("TAC Index %d\n", i);
 		// free any registers inhabited by expired lifetimes
 		for (int j = 0; j < REGISTER_COUNT; j++)
 		{
@@ -255,6 +315,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 					{
 						if (registers[j] == 0)
 						{
+							printf("Assign register %d for variable %s\n", j, thisLifetime->variable);
 							thisLifetime->stackOrRegLocation = j;
 							registers[j] = 1;
 							occupiedBy[j] = thisLifetime;
@@ -385,6 +446,8 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 
 	printf("\n");
 	return functionBlock;
+	*/
+	return NULL;
 }
 
 void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *allLifetimes, struct ASMblock *asmBlock, char *functionName, int reservedRegisters[2], char *touchedRegisters)
@@ -514,7 +577,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				}
 				else
 				{
-					placeOperandInRegister(allLifetimes, operand1Lifetime->variable, asmBlock, reservedRegisters[0], touchedRegisters);
+					placeOrFindOperandInRegister(allLifetimes, operand1Lifetime->variable, asmBlock, reservedRegisters[0], touchedRegisters);
 					sprintf(op1, "%%r%d", reservedRegisters[0]);
 				}
 				break;
@@ -539,7 +602,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				}
 				else
 				{
-					placeOperandInRegister(allLifetimes, operand2Lifetime->variable, asmBlock, reservedRegisters[1], touchedRegisters);
+					placeOrFindOperandInRegister(allLifetimes, operand2Lifetime->variable, asmBlock, reservedRegisters[1], touchedRegisters);
 					sprintf(op2, "%%r%d", reservedRegisters[1]);
 				}
 				break;
@@ -583,8 +646,8 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		case tt_memw_2:
 		{
 			thisLine = malloc(64);
-			int baseReg = placeOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
-			int sourceReg = placeOperandInRegister(allLifetimes, thisTAC->operands[2], asmBlock, reservedRegisters[1], touchedRegisters);
+			int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
+			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[2], asmBlock, reservedRegisters[1], touchedRegisters);
 			sprintf(thisLine, "mov %d(%%r%d), %%r%d", (int)(long int)thisTAC->operands[1], baseReg, sourceReg);
 			ASMblock_append(asmBlock, thisLine);
 		}
@@ -594,9 +657,9 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		case tt_memw_3:
 		{
 			thisLine = malloc(64);
-			int baseReg = placeOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
-			int offsetReg = placeOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
-			int sourceReg = placeOperandInRegister(allLifetimes, thisTAC->operands[3], asmBlock, 16, touchedRegisters);
+			int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
+			int offsetReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
+			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[3], asmBlock, 16, touchedRegisters);
 			sprintf(thisLine, "mov %%r%d(%%r%d, $%d), %%r%d", offsetReg, baseReg, (int)(long int)thisTAC->operands[2], sourceReg);
 			ASMblock_append(asmBlock, thisLine);
 		}
@@ -613,9 +676,9 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		case tt_memr_3:
 		{
 			thisLine = malloc(64);
-			int destReg = placeOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
-			int baseReg = placeOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
-			int offsetReg = placeOperandInRegister(allLifetimes, thisTAC->operands[2], asmBlock, 16, touchedRegisters);
+			int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
+			int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
+			int offsetReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[2], asmBlock, 16, touchedRegisters);
 			sprintf(thisLine, "mov %%r%d, %%r%d(%%r%d, $%d)", destReg, offsetReg, baseReg, (int)(long int)thisTAC->operands[3]);
 			ASMblock_append(asmBlock, thisLine);
 		}
@@ -646,7 +709,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				}
 				else
 				{
-					placeOperandInRegister(allLifetimes, operand1Lifetime->variable, asmBlock, reservedRegisters[0], touchedRegisters);
+					placeOrFindOperandInRegister(allLifetimes, operand1Lifetime->variable, asmBlock, reservedRegisters[0], touchedRegisters);
 					sprintf(op1, "%%r%d", reservedRegisters[0]);
 				}
 				break;
@@ -667,7 +730,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				}
 				else
 				{
-					placeOperandInRegister(allLifetimes, operand2Lifetime->variable, asmBlock, reservedRegisters[1], touchedRegisters);
+					placeOrFindOperandInRegister(allLifetimes, operand2Lifetime->variable, asmBlock, reservedRegisters[1], touchedRegisters);
 					sprintf(op2, "%%r%d", reservedRegisters[1]);
 				}
 				break;
@@ -711,7 +774,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			case vp_standard:
 			case vp_temp:
 			{
-				int registerIndex = placeOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
+				int registerIndex = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
 				sprintf(thisLine, "push %%r%d", registerIndex);
 			}
 			break;
@@ -767,7 +830,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			case vp_standard:
 			case vp_temp:
 			{
-				int destReg = placeOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
+				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
 				sprintf(thisLine, "mov %%rr, %%r%d", destReg);
 				ASMblock_append(asmBlock, thisLine);
 				// ASMblock_append(outputBlock, trimmedStr);

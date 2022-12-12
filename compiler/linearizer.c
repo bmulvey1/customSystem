@@ -1416,7 +1416,11 @@ void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dict
 	// scrape along the top level of the AST
 	struct ASTNode *runner = it;
 	int tempNum = 0;
-	int currentTACIndex = 0;
+	// start currentTAC index for both program and functions at 1
+	// this allows anything involved in setup to occur at index 0
+	// the primary example of this is stating that function arguments exist at index 0, even if they aren't used in the rest of the function
+	// (particularly applicable for functions that use only asm)
+	int currentTACIndex = 1;
 	while (runner != NULL)
 	{
 		switch (runner->type)
@@ -1434,7 +1438,7 @@ void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dict
 			Scope_addBasicBlock(theFunction->mainScope, functionBlock);
 			Function_addBasicBlock(theFunction, functionBlock);
 			struct Stack *scopeStack = Stack_new();
-			struct LinearizationResult *r = linearizeScope(theFunction->mainScope, 0, functionBlock, NULL, runner->child->sibling, &funTempNum, &labelCount, scopeStack);
+			struct LinearizationResult *r = linearizeScope(theFunction->mainScope, 1, functionBlock, NULL, runner->child->sibling, &funTempNum, &labelCount, scopeStack);
 			free(r);
 			Stack_free(scopeStack);
 			break;

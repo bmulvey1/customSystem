@@ -21,7 +21,7 @@ struct Lifetime
 	char *variable;
 	int stackOrRegLocation;
 	enum variableTypes type;
-	char isSpilled;
+	char isSpilled, isArgument;
 	struct StackObjectEntry *localPointerTo;
 };
 

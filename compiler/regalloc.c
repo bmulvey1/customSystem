@@ -11,6 +11,7 @@ struct Lifetime *newLifetime(char *variable, enum variableTypes type, int start)
 	wip->nwrites = 0;
 	wip->nreads = 0;
 	wip->isSpilled = 0;
+	wip->isArgument = 0;
 	wip->localPointerTo = NULL;
 	return wip;
 }
@@ -139,7 +140,8 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 		{
 			// struct variableEntry *theArgument = table->entries[i]->entry;
 
-			updateOrInsertLifetime(lifetimes, thisMember->name, ((struct VariableEntry *)thisMember->entry)->type, 0);
+			struct Lifetime *argLifetime = updateOrInsertLifetime(lifetimes, thisMember->name, ((struct VariableEntry *)thisMember->entry)->type, 1);
+			argLifetime->isArgument = 1;
 		}
 	}
 
