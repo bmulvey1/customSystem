@@ -63,13 +63,26 @@ int calculateRegisterLoading(struct LinkedList *activeLifetimes, int index)
 
 struct FunctionRegisterAllocationMetadata
 {
-	struct FunctionEntry *function;
+	struct FunctionEntry *function; // symbol table entry for the function the register allocation data is for
+
+	struct LinkedList *allLifetimes; // every lifetime that exists within this function
+
+	// array allocated (of size largestTacIndex) for liveness analysis
+	// index i contains a linkedList of all lifetimes active at TAC index i
 	struct LinkedList **lifetimeOverlaps;
-	struct LinkedList *allLifetimes;
+
+	// tracking for specialized lifetimes which may be removed from lifetimeOverlaps and need to be explicitly tracked
 	struct Stack *spilledLifetimes;
 	struct Stack *localPointerLifetimes;
+
+	// largest TAC index for any basic block within the function
 	int largestTacIndex;
+
+	// flag 2 registers which should be used as scratch in case we have spilled variables (not always used)
 	int reservedRegisters[2];
+
+	// flag registers which have *ever* been used so we know what to callee-save
+	char touchedRegisters[REGISTER_COUNT];
 };
 
 // populate a linkedlist array so that the list at index i contains all lifetimes active at TAC index i
@@ -121,7 +134,11 @@ int generateLifetimeOverlaps(struct FunctionRegisterAllocationMetadata *metadata
 		}
 	}
 	printf("Function %s has at most %d concurrent lifetimes (largest TAC index %d)\n", metadata->function->name, mostConcurrentLifetimes, metadata->largestTacIndex);
+	return mostConcurrentLifetimes;
+}
 
+void spillVariables(struct FunctionRegisterAllocationMetadata *metadata, int mostConcurrentLifetimes)
+{
 	for (int i = 0; i < metadata->largestTacIndex; i++)
 	{
 		printf("TAC Index %d: ", i);
@@ -155,17 +172,31 @@ int generateLifetimeOverlaps(struct FunctionRegisterAllocationMetadata *metadata
 	{
 		while (calculateRegisterLoading(metadata->lifetimeOverlaps[i], i) > MAXREG)
 		{
-			float bestHeuristic = -1.0;
+			int bestHeuristic = -1;
 			struct Lifetime *bestLifetime = NULL;
 			for (struct LinkedListNode *overlapRunner = metadata->lifetimeOverlaps[i]->head; overlapRunner != NULL; overlapRunner = overlapRunner->next)
 			{
 				struct Lifetime *thisLifetime = overlapRunner->data;
-				float thisHeuristic = ((thisLifetime->end - thisLifetime->start) + thisLifetime->nreads) * (thisLifetime->nwrites + 1);
 
-				// inflate localpointer heuristics to preferentially spill them
-				if (thisLifetime->localPointerTo != NULL)
+				// base heuristic is lifetime length (is this worth it?)
+				int thisHeuristic = (thisLifetime->end - thisLifetime->start);
+				// add the number of reads for this variable since they have some cost
+				thisHeuristic += (thisLifetime->nreads);
+
+				// multiply by number of writes for this variable since that is a high-cost operation
+				thisHeuristic *= (thisLifetime->nwrites);
+
+				// inflate heuristics for cases which have no actual stack space cost to spill:
+				// super-prefer to "spill" arguments as they already have a stack address
+				if (thisLifetime->isArgument)
 				{
-					thisHeuristic *= 1000.0;
+					thisHeuristic *= 1000;
+				}
+				// secondarily prefer to "spill" ointers to local objects
+				// they can be generated on-the-fly from the base pointer with 1 arithmetic instruction
+				else if (thisLifetime->localPointerTo != NULL)
+				{
+					thisHeuristic *= 100;
 				}
 
 				// printf("%s has heuristic of %f\n", thisLifetime->variable, thisHeuristic);
@@ -175,6 +206,9 @@ int generateLifetimeOverlaps(struct FunctionRegisterAllocationMetadata *metadata
 					bestLifetime = thisLifetime;
 				}
 			}
+
+			// this method actually deletes the spilled variable from the liveness array
+			// if it becomes necessary to keep the untouched liveness array around, it will need to be copied within this function
 			for (int j = bestLifetime->start; j <= bestLifetime->end; j++)
 			{
 				LinkedList_delete(metadata->lifetimeOverlaps[j], compareLifetimes, bestLifetime->variable);
@@ -183,20 +217,25 @@ int generateLifetimeOverlaps(struct FunctionRegisterAllocationMetadata *metadata
 			Stack_push(metadata->spilledLifetimes, bestLifetime);
 		}
 	}
-
-	return mostConcurrentLifetimes;
 }
 
+// sort the list of spilled lifetimes by size of the variable so they can be laid out cleanly on the stack
 void sortSpilledLifetimes(struct FunctionRegisterAllocationMetadata *metadata)
 {
-	// TODO: handle arrays properly
-	// sort the list of spilled lifetimes by size of the variable so they can be laid out cleanly on the stack
+	// TODO: handle arrays properly?
+	//  - this shouldn't be a consideration because the only lifetimes that are considered to be spilled are localpointers?
+	//  - but localpointers will still be in the spilled list if they aren't being kept in registers, because they need somewhere to be
+	//     despite the fact that they really don't actually be spilled to stack, instead just generated from base pointer and offset
+
+	// simple bubble sort
 	for (int i = 0; i < metadata->spilledLifetimes->size; i++)
 	{
 		for (int j = 0; j < metadata->spilledLifetimes->size - i - 1; j++)
 		{
-			int thisSize = Scope_getSizeOfVariable(metadata->function->mainScope, ((struct Lifetime *)metadata->spilledLifetimes->data[j])->variable);
+			struct Lifetime *thisLifetime = metadata->spilledLifetimes->data[j];
+			int thisSize = Scope_getSizeOfVariable(metadata->function->mainScope, thisLifetime->variable);
 			int compSize = Scope_getSizeOfVariable(metadata->function->mainScope, ((struct Lifetime *)metadata->spilledLifetimes->data[j + 1])->variable);
+
 			if (thisSize < compSize)
 			{
 				struct Lifetime *swap = metadata->spilledLifetimes->data[j];
@@ -212,13 +251,12 @@ void assignRegisters(struct FunctionRegisterAllocationMetadata *metadata)
 	// flag registers in use at any given TAC index so we can easily assign
 	char registers[REGISTER_COUNT];
 	struct Lifetime *occupiedBy[REGISTER_COUNT];
-	// flag registers which have *ever* been used so we know what to callee-save
-	char touchedRegisters[REGISTER_COUNT];
+
 	for (int i = 0; i < REGISTER_COUNT; i++)
 	{
 		registers[i] = 0;
-		touchedRegisters[i] = 0;
 		occupiedBy[i] = NULL;
+		metadata->touchedRegisters[i] = 0;
 	}
 
 	// printf("%%r%d and %%r%d reserved for scratch\n", reservedRegisters[0], reservedRegisters[1]);
@@ -234,37 +272,45 @@ void assignRegisters(struct FunctionRegisterAllocationMetadata *metadata)
 		{
 			if (occupiedBy[j] != NULL && occupiedBy[j]->end <= i)
 			{
+				printf("\tFree up register %d from variable %s\n", j, occupiedBy[j]->variable);
 				registers[j] = 0;
 				occupiedBy[j] = NULL;
 			}
 		}
 
-		// second pass, assign any new lifetimes
+		// iterate all lifetimes and assign newly-live ones to a register
 		for (struct LinkedListNode *ltRunner = metadata->allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
 		{
 			struct Lifetime *thisLifetime = ltRunner->data;
-			if (thisLifetime->isSpilled == 0 && thisLifetime->stackOrRegLocation == -1)
+			if ((thisLifetime->start == i) &&			  // if the lifetime starts at this step
+				(thisLifetime->isSpilled == 0) &&		  // lifetime expects to be in a register
+				(thisLifetime->stackOrRegLocation == -1)) // lifetime does not already have a register somehow (redundancy check)
 			{
-				if (thisLifetime->start == i)
+				char registerFound = 0;
+				// scan through all registers, looking for an unoccupied one
+				for (int j = 0; j < REGISTER_COUNT; j++)
 				{
-					char registerFound = 0;
-					for (int j = 0; j < REGISTER_COUNT; j++)
+					if (registers[j] == 0)
 					{
-						if (registers[j] == 0)
-						{
-							printf("Assign register %d for variable %s\n", j, thisLifetime->variable);
-							thisLifetime->stackOrRegLocation = j;
-							registers[j] = 1;
-							occupiedBy[j] = thisLifetime;
-							touchedRegisters[j] = 1;
-							registerFound = 1;
-							break;
-						}
+						printf("\tAssign register %d for variable %s\n", j, thisLifetime->variable);
+						thisLifetime->stackOrRegLocation = j;
+						registers[j] = 1;
+						occupiedBy[j] = thisLifetime;
+						metadata->touchedRegisters[j] = 1;
+						registerFound = 1;
+						break;
 					}
-					if (!registerFound)
-					{
-						ErrorAndExit(ERROR_INTERNAL, "Unable to find register for variable %s!\n", thisLifetime->variable);
-					}
+				}
+				// no unoccupied register found (redundancy check)
+				if (!registerFound)
+				{
+					/*
+					 * if we hit this, either:
+					 * 1: something messed up in this function and we ended up with no register to assign this lifetime to
+					 * 2: something messed up before we got to this function and too many concurrent lifetimes have been allowed to expect a register assignment
+					 */
+
+					ErrorAndExit(ERROR_INTERNAL, "Unable to find register for variable %s!\n", thisLifetime->variable);
 				}
 			}
 		}
@@ -291,7 +337,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	}
 
 	// generate an array of lists corresponding to which lifetimes are active at a given TAC step by index in the array
-	metadata.lifetimeOverlaps = malloc((metadata.largestTacIndex) * sizeof(struct LinkedList *));
+	metadata.lifetimeOverlaps = malloc((metadata.largestTacIndex + 1) * sizeof(struct LinkedList *));
 	for (int i = 0; i <= metadata.largestTacIndex; i++)
 	{
 		metadata.lifetimeOverlaps[i] = LinkedList_new();
@@ -303,7 +349,13 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	metadata.reservedRegisters[0] = -1;
 	metadata.reservedRegisters[1] = -1;
 
-	generateLifetimeOverlaps(&metadata);
+	int mostConcurrentLifetimes = generateLifetimeOverlaps(&metadata);
+
+	// if there are too many concurrent lifetimes to all fit in registers, spill some of them
+	if (mostConcurrentLifetimes > REGISTER_COUNT)
+	{
+		spillVariables(&metadata, mostConcurrentLifetimes);
+	}
 
 	sortSpilledLifetimes(&metadata);
 
@@ -332,15 +384,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 
 	assignRegisters(&metadata);
 
-	/*
-
-
-
-
-
-	
-
-	for (struct LinkedListNode *runner = allLifetimes->head; runner != NULL; runner = runner->next)
+	for (struct LinkedListNode *runner = metadata.allLifetimes->head; runner != NULL; runner = runner->next)
 	{
 		struct Lifetime *thisLifetime = runner->data;
 		if (thisLifetime->isSpilled)
@@ -360,7 +404,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	char *functionSetup;
 
 	// move any applicable arguments into registers if we are expecting them not to be spilled
-	for (struct LinkedListNode *ltRunner = allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
+	for (struct LinkedListNode *ltRunner = metadata.allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
 	{
 		struct Lifetime *thisLifetime = ltRunner->data;
 
@@ -368,13 +412,15 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		if (thisLifetime->variable[0] != '.')
 		{
 			struct ScopeMember *thisEntry = Scope_lookup(function->mainScope, thisLifetime->variable);
-			// if this lifetime is an argument, and the argument lives in a register, retrieve it from the stack and place it there
-			if (thisEntry->type == e_argument && !thisLifetime->isSpilled)
+			// place arguments if:
+			if ((thisEntry->type == e_argument) &&
+				(!thisLifetime->isSpilled) &&					 // they're not spilled
+				(thisLifetime->nreads || thisLifetime->nwrites)) // theyre are either read from or written to at all
 			{
 				struct VariableEntry *theArgument = thisEntry->entry;
 				functionSetup = malloc(64);
 				sprintf(functionSetup, "mov %%r%d, %d(%%bp) ;place %s", thisLifetime->stackOrRegLocation, theArgument->stackOffset, thisLifetime->variable);
-				touchedRegisters[thisLifetime->stackOrRegLocation] = 1;
+				metadata.touchedRegisters[thisLifetime->stackOrRegLocation] = 1;
 				ASMblock_append(functionBlock, functionSetup);
 			}
 		}
@@ -386,7 +432,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	for (struct LinkedListNode *blockRunner = function->BasicBlockList->head; blockRunner != NULL; blockRunner = blockRunner->next)
 	{
 		struct BasicBlock *thisBlock = blockRunner->data;
-		GenerateCodeForBasicBlock(thisBlock, allLifetimes, functionBlock, function->name, reservedRegisters, touchedRegisters);
+		GenerateCodeForBasicBlock(thisBlock, metadata.allLifetimes, functionBlock, function->name, metadata.reservedRegisters, metadata.touchedRegisters);
 	}
 
 	// meaningful code generated
@@ -398,7 +444,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 
 	for (int i = REGISTER_COUNT - 1; i >= 0; i--)
 	{
-		if (touchedRegisters[i])
+		if (metadata.touchedRegisters[i])
 		{
 			functionSetup = malloc(64);
 			sprintf(functionSetup, "pop %%r%d", i);
@@ -442,23 +488,24 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	// function setup and teardown code generated
 	printf(".");
 
-	Stack_free(spilledLifetimes);
-	LinkedList_free(allLifetimes, free);
+	Stack_free(metadata.spilledLifetimes);
+	Stack_free(metadata.localPointerLifetimes);
+	LinkedList_free(metadata.allLifetimes, free);
 
-	for (int i = 0; i <= largestTacIndex; i++)
+	for (int i = 0; i <= metadata.largestTacIndex; i++)
 	{
-		LinkedList_free(lifetimeOverlaps[i], NULL);
+		LinkedList_free(metadata.lifetimeOverlaps[i], NULL);
 	}
-	free(lifetimeOverlaps);
+	free(metadata.lifetimeOverlaps);
 
 	printf("\n");
 	return functionBlock;
-	*/
-	return NULL;
 }
 
 void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *allLifetimes, struct ASMblock *asmBlock, char *functionName, int reservedRegisters[2], char *touchedRegisters)
 {
+	// TODO: generate localpointers as necessary
+	// to registers for those that get them and on-the-fly for those that don't
 	char *blockLabel = malloc(64);
 	if (thisBlock->labelNum > 0)
 	{
@@ -541,9 +588,21 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		}
 		break;
 
-		// ignore
+		// place declared localpointer in register if necessary
+		// everything else (args and regular variables) handled explicitly elsewhere
 		case tt_declare:
-			break;
+		{
+			struct Lifetime *declaredLifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
+			if ((declaredLifetime->localPointerTo != NULL) &&
+				(!declaredLifetime->isSpilled))
+			{
+				thisLine = malloc(64);
+				printf("stack variable %s has offset of %d\n", declaredLifetime->variable, declaredLifetime->localPointerTo->stackOffset);
+				sprintf(thisLine, "add %%r%d, %%bp, $%d", declaredLifetime->stackOrRegLocation, declaredLifetime->localPointerTo->stackOffset);
+				ASMblock_append(asmBlock, thisLine);
+			}
+		}
+		break;
 
 		case tt_add:
 		case tt_subtract:

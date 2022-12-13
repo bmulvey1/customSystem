@@ -3,11 +3,16 @@ asm{
 	entry code
 	;data@ data
 code:
-	push $5
-	;call gradient
-	call fibArr
+	push $10
+	call securityRisk
 	hlt
 };
+
+fun securityRisk(var a)
+{
+	var unsuspectingArray[10];
+	unsuspectingArray[a] = 1234;
+}
 
 fun print(var a)
 {
@@ -17,11 +22,22 @@ fun print(var a)
 }
 
 
+
+
 fun fibArr(var a)
 {
 	var fibArray[10];
+	print(fibArray);
 	fibArray[0] = 0;
 	fibArray[1] = 1;
+
+	var i = 2;
+	while(i < a)
+	{
+		fibArray[i - 1] = i;
+		i = i + 1;
+	}
+
 	//var i = 2;
 	//while(i < a)
 	//{

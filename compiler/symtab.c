@@ -169,7 +169,8 @@ void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes ty
 
 		objForvar->size = varSize;
 		objForvar->arraySize = arraySize;
-		objForvar->stackOffset = scope->parentFunction->localStackSize * -1;
+		// since indexing pushes address forward, set the stack offset of the variable to be index 0 (the - size * arraySize) term does this
+		objForvar->stackOffset = (scope->parentFunction->localStackSize * -1) - (objForvar->size * objForvar->arraySize);
 		scope->parentFunction->localStackSize += varSize * arraySize;
 		char *modName = malloc(strlen(name) + 5);
 		sprintf(modName, "%s.obj", name);
@@ -438,7 +439,7 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 		case e_stackobj:
 		{
 			struct StackObjectEntry *thisObj = thisMember->entry;
-			printf("> Stack object (%d bytes * %d) for %s\n", thisObj->size, thisObj->arraySize, thisObj->localPointer->name);
+			printf("> Stack object (%d bytes * %d) for %s (stack offset of %d)\n", thisObj->size, thisObj->arraySize, thisObj->localPointer->name, thisObj->stackOffset);
 		}
 		break;
 		}
