@@ -4,15 +4,9 @@ asm{
 	;data@ data
 code:
 	push $10
-	call securityRisk
+	call fibArr
 	hlt
 };
-
-fun securityRisk(var a)
-{
-	var unsuspectingArray[10];
-	unsuspectingArray[a] = 1234;
-}
 
 fun print(var a)
 {
@@ -22,29 +16,33 @@ fun print(var a)
 }
 
 
-
-
 fun fibArr(var a)
 {
 	var fibArray[10];
-	print(fibArray);
 	fibArray[0] = 0;
 	fibArray[1] = 1;
 
 	var i = 2;
 	while(i < a)
 	{
-		fibArray[i - 1] = i;
+		fibArray[i] = fibArray[i - 1] + fibArray[i - 2];
 		i = i + 1;
 	}
+	// so fibArray is correct, and the fibonacci numbers are in memory at this point
+	// can even print the array address
+	asm
+	{
+		out %r1
+	};
 
-	//var i = 2;
-	//while(i < a)
-	//{
-	//	fibArray[i] = fibArray[i - 1] + fibArray[i - 2];
-	//	print(fibArray[i]);
-	//	i = i + 1;
-	//}
+	// but for some reason trying to read it doesn't work correctly
+	// is this a compiler thing or an emu thing?
+	i = 0;
+	while(i < a)
+	{
+		print(fibArray[1]);
+		i = i + 1;
+	}
 }
 
 
