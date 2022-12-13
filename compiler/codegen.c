@@ -207,6 +207,70 @@ void sortSpilledLifetimes(struct FunctionRegisterAllocationMetadata *metadata)
 	}
 }
 
+void assignRegisters(struct FunctionRegisterAllocationMetadata *metadata)
+{
+	// flag registers in use at any given TAC index so we can easily assign
+	char registers[REGISTER_COUNT];
+	struct Lifetime *occupiedBy[REGISTER_COUNT];
+	// flag registers which have *ever* been used so we know what to callee-save
+	char touchedRegisters[REGISTER_COUNT];
+	for (int i = 0; i < REGISTER_COUNT; i++)
+	{
+		registers[i] = 0;
+		touchedRegisters[i] = 0;
+		occupiedBy[i] = NULL;
+	}
+
+	// printf("%%r%d and %%r%d reserved for scratch\n", reservedRegisters[0], reservedRegisters[1]);
+	// reserve scratch registers for arithmetic
+	registers[metadata->reservedRegisters[0]] = 1;
+	registers[metadata->reservedRegisters[1]] = 1;
+
+	for (int i = 0; i < metadata->largestTacIndex; i++)
+	{
+		printf("TAC Index %d\n", i);
+		// free any registers inhabited by expired lifetimes
+		for (int j = 0; j < REGISTER_COUNT; j++)
+		{
+			if (occupiedBy[j] != NULL && occupiedBy[j]->end <= i)
+			{
+				registers[j] = 0;
+				occupiedBy[j] = NULL;
+			}
+		}
+
+		// second pass, assign any new lifetimes
+		for (struct LinkedListNode *ltRunner = metadata->allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
+		{
+			struct Lifetime *thisLifetime = ltRunner->data;
+			if (thisLifetime->isSpilled == 0 && thisLifetime->stackOrRegLocation == -1)
+			{
+				if (thisLifetime->start == i)
+				{
+					char registerFound = 0;
+					for (int j = 0; j < REGISTER_COUNT; j++)
+					{
+						if (registers[j] == 0)
+						{
+							printf("Assign register %d for variable %s\n", j, thisLifetime->variable);
+							thisLifetime->stackOrRegLocation = j;
+							registers[j] = 1;
+							occupiedBy[j] = thisLifetime;
+							touchedRegisters[j] = 1;
+							registerFound = 1;
+							break;
+						}
+					}
+					if (!registerFound)
+					{
+						ErrorAndExit(ERROR_INTERNAL, "Unable to find register for variable %s!\n", thisLifetime->variable);
+					}
+				}
+			}
+		}
+	}
+}
+
 struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *outFile)
 {
 	printf("Generate code for function %s", function->name);
@@ -266,72 +330,15 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		}
 	}
 
+	assignRegisters(&metadata);
+
 	/*
 
 
 
 
 
-	// flag registers in use at any given TAC index so we can easily assign
-	char registers[REGISTER_COUNT];
-	struct Lifetime *occupiedBy[REGISTER_COUNT];
-	// flag registers which have *ever* been used so we know what to callee-save
-	char touchedRegisters[REGISTER_COUNT];
-	for (int i = 0; i < REGISTER_COUNT; i++)
-	{
-		registers[i] = 0;
-		touchedRegisters[i] = 0;
-		occupiedBy[i] = NULL;
-	}
-
-	printf("%%r%d and %%r%d reserved for scratch\n", reservedRegisters[0], reservedRegisters[1]);
-	// reserve scratch registers for arithmetic
-	registers[reservedRegisters[0]] = 1;
-	registers[reservedRegisters[1]] = 1;
-
-	for (int i = 0; i < largestTacIndex; i++)
-	{
-		printf("TAC Index %d\n", i);
-		// free any registers inhabited by expired lifetimes
-		for (int j = 0; j < REGISTER_COUNT; j++)
-		{
-			if (occupiedBy[j] != NULL && occupiedBy[j]->end <= i)
-			{
-				registers[j] = 0;
-				occupiedBy[j] = NULL;
-			}
-		}
-
-		// second pass, assign any new lifetimes
-		for (struct LinkedListNode *ltRunner = allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
-		{
-			struct Lifetime *thisLifetime = ltRunner->data;
-			if (thisLifetime->isSpilled == 0 && thisLifetime->stackOrRegLocation == -1)
-			{
-				if (thisLifetime->start == i)
-				{
-					char registerFound = 0;
-					for (int j = 0; j < REGISTER_COUNT; j++)
-					{
-						if (registers[j] == 0)
-						{
-							printf("Assign register %d for variable %s\n", j, thisLifetime->variable);
-							thisLifetime->stackOrRegLocation = j;
-							registers[j] = 1;
-							occupiedBy[j] = thisLifetime;
-							touchedRegisters[j] = 1;
-							registerFound = 1;
-							break;
-						}
-					}
-					if (!registerFound)
-					{
-						ErrorAndExit(ERROR_INTERNAL, "Unable to find register for variable %s!\n", thisLifetime->variable);
-					}
-				}
-			}
-		}
-	}
+	
 
 	for (struct LinkedListNode *runner = allLifetimes->head; runner != NULL; runner = runner->next)
 	{
