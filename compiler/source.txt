@@ -11,7 +11,10 @@ code:
 fun print(var a)
 {
 	asm{
+		push %r0
+		mov %r0, 4(%bp)
 		out %r0
+		pop %r0
 	};
 }
 
@@ -28,19 +31,11 @@ fun fibArr(var a)
 		fibArray[i] = fibArray[i - 1] + fibArray[i - 2];
 		i = i + 1;
 	}
-	// so fibArray is correct, and the fibonacci numbers are in memory at this point
-	// can even print the array address
-	asm
-	{
-		out %r1
-	};
 
-	// but for some reason trying to read it doesn't work correctly
-	// is this a compiler thing or an emu thing?
 	i = 0;
 	while(i < a)
 	{
-		print(fibArray[1]);
+		print(fibArray[i]);
 		i = i + 1;
 	}
 }
