@@ -412,8 +412,9 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		if (thisLifetime->variable[0] != '.')
 		{
 			struct ScopeMember *thisEntry = Scope_lookup(function->mainScope, thisLifetime->variable);
-			// place arguments if:
-			if ((thisEntry->type == e_argument) &&
+			// we need to place this variable into its register if:
+			if ((thisEntry != NULL) &&							 // it exists
+				(thisEntry->type == e_argument) &&				 // it's an argument
 				(!thisLifetime->isSpilled) &&					 // they're not spilled
 				(thisLifetime->nreads || thisLifetime->nwrites)) // theyre are either read from or written to at all
 			{
@@ -697,17 +698,19 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		}
 		break;
 
-		case tt_dereference:
-			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
-			break;
-
 		case tt_reference:
 			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
 			break;
 
 		case tt_memw_1:
-			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
-			break;
+		{
+			thisLine = malloc(64);
+			int dstIndexReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
+			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
+			sprintf(thisLine, "mov (%%r%d), %%r%d", dstIndexReg, sourceReg);
+			ASMblock_append(asmBlock, thisLine);
+		}
+		break;
 
 		case tt_memw_2:
 		{
@@ -731,21 +734,59 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		}
 		break;
 
+		case tt_dereference: // these are redundant... probably makes sense to remove one?
 		case tt_memr_1:
-			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
+		{
+			thisLine = malloc(64);
+			struct Lifetime *destinationLifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
+			if (destinationLifetime->isSpilled)
+			{
+				ErrorAndExit(ERROR_INTERNAL, "Code generation for tt_dereference/tt_memr_w with spilled destination not supported!\n");
+			}
+			else
+			{
+				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
+				int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
+				sprintf(thisLine, "mov %%r%d, (%%r%d)", destReg, sourceReg);
+			}
+			ASMblock_append(asmBlock, thisLine);
+		}
+		break;
 			break;
 
 		case tt_memr_2:
-			ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
+		{
+			thisLine = malloc(64);
+			struct Lifetime *destinationLifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
+			if (destinationLifetime->isSpilled)
+			{
+				ErrorAndExit(ERROR_INTERNAL, "Code generation for tt_memr_2 with spilled destination not supported!\n");
+			}
+			else
+			{
+				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
+				int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
+				sprintf(thisLine, "mov %%r%d, %d(%%r%d)", destReg, (int)(long int)thisTAC->operands[2], sourceReg);
+			}
+			ASMblock_append(asmBlock, thisLine);
+		}
 			break;
 
 		case tt_memr_3:
 		{
 			thisLine = malloc(64);
-			int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
-			int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
-			int offsetReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[2], asmBlock, 16, touchedRegisters);
-			sprintf(thisLine, "mov %%r%d, %%r%d(%%r%d, $%d)", destReg, offsetReg, baseReg, (int)(long int)thisTAC->operands[3]);
+			struct Lifetime *destinationLifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
+			if (destinationLifetime->isSpilled)
+			{
+				ErrorAndExit(ERROR_INTERNAL, "Code generation for tt_memr_3 with spilled destination not supported!\n");
+			}
+			else
+			{
+				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
+				int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
+				int offsetReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[2], asmBlock, 16, touchedRegisters);
+				sprintf(thisLine, "mov %%r%d, %%r%d(%%r%d, $%d)", destReg, offsetReg, baseReg, (int)(long int)thisTAC->operands[3]);
+			}
 			ASMblock_append(asmBlock, thisLine);
 		}
 		break;

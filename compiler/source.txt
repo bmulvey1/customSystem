@@ -3,13 +3,14 @@ asm{
 	entry code
 	;data@ data
 code:
-	push $10
+	push $25
 	call fibArr
 	hlt
 };
 
-fun print(var a)
+fun print(var value)
 {
+	// store r0, pull the argument into a register, then output that register
 	asm{
 		push %r0
 		mov %r0, 4(%bp)
@@ -21,7 +22,7 @@ fun print(var a)
 
 fun fibArr(var a)
 {
-	var fibArray[10];
+	var fibArray[32];
 	fibArray[0] = 0;
 	fibArray[1] = 1;
 
