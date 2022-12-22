@@ -982,7 +982,6 @@ int linearizeDeclaration(struct Scope *scope,
 	declarationLine->operandTypes[0] = declaredType;
 	declarationLine->indirectionLevels[0] = dereferenceLevel;
 
-
 	BasicBlock_append(currentBlock, declarationLine);
 	return currentTACIndex;
 }
@@ -1300,7 +1299,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 
 void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 {
-	// first pass: recurse and rename basic block operands relevant to the current scope
+	// first pass: recurse depth-first so everything we do at this call depth will be 100% correct
 	for (int i = 0; i < scope->entries->size; i++)
 	{
 		struct ScopeMember *thisMember = scope->entries->data[i];
@@ -1314,30 +1313,54 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 		{
 			struct FunctionEntry *thisFunction = thisMember->entry;
 			collapseScopes(thisFunction->mainScope, dict, 0);
-			// potential for wild performance gains by avoiding strlen and malloc for each name
 		}
 		break;
 
+		// skip everything else
+		case e_variable:
+		case e_argument:
+		case e_basicblock:
+		case e_stackobj:
+			break;
+		}
+	}
+
+	// second pass: rename basic block operands relevant to the current scope
+	for (int i = 0; i < scope->entries->size; i++)
+	{
+		struct ScopeMember *thisMember = scope->entries->data[i];
+		switch (thisMember->type)
+		{
+		case e_scope:
+		case e_function:
+			break;
+
 		case e_basicblock:
 		{
-			struct BasicBlock *thisBlock = thisMember->entry;
-			for (struct LinkedListNode *TACRunner = thisBlock->TACList->head; TACRunner != NULL; TACRunner = TACRunner->next)
+			// if we are in a nested scope
+			if (depth > 1)
 			{
-				struct TACLine *thisTAC = TACRunner->data;
-				for (int j = 0; j < 4; j++)
+				// go through all TAC lines in this block
+				struct BasicBlock *thisBlock = thisMember->entry;
+				for (struct LinkedListNode *TACRunner = thisBlock->TACList->head; TACRunner != NULL; TACRunner = TACRunner->next)
 				{
-					if (thisTAC->operandTypes[j] != vt_null && thisTAC->operandPermutations[j] == vp_standard)
+					struct TACLine *thisTAC = TACRunner->data;
+					for (int j = 0; j < 4; j++)
 					{
-						char *originalName = thisTAC->operands[j];
-
-						// TODO: make scope_lookupVarScopeName properly scrape all parent scopes for the real name
-						// since subscopes don't contain detailed name nesting anymore
-						char *scopeName = Scope_lookupVarScopeName(scope, thisTAC->operands[j]);
-						char *mangledName = malloc(strlen(originalName) + strlen(scopeName) + 1);
-						sprintf(mangledName, "%s%s", originalName, scopeName);
-						free(scopeName);
-						thisTAC->operands[j] = DictionaryLookupOrInsert(dict, mangledName);
-						free(mangledName);
+						// check only TAC operands that both exist and refer to a named variable from the source code (ignore temps etc)
+						if (thisTAC->operandTypes[j] != vt_null && thisTAC->operandPermutations[j] == vp_standard)
+						{
+							char *originalName = thisTAC->operands[j];
+							// if this operand refers to a variable declared at this scope
+							if (Scope_contains(scope, originalName))
+							{
+								char *mangledName = malloc(strlen(originalName) + 4);
+								// tack on the name of this scope to the variable name since the same will happen to the variable entry itself in third pass
+								sprintf(mangledName, "%s%s", originalName, scope->name);
+								thisTAC->operands[j] = DictionaryLookupOrInsert(dict, mangledName);
+								free(mangledName);
+							}
+						}
 					}
 				}
 			}
@@ -1346,14 +1369,12 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 
 		case e_variable:
 		case e_argument:
-			break;
-
 		case e_stackobj:
 			break;
 		}
 	}
 
-	// second pass: move nested members (basic blocks and variables) to parent scope since names have been mangled
+	// third pass: move nested members (basic blocks and variables) to parent scope since names have been mangled
 	for (int i = 0; i < scope->entries->size; i++)
 	{
 		struct ScopeMember *thisMember = scope->entries->data[i];
@@ -1388,7 +1409,6 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 				char *mangledName = malloc(strlen(originalName) + strlen(scopeName) + 1);
 				sprintf(mangledName, "%s%s", originalName, scopeName);
 				char *newName = DictionaryLookupOrInsert(dict, mangledName);
-
 				free(mangledName);
 				Scope_insert(scope->parentScope, newName, thisMember->entry, thisMember->type);
 				free(scope->entries->data[i]);

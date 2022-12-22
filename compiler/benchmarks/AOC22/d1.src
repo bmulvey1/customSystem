@@ -69,7 +69,6 @@ fun elfCounter(var *inputAddr)
             scratchMem[i] = scratchMem[i] + thisInput;
             j = j + 1;
         }
-        //print(scratchMem[i]);
         inputAddr = inputAddr + thisInputSize;
         if(scratchMem[i] > bestElf[1])
         {
@@ -79,19 +78,19 @@ fun elfCounter(var *inputAddr)
         i = i + 1;
     }
 
+    // print which elf is best, and the number of calories associated with that elf
     print(bestElf[0] + 1);
     print(bestElf[1]);
 
-    // uncommenting this allows (for some reason) both a `j` and a `j.00` to exist in the symtab
-    // this causes everything to break because the names in the TAC become inconsistent
-    /*    
+    // print 0 as a spacer
+    print(0);
+    
+    // print out what we calculated for every elf    
     i = 0;
     while(i < nInputs)
     {
         print(scratchMem[i]);
         i = i + 1;
-    }*/
-
-
+    }
 }
 $$

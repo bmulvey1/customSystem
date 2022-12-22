@@ -109,8 +109,6 @@ struct VariableEntry *Scope_lookupVar(struct Scope *scope, char *name);
 
 struct FunctionEntry *Scope_lookupFun(struct Scope *scope, char *name);
 
-char *Scope_lookupVarScopeName(struct Scope *scope, char *name);
-
 struct Scope *Scope_lookupSubScope(struct Scope *scope, char *name);
 
 struct Scope *Scope_lookupSubScopeByNumber(struct Scope *scope, unsigned char subScopeNumber);

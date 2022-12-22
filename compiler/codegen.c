@@ -118,7 +118,6 @@ int generateLifetimeOverlaps(struct FunctionRegisterAllocationMetadata *metadata
 			// but also put it into contention for a register, we will just prefer to spill localpointers first
 			if (thisVariableEntry != NULL && ((struct VariableEntry *)thisVariableEntry->entry)->localPointerTo != NULL)
 			{
-				printf("\n%s is a local pointer\n", thisVariableEntry->name);
 				thisLifetime->localPointerTo = ((struct VariableEntry *)thisVariableEntry->entry)->localPointerTo;
 				thisLifetime->stackOrRegLocation = -1;
 				Stack_push(metadata->localPointerLifetimes, thisLifetime);
@@ -133,23 +132,12 @@ int generateLifetimeOverlaps(struct FunctionRegisterAllocationMetadata *metadata
 			}
 		}
 	}
-	printf("Function %s has at most %d concurrent lifetimes (largest TAC index %d)\n", metadata->function->name, mostConcurrentLifetimes, metadata->largestTacIndex);
+	// printf("Function %s has at most %d concurrent lifetimes (largest TAC index %d)\n", metadata->function->name, mostConcurrentLifetimes, metadata->largestTacIndex);
 	return mostConcurrentLifetimes;
 }
 
 void spillVariables(struct FunctionRegisterAllocationMetadata *metadata, int mostConcurrentLifetimes)
 {
-	for (int i = 0; i < metadata->largestTacIndex; i++)
-	{
-		printf("TAC Index %d: ", i);
-		for (struct LinkedListNode *n = metadata->lifetimeOverlaps[i]->head; n != NULL; n = n->next)
-		{
-			struct Lifetime *lt = n->data;
-			printf("%s, ", lt->variable);
-		}
-		printf("\n");
-	}
-
 	int MAXREG = REGISTER_COUNT;
 	// if we have just enough room, simply use all registers
 	// if we need to spill, ensure 2 scratch registers
@@ -259,20 +247,17 @@ void assignRegisters(struct FunctionRegisterAllocationMetadata *metadata)
 		metadata->touchedRegisters[i] = 0;
 	}
 
-	// printf("%%r%d and %%r%d reserved for scratch\n", reservedRegisters[0], reservedRegisters[1]);
 	// reserve scratch registers for arithmetic
 	registers[metadata->reservedRegisters[0]] = 1;
 	registers[metadata->reservedRegisters[1]] = 1;
 
 	for (int i = 0; i < metadata->largestTacIndex; i++)
 	{
-		printf("TAC Index %d\n", i);
 		// free any registers inhabited by expired lifetimes
 		for (int j = 0; j < REGISTER_COUNT; j++)
 		{
 			if (occupiedBy[j] != NULL && occupiedBy[j]->end <= i)
 			{
-				printf("\tFree up register %d from variable %s\n", j, occupiedBy[j]->variable);
 				registers[j] = 0;
 				occupiedBy[j] = NULL;
 			}
@@ -292,7 +277,7 @@ void assignRegisters(struct FunctionRegisterAllocationMetadata *metadata)
 				{
 					if (registers[j] == 0)
 					{
-						printf("\tAssign register %d for variable %s\n", j, thisLifetime->variable);
+						// printf("\tAssign register %d for variable %s\n", j, thisLifetime->variable);
 						thisLifetime->stackOrRegLocation = j;
 						registers[j] = 1;
 						occupiedBy[j] = thisLifetime;
@@ -383,7 +368,8 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	}
 
 	assignRegisters(&metadata);
-
+	
+	/*
 	for (struct LinkedListNode *runner = metadata.allLifetimes->head; runner != NULL; runner = runner->next)
 	{
 		struct Lifetime *thisLifetime = runner->data;
@@ -395,7 +381,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 		{
 			printf("%16s: %%r%d\n", thisLifetime->variable, thisLifetime->stackOrRegLocation);
 		}
-	}
+	}*/
 
 	// actual registers have been assigned to variables
 	printf(".");
@@ -598,7 +584,6 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				(!declaredLifetime->isSpilled))
 			{
 				thisLine = malloc(64);
-				printf("stack variable %s has offset of %d\n", declaredLifetime->variable, declaredLifetime->localPointerTo->stackOffset);
 				sprintf(thisLine, "add %%r%d, %%bp, $%d", declaredLifetime->stackOrRegLocation, declaredLifetime->localPointerTo->stackOffset);
 				ASMblock_append(asmBlock, thisLine);
 			}

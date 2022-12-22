@@ -40,10 +40,13 @@ int main(int argc, char **argv)
 	printf("\n");
 
 
+	printf("Symbol table before scope collapse:\n");
+	SymbolTable_print(theTable, 0);
+
 	printf("Linearizing code to basic blocks\n");
 	linearizeProgram(program, theTable->globalScope, parseDict);
-
-	SymbolTable_print(theTable, 1);
+	printf("Done linearizing code\n");
+	SymbolTable_print(theTable, 0);
 
 	FILE *outFile = fopen(argv[2], "wb");
 
@@ -60,7 +63,7 @@ int main(int argc, char **argv)
 	Stack_free(outputBlocks);
 
 	fclose(outFile);
-	freeDictionary(parseDict);
+	// freeDictionary(parseDict);
 	ASTNode_free(program);
 
 	printf("done printing\n");

@@ -22,7 +22,7 @@ void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum v
 	newArgument->stackOffset = func->argStackSize + 4;
 	func->argStackSize += argSize;
 
-	if(arraySize > 1)
+	if (arraySize > 1)
 	{
 		struct StackObjectEntry *objForArg = malloc(sizeof(struct StackObjectEntry));
 		newArgument->localPointerTo = objForArg;
@@ -161,7 +161,7 @@ void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes ty
 
 	int varSize = Scope_getSizeOfVariable(scope, name);
 
-	if(arraySize > 1)
+	if (arraySize > 1)
 	{
 		struct StackObjectEntry *objForvar = malloc(sizeof(struct StackObjectEntry));
 		newVariable->localPointerTo = objForvar;
@@ -291,36 +291,6 @@ struct FunctionEntry *Scope_lookupFun(struct Scope *scope, char *name)
 	}
 }
 
-// return the name of a variable's scope based on a lookup starting at the supplied scope
-// name string is heap-allocated
-char *Scope_lookupVarScopeName(struct Scope *scope, char *name)
-{
-	char *scopeName = malloc(1);
-	scopeName[0] = '\0';
-
-	while (scope != NULL)
-	{
-		for (int i = 0; i < scope->entries->size; i++)
-		{
-			struct ScopeMember *examinedEntry = scope->entries->data[i];
-			if (!strcmp(examinedEntry->name, name))
-			{
-				while (scope != NULL && scope->parentScope != NULL && scope->parentScope->parentScope != NULL)
-				{
-					char *newScopeName = malloc(strlen(scopeName) + 4);
-					sprintf(newScopeName, "%s%s", scope->name, scopeName);
-					free(scopeName);
-					scopeName = newScopeName;
-					scope = scope->parentScope;
-				}
-				return scopeName;
-			}
-		}
-		scope = scope->parentScope;
-	}
-	return scopeName;
-}
-
 struct Scope *Scope_lookupSubScope(struct Scope *scope, char *name)
 {
 	struct ScopeMember *lookedUp = Scope_lookup(scope, name);
@@ -369,9 +339,12 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 	{
 		struct ScopeMember *thisMember = it->entries->data[i];
 
-		for (int j = 0; j < depth; j++)
+		if (thisMember->type != e_basicblock || printTAC)
 		{
-			printf("\t");
+			for (int j = 0; j < depth; j++)
+			{
+				printf("\t");
+			}
 		}
 
 		switch (thisMember->type)
@@ -427,10 +400,10 @@ void Scope_print(struct Scope *it, int depth, char printTAC)
 
 		case e_basicblock:
 		{
-			struct BasicBlock *thisBlock = thisMember->entry;
-			printf("> Basic Block %d\n", thisBlock->labelNum);
 			if (printTAC)
 			{
+				struct BasicBlock *thisBlock = thisMember->entry;
+				printf("> Basic Block %d\n", thisBlock->labelNum);
 				printBasicBlock(thisBlock, depth + 1);
 			}
 		}
@@ -716,7 +689,6 @@ void walkFunction(struct ASTNode *it, struct Scope *parentScope)
 					ErrorAndExit(ERROR_CODE, "Error - redeclaration of symbol [%s]\n", argName);
 				}
 
-				
 				argumentRunner = argumentRunner->sibling;
 			}
 		}
