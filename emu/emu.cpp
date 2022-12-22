@@ -456,9 +456,10 @@ int main(int argc, char *argv[])
         {
             uint16_t operands = consumeWord(registers[ip]);
             uint8_t RS = operands >> 11;
+            uint16_t sourceAddress = registers[RS];
             uint8_t RD = operands >> 6 & 0b11111;
-            registers[RD] = readByte(registers[RS]) << 8;
-            registers[RD] |= readByte(registers[RS] + 1);
+            registers[RD] = readByte(sourceAddress) << 8;
+            registers[RD] |= readByte(sourceAddress + 1);
         }
         break;
 
@@ -466,9 +467,10 @@ int main(int argc, char *argv[])
         {
             uint16_t operands = consumeWord(registers[ip]);
             uint8_t RS = operands >> 11;
+            uint16_t sourceAddress = registers[RS];
             uint8_t RD = operands >> 6 & 0b11111;
-            writeByte(registers[RD], registers[RS] >> 8);
-            writeByte(registers[RD] + 1, registers[RS]);
+            writeByte(registers[RD], sourceAddress >> 8);
+            writeByte(registers[RD] + 1, sourceAddress);
         }
         break;
 
@@ -477,10 +479,11 @@ int main(int argc, char *argv[])
         {
             uint16_t operands = consumeWord(registers[ip]);
             uint8_t RS = operands >> 11;
+            uint16_t sourceAddress = registers[RS];
             uint8_t RD = operands >> 6 & 0b11111;
             int16_t offset = consumeWord(registers[ip]);
-            registers[RD] = readByte(registers[RS] + offset) << 8;
-            registers[RD] |= readByte(registers[RS] + offset + 1);
+            registers[RD] = readByte(sourceAddress + offset) << 8;
+            registers[RD] |= readByte(sourceAddress + offset + 1);
         }
         break;
 
@@ -488,10 +491,11 @@ int main(int argc, char *argv[])
         {
             uint16_t operands = consumeWord(registers[ip]);
             uint8_t RS = operands >> 11;
+            uint16_t sourceAddress = registers[RS];
             uint8_t RD = (operands >> 6) & 0b11111;
             int16_t offset = consumeWord(registers[ip]);
-            writeByte(registers[RD] + offset, registers[RS] >> 8);
-            writeByte(registers[RD] + offset + 1, registers[RS] & 0b11111111);
+            writeByte(registers[RD] + offset, sourceAddress >> 8);
+            writeByte(registers[RD] + offset + 1, sourceAddress & 0b11111111);
         }
         break;
 
@@ -512,13 +516,14 @@ int main(int argc, char *argv[])
         {
             uint16_t operands = consumeWord(registers[ip]);
             uint8_t RS = operands >> 11;
+            uint16_t sourceAddress = registers[RS];
             uint8_t RD = operands >> 6 & 0b11111;
             uint8_t RO = operands >> 1 & 0b11111;
             uint8_t scale = consumeByte(registers[ip]);
 
             uint16_t address = registers[RD] + (scale * registers[RO]);
-            writeByte(address, registers[RS] >> 8);
-            writeByte(address + 1, registers[RS] & 0b11111111);
+            writeByte(address, sourceAddress >> 8);
+            writeByte(address + 1, sourceAddress & 0b11111111);
         }
         break;
 

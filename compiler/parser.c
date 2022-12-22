@@ -544,19 +544,29 @@ struct ASTNode *parseStatement(struct Dictionary *dict)
 	{
 		struct ASTNode *type = match(upcomingToken, dict);
 		statement = type;
+		// 'var' will obviously be a declaration
 
-		struct ASTNode *name = parseDeclaration(dict);
-
+		// declared type (including any '*'s)
+		struct ASTNode *declaredType = parseDeclaration(dict);
+		
+		/*
 		if (lookahead() == '[')
 		{
 		}
+		*/
 
-		ASTNode_insertChild(type, name);
+		ASTNode_insertChild(type, declaredType);
 
 		if (lookaheadToken() == t_assign)
 		{
 			struct ASTNode *assignedName = malloc(sizeof(struct ASTNode));
-			memcpy(assignedName, name, sizeof(struct ASTNode));
+			struct ASTNode *declaredName = declaredType;
+			while(declaredName->type == t_dereference)
+			{
+				declaredName = declaredName->child;
+			}
+			printf("Declared name is %s\n", declaredType->value);
+			memcpy(assignedName, declaredName, sizeof(struct ASTNode));
 			ASTNode_insertSibling(statement, parseAssignment(assignedName, dict));
 		}
 
