@@ -368,7 +368,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	}
 
 	assignRegisters(&metadata);
-	
+
 	/*
 	for (struct LinkedListNode *runner = metadata.allLifetimes->head; runner != NULL; runner = runner->next)
 	{
@@ -406,7 +406,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 			{
 				struct VariableEntry *theArgument = thisEntry->entry;
 				functionSetup = malloc(64);
-				sprintf(functionSetup, "mov %%r%d, %d(%%bp) ;place %s", thisLifetime->stackOrRegLocation, theArgument->stackOffset, thisLifetime->variable);
+				sprintf(functionSetup, "mov %%r%d, (%%bp+%d) ;place %s", thisLifetime->stackOrRegLocation, theArgument->stackOffset, thisLifetime->variable);
 				metadata.touchedRegisters[thisLifetime->stackOrRegLocation] = 1;
 				ASMblock_append(functionBlock, functionSetup);
 			}
@@ -446,7 +446,7 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	if (stackOffset > 0)
 	{
 		functionSetup = malloc(64);
-		sprintf(functionSetup, "sub %%sp, %%sp, $%d", stackOffset);
+		sprintf(functionSetup, "subi %%sp, %%sp, $%d", stackOffset);
 		ASMblock_prepend(functionBlock, functionSetup);
 	}
 
@@ -454,10 +454,14 @@ struct ASMblock *generateCodeForFunction(struct FunctionEntry *function, FILE *o
 	sprintf(functionSetup, "%s:", function->name);
 	ASMblock_prepend(functionBlock, functionSetup);
 
+	functionSetup = malloc(64);
+	sprintf(functionSetup, "#align 2048");
+	ASMblock_prepend(functionBlock, functionSetup);
+
 	if (stackOffset > 0)
 	{
 		functionSetup = malloc(64);
-		sprintf(functionSetup, "add %%sp, %%sp, $%d", stackOffset);
+		sprintf(functionSetup, "addi %%sp, %%sp, $%d", stackOffset);
 		ASMblock_append(functionBlock, functionSetup);
 	}
 
@@ -538,12 +542,12 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 					}
 					else
 					{
-						sprintf(thisLine, "mov %%r%d, %d(%%bp)", assignedLifetime->stackOrRegLocation, assignerLifetime->stackOrRegLocation);
+						sprintf(thisLine, "mov %%r%d, (%%bp+%d*1)", assignedLifetime->stackOrRegLocation, assignerLifetime->stackOrRegLocation);
 					}
 					break;
 
 				case vp_literal:
-					sprintf(thisLine, "mov %%r%d, $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
+					sprintf(thisLine, "movh %%r%d, $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
 					break;
 				}
 			}
@@ -556,7 +560,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				case vp_temp:
 					if (!assignerLifetime->isSpilled)
 					{
-						sprintf(thisLine, "mov %d(%%bp), %%r%d", assignedLifetime->stackOrRegLocation, assignerLifetime->stackOrRegLocation);
+						sprintf(thisLine, "mov (%%bp+%d), %%r%d", assignedLifetime->stackOrRegLocation, assignerLifetime->stackOrRegLocation);
 					}
 					else
 					{
@@ -567,7 +571,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 					break;
 
 				case vp_literal:
-					sprintf(thisLine, "mov %d(%%bp), $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
+					sprintf(thisLine, "movh (%%bp+%d), $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
 					break;
 				}
 			}
@@ -584,7 +588,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				(!declaredLifetime->isSpilled))
 			{
 				thisLine = malloc(64);
-				sprintf(thisLine, "add %%r%d, %%bp, $%d", declaredLifetime->stackOrRegLocation, declaredLifetime->localPointerTo->stackOffset);
+				sprintf(thisLine, "subi %%r%d, %%bp, $%d", declaredLifetime->stackOrRegLocation, declaredLifetime->localPointerTo->stackOffset * -1);
 				ASMblock_append(asmBlock, thisLine);
 			}
 		}
@@ -595,6 +599,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		case tt_mul:
 		case tt_div:
 		{
+			char immediateInstruction = 0;
 			thisLine = malloc(64);
 
 			struct Lifetime *assignedLifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
@@ -638,6 +643,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				if (thisTAC->reorderable)
 				{
 					reordering = 1;
+					immediateInstruction = 1;
 					sprintf(op1, "$%s", thisTAC->operands[1]);
 				}
 				break;
@@ -661,23 +667,38 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 
 			case vp_literal:
 				sprintf(op2, "$%s", thisTAC->operands[2]);
+				immediateInstruction = 1;
 				break;
 			}
 
 			if (reordering)
 			{
-				sprintf(thisLine, "%s %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op2, op1);
+				if (immediateInstruction)
+				{
+					sprintf(thisLine, "%si %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op2, op1);
+				}
+				else
+				{
+					sprintf(thisLine, "%s %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op2, op1);
+				}
 			}
 			else
 			{
-				sprintf(thisLine, "%s %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op1, op2);
+				if (immediateInstruction)
+				{
+					sprintf(thisLine, "%si %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op1, op2);
+				}
+				else
+				{
+					sprintf(thisLine, "%s %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op1, op2);
+				}
 			}
 			ASMblock_append(asmBlock, thisLine);
 
 			if (assignedLifetime->isSpilled)
 			{
 				thisLine = malloc(64);
-				sprintf(thisLine, "mov %d(%%bp), %%r%d;replace %s", assignedLifetime->stackOrRegLocation, destinationRegister, assignedLifetime->variable);
+				sprintf(thisLine, "mov (%%bp+%d), %%r%d;replace %s", assignedLifetime->stackOrRegLocation, destinationRegister, assignedLifetime->variable);
 				ASMblock_append(asmBlock, thisLine);
 			}
 		}
@@ -702,7 +723,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			thisLine = malloc(64);
 			int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
 			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[2], asmBlock, reservedRegisters[1], touchedRegisters);
-			sprintf(thisLine, "mov %d(%%r%d), %%r%d", (int)(long int)thisTAC->operands[1], baseReg, sourceReg);
+			sprintf(thisLine, "mov (%%r%d+%d), %%r%d", baseReg, (int)(long int)thisTAC->operands[1], sourceReg);
 			ASMblock_append(asmBlock, thisLine);
 		}
 		// ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
@@ -714,7 +735,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
 			int offsetReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
 			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[3], asmBlock, 16, touchedRegisters);
-			sprintf(thisLine, "mov %%r%d(%%r%d, $%d), %%r%d", offsetReg, baseReg, (int)(long int)thisTAC->operands[2], sourceReg);
+			sprintf(thisLine, "mov (%%r%d+%%r%d*%d), %%r%d", baseReg, offsetReg, (int)(long int)thisTAC->operands[2], sourceReg);
 			ASMblock_append(asmBlock, thisLine);
 		}
 		break;
@@ -751,11 +772,11 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			{
 				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
 				int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
-				sprintf(thisLine, "mov %%r%d, %d(%%r%d)", destReg, (int)(long int)thisTAC->operands[2], sourceReg);
+				sprintf(thisLine, "mov %%r%d, (%%r%d+%d)", destReg, sourceReg, (int)(long int)thisTAC->operands[2]);
 			}
 			ASMblock_append(asmBlock, thisLine);
 		}
-			break;
+		break;
 
 		case tt_memr_3:
 		{
@@ -770,7 +791,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
 				int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
 				int offsetReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[2], asmBlock, 16, touchedRegisters);
-				sprintf(thisLine, "mov %%r%d, %%r%d(%%r%d, $%d)", destReg, offsetReg, baseReg, (int)(long int)thisTAC->operands[3]);
+				sprintf(thisLine, "mov %%r%d, (%%r%d+%%r%d*%d)", destReg, baseReg, offsetReg, (int)(long int)thisTAC->operands[3]);
 			}
 			ASMblock_append(asmBlock, thisLine);
 		}
@@ -778,6 +799,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 
 		case tt_cmp:
 		{
+			char immediateInstruction = 0;
 			thisLine = malloc(64);
 
 			struct Lifetime *operand1Lifetime = LinkedList_find(allLifetimes, compareLifetimes, thisTAC->operands[1]);
@@ -828,11 +850,23 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				break;
 
 			case vp_literal:
+				// TODO:
+				// range check immediate values
+				// if they don't fit fully, load into register via 2 instructions
+
+				immediateInstruction = 1;
 				sprintf(op2, "$%s", thisTAC->operands[2]);
 				break;
 			}
 
-			sprintf(thisLine, "%s %s, %s", getAsmOp(thisTAC->operation), op1, op2);
+			if (immediateInstruction)
+			{
+				sprintf(thisLine, "%si %s, %s", getAsmOp(thisTAC->operation), op1, op2);
+			}
+			else
+			{
+				sprintf(thisLine, "%s %s, %s", getAsmOp(thisTAC->operation), op1, op2);
+			}
 			ASMblock_append(asmBlock, thisLine);
 		}
 		break;
@@ -872,7 +906,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			break;
 
 			case vp_literal:
-				sprintf(thisLine, "push $%s", thisTAC->operands[0]);
+				sprintf(thisLine, "pushi $%s", thisTAC->operands[0]);
 				break;
 			}
 			ASMblock_append(asmBlock, thisLine);
@@ -896,7 +930,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				}
 				else
 				{
-					sprintf(thisLine, "mov %d(%%bp), %%rr", returnedLifetime->stackOrRegLocation);
+					sprintf(thisLine, "mov (%%bp+%d), %%rr", returnedLifetime->stackOrRegLocation);
 				}
 				ASMblock_append(asmBlock, thisLine);
 			}

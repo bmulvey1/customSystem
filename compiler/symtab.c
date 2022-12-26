@@ -319,7 +319,7 @@ struct Scope *Scope_lookupSubScopeByNumber(struct Scope *scope, unsigned char su
 
 int Scope_getSizeOfVariable(struct Scope *scope, char *name)
 {
-	return 2;
+	return 4;
 	/*
 	switch (theVariable->type)
 	{

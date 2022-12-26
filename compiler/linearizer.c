@@ -78,7 +78,7 @@ int linearizeDereference(struct Scope *scope,
 		{
 			thisDereference->operandTypes[1] = vt_var;
 			thisDereference->operandPermutations[1] = vp_literal;
-			LHSSize = 2;
+			LHSSize = 2; // hardcode lhs as uint size if a literal
 		}
 		break;
 
@@ -150,7 +150,8 @@ int linearizeDereference(struct Scope *scope,
 			thisDereference->operandTypes[3] = vt_null;
 
 			int offset = atoi(it->child->sibling->value);
-			thisDereference->operands[2] = (char *)(long int)((offset * 2) * ((it->type == t_un_sub) ? -1 : 1));
+			// multiply offset by 4 for word size
+			thisDereference->operands[2] = (char *)(long int)((offset * 4) * ((it->type == t_un_sub) ? -1 : 1));
 			thisDereference->operandTypes[2] = vt_var;
 			thisDereference->operandPermutations[2] = vp_literal;
 		}

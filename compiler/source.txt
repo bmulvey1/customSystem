@@ -11,7 +11,7 @@ fun print(var value)
 	// store r0, pull the argument into a register, then output that register
 	asm{
 		push %r0
-		mov %r0, 4(%bp)
+		mov %r0, (%bp+8)
 		out %r0
 		pop %r0
 	};
@@ -19,11 +19,18 @@ fun print(var value)
 
 fun arrDeclare()
 {
-    var *array = 512;
-    array[0] = 1234;
-    
-    print(array[0]);
-    array = 0;
+	var array[10];
+	//array[0] = 0;
+	//array[1] = 1;
+
+	var i = 0;
+	while(i < 10)
+	{
+		//print(i);
+		array[i] = i + 42;
+		i = i + 1;
+	}
+    print(array[4]);
 }
 
 $$

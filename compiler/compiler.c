@@ -46,7 +46,7 @@ int main(int argc, char **argv)
 	printf("Linearizing code to basic blocks\n");
 	linearizeProgram(program, theTable->globalScope, parseDict);
 	printf("Done linearizing code\n");
-	SymbolTable_print(theTable, 0);
+	SymbolTable_print(theTable, 1);
 
 	FILE *outFile = fopen(argv[2], "wb");
 
