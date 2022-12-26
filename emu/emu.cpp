@@ -1,8 +1,13 @@
 #include <iostream>
 #include <fstream>
 #include <cstdint>
+#include <chrono>
+#include <thread>
+
 #include "names.hpp"
 #include "memory.h"
+
+#define PRINTEXECUTION
 
 SystemMemory memory;
 // uint8_t memory[0x10000] = {0};
@@ -145,15 +150,14 @@ void jmpOp(uint32_t offset24bit)
 {
     static const uint64_t mask = 1U << (23);
     uint32_t relativeAddress = ((offset24bit ^ mask) - mask) << 2;
-    printf("Jmp by %d (raw offset was %u)\n", relativeAddress, offset24bit);
+    // printf("Jmp by %d (raw offset was %u)\n", relativeAddress, offset24bit);
     registers[ip] += relativeAddress;
-
 }
 
 void arithmeticOp(uint8_t RD, uint32_t S1, uint32_t S2, uint8_t opCode)
 {
-    printf("Arithmetic op with %d %d\n", S1, S2);
-    uint64_t result = 0;
+    // printf("Arithmetic op with %d %d\n", S1, S2);
+    uint64_t result = 0UL;
 
     // their compiler optimizes better than mine
     uint32_t invertedS2 = ~S2;
@@ -161,9 +165,11 @@ void arithmeticOp(uint8_t RD, uint32_t S1, uint32_t S2, uint8_t opCode)
     {
     case 0x1: // ADD
         result = S1 + S2;
+        flags[CF] = (result < S1);
         break;
     case 0x3: // SUB
         result = S1 + invertedS2 + 1;
+        flags[CF] = !(result > S1);
         break;
     case 0x5: // MUL
         result = S1 * S2;
@@ -189,17 +195,13 @@ void arithmeticOp(uint8_t RD, uint32_t S1, uint32_t S2, uint8_t opCode)
     case 0x13: // CMP
         // uint16_t result = registers[RD] - value;
         result = S1 + invertedS2 + 1;
+        flags[CF] = !(result > S1);
         break;
     }
 
     flags[ZF] = ((result & 0xffffffff) == 0);
     flags[NF] = ((result >> 31) & 1);
-    flags[CF] = ((result >> 32) > 0);
-    /*
-    flags[ZF] = ((result & 0xffff) == 0);
-    flags[NF] = ((result >> 15) & 1);
-    flags[CF] = ((result >> 16) > 0);
-    */
+    // flags[CF] = ((result >> 32) > 0);
 
     // this seems wrong... is it?
     flags[VF] = ((registers[RD] >> 31) ^ ((result >> 31) & 1)) && !(1 ^ (registers[RD] >> 31) ^ (S2 >> 31));
@@ -492,7 +494,10 @@ int main(int argc, char *argv[])
         }
         else
         {
-            printf("%08x: %02x:%s\n", registers[ip] - 4, instruction.byte.b0, opcodeNames[instruction.byte.b0].c_str());
+#ifdef PRINTEXECUTION
+            std::string opcodeName = opcodeNames[instruction.byte.b0];
+            printf("%08x: %02x:%-4s ", registers[ip] - 4, instruction.byte.b0, opcodeName.substr(0, opcodeName.find(" ")).c_str());
+#endif
         }
 
         // printf("%02x, %02x, %02x, %02x | %04x, %04x | %08x\n", instruction.byte.b0, instruction.byte.b1, instruction.byte.b2, instruction.byte.b3, instruction.hword.h0, instruction.hword.h1, instruction.word);
@@ -510,6 +515,8 @@ int main(int argc, char *argv[])
         // JMP
         case 0x11:
         {
+            printf("\n");
+            // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
             jmpOp(instruction.word & 0x00ffffff);
         }
         break;
@@ -517,60 +524,126 @@ int main(int argc, char *argv[])
         // JE/JZ
         case 0x13:
         {
+            // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
+
             if (flags[ZF])
             {
+#ifdef PRINTEXECUTION
+                printf("TAKEN\n");
+#endif
                 jmpOp(instruction.word & 0x00ffffff);
             }
+#ifdef PRINTEXECUTION
+            else
+            {
+                printf("NOT TAKEN\n");
+            }
+#endif
         }
         break;
 
         // JNE/JNZ
         case 0x15:
         {
-            if (flags[ZF] == 0)
+            // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
+
+            if (!flags[ZF])
             {
+#ifdef PRINTEXECUTION
+                printf("TAKEN\n");
+#endif
                 jmpOp(instruction.word & 0x00ffffff);
             }
+#ifdef PRINTEXECUTION
+            else
+            {
+                printf("NOT TAKEN\n");
+            }
+#endif
         }
         break;
 
         // JG
         case 0x17:
         {
-            if ((flags[ZF] == 0) && flags[CF])
+            // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
+
+            if ((!flags[ZF]) && flags[CF])
             {
+#ifdef PRINTEXECUTION
+                printf("TAKEN\n");
+#endif
                 jmpOp(instruction.word & 0x00ffffff);
             }
+#ifdef PRINTEXECUTION
+            else
+            {
+                printf("NOT TAKEN\n");
+            }
+#endif
         }
         break;
 
         // JL
         case 0x19:
         {
-            if (flags[CF] == 0)
+            // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
+
+            if (!flags[CF])
             {
+#ifdef PRINTEXECUTION
+                printf("TAKEN\n");
+#endif
                 jmpOp(instruction.word & 0x00ffffff);
             }
+#ifdef PRINTEXECUTION
+            else
+            {
+                printf("NOT TAKEN\n");
+            }
+#endif
         }
         break;
 
         // JGE
         case 0x1b:
         {
+            // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
+
             if (flags[CF])
             {
+#ifdef PRINTEXECUTION
+                printf("TAKEN\n");
+#endif
                 jmpOp(instruction.word & 0x00ffffff);
             }
+#ifdef PRINTEXECUTION
+            else
+            {
+                printf("NOT TAKEN\n");
+            }
+#endif
         }
         break;
 
         // JLE
         case 0x1d:
         {
-            if (flags[ZF] || (flags[CF] == 0))
+            // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
+
+            if (flags[ZF] || (!flags[CF]))
             {
+#ifdef PRINTEXECUTION
+                printf("TAKEN\n");
+#endif
                 jmpOp(instruction.word & 0x00ffffff);
             }
+#ifdef PRINTEXECUTION
+            else
+            {
+                printf("NOT TAKEN\n");
+            }
+#endif
         }
         break;
 
@@ -589,6 +662,9 @@ int main(int argc, char *argv[])
             uint8_t RD = instruction.byte.b1 >> 4;
             uint8_t RS1 = instruction.byte.b1 & 0b1111;
             uint8_t RS2 = instruction.byte.b2 >> 4;
+#ifdef PRINTEXECUTION
+            printf("%%r%d, %%r%d, %%r%d\n", RD, RS1, RS2);
+#endif
             arithmeticOp(RD, registers[RS1], registers[RS2], instruction.byte.b0);
         }
         break;
@@ -597,6 +673,9 @@ int main(int argc, char *argv[])
         case 0x54:
         {
             uint8_t RD = instruction.byte.b1 >> 4;
+#ifdef PRINTEXECUTION
+            printf("%%r%d\n", RD);
+#endif
             registers[RD]++;
         }
         break;
@@ -605,6 +684,9 @@ int main(int argc, char *argv[])
         case 0x56:
         {
             uint8_t RD = instruction.byte.b1 >> 4;
+#ifdef PRINTEXECUTION
+            printf("%%r%d\n", RD);
+#endif
             registers[RD]--;
         }
         break;
@@ -614,6 +696,9 @@ int main(int argc, char *argv[])
         {
             uint8_t RD = instruction.byte.b1 >> 4;
             uint8_t RS1 = instruction.byte.b1 & 0b1111;
+#ifdef PRINTEXECUTION
+            printf("%%r%d, %%r%d\n", RD, RS1);
+#endif
             registers[RD] = ~registers[RS1];
         }
         break;
@@ -633,6 +718,9 @@ int main(int argc, char *argv[])
                 uint8_t RD = instruction.byte.b1 >> 4;
                 uint8_t RS1 = instruction.byte.b1 & 0b1111;
                 uint16_t imm = instruction.hword.h1;
+#ifdef PRINTEXECUTION
+                printf("%%r%d, %%r%d, %u\n", RD, RS1, imm);
+#endif
                 arithmeticOp(RD, registers[RS1], imm, instruction.byte.b0);
             }
             break;
@@ -647,6 +735,9 @@ int main(int argc, char *argv[])
         case 0xab:
         case 0xaf:
         {
+#ifdef PRINTEXECUTION
+            printf("\n");
+#endif
             movOp(instruction, 1);
         }
         break;
@@ -661,6 +752,9 @@ int main(int argc, char *argv[])
         case 0xbb:
         case 0xbf:
         {
+#ifdef PRINTEXECUTION
+            printf("\n");
+#endif
             movOp(instruction, 2);
         }
         break;
@@ -674,6 +768,9 @@ int main(int argc, char *argv[])
         case 0xc9:
         case 0xcb:
         {
+#ifdef PRINTEXECUTION
+            printf("\n");
+#endif
             movOp(instruction, 4);
         }
         break;
@@ -683,27 +780,40 @@ int main(int argc, char *argv[])
         // PUSH
         case 0xd0:
         {
-            stackPush(registers[instruction.byte.b1 & 0b1111]);
+            uint8_t RS = instruction.byte.b1 & 0b1111;
+#ifdef PRINTEXECUTION
+            printf("%%r%d\n", RS);
+#endif
+            stackPush(registers[RS]);
         }
         break;
 
         // PUSHI
         case 0xd1:
         {
-            stackPush(instruction.word & 0x00ffffff);
+            uint32_t imm = instruction.word & 0x00ffffff;
+#ifdef PRINTEXECUTION
+            printf("%u\n", imm);
+#endif
+            stackPush(imm);
         }
         break;
 
         // POP
         case 0xd2:
         {
+            uint8_t RD = instruction.byte.b1 & 0b1111;
+#ifdef PRINTEXECUTION
+            printf("%u\n", RD);
+#endif
             // fault condition by which attempt to pop from a completely empty stack
             if (registers[sp] >= 0xfffffffc)
             {
                 printf("Stack underflow fault\n");
                 exit(1);
             }
-            registers[instruction.byte.b1 & 0b1111] = stackPop();
+
+            registers[RD] = stackPop();
         }
         break;
 
@@ -711,7 +821,10 @@ int main(int argc, char *argv[])
         case 0xd3:
         {
             uint32_t callAddr = instruction.word << 8;
-            printf("call to %08x\n", callAddr);
+#ifdef PRINTEXECUTION
+            printf("%08x\n", callAddr);
+#endif
+            // printf("call to %08x\n", callAddr);
             stackPush(registers[bp]);
             stackPush(registers[ip]);
             registers[bp] = registers[sp];
@@ -719,22 +832,16 @@ int main(int argc, char *argv[])
         }
         break;
 
-        // RET (halfword)
+        // RET
         case 0xd4:
         {
+            uint32_t argw = instruction.word & 0x00ffffff;
+#ifdef PRINTEXECUTION
+            printf("%d\n", argw);
+#endif
             registers[ip] = stackPop();
             registers[bp] = stackPop();
-            registers[sp] += instruction.byte.b1;
-        }
-        break;
-
-        // RET (word)
-        case 0xd5:
-        {
-            registers[ip] = stackPop();
-            printf("Return to %08x\n", registers[ip]);
-            registers[bp] = stackPop();
-            registers[sp] += instruction.word & 0x00ffffff;
+            registers[sp] += argw;
         }
         break;
 
@@ -1057,7 +1164,7 @@ int main(int argc, char *argv[])
         case 0xe2:
         {
             uint8_t rs = instruction.byte.b1 & 0xf;
-            printf("%%r%d: %u\n", rs, registers[rs]);
+            printf("\t\t%%r%d: %u\n", rs, registers[rs]);
         }
         break;
 
@@ -1073,11 +1180,11 @@ int main(int argc, char *argv[])
 
         // printState();
         // printf("\n");
-        
-        for (int i = 0; i < 0xffffff; i++)
         {
+            using namespace std::chrono_literals;
+            std::this_thread::sleep_for(25ms);
         }
-        
+
         // printf("\n");
 
         instructionCount++;
