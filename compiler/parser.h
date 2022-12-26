@@ -7,7 +7,7 @@
 
 #define BUF_SIZE 32
 
-void error();
+void ParserError();
 
 char lookahead_dumb();
 
@@ -31,7 +31,11 @@ struct ASTNode *parseTLD(struct Dictionary *dict);
 
 struct ASTNode *parseAssignment(struct ASTNode *name, struct Dictionary *dict);
 
-struct ASTNode *parseStatementList(struct Dictionary *dict);
+struct ASTNode *parseScope(struct Dictionary *dict);
+
+struct ASTNode *parseName(struct Dictionary *dict);
+
+struct ASTNode *parseDeclaration(struct Dictionary *dict);
 
 struct ASTNode *parseStatement(struct Dictionary *dict);
 

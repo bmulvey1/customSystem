@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "util.h"
 #include "ast.h"
 #include "tac.h"
 #include "parser.h"
@@ -8,94 +9,129 @@
 
 #pragma once
 
-enum symTabEntryType
+enum ScopeMemberType
 {
 	e_variable,
 	e_function,
-	e_argument
+	e_argument,
+	e_scope,
+	e_basicblock,
+	e_stackobj,
 };
 
-struct tempList
-{
-	int size;
-	char **temps;
-};
 
-struct symTabEntry
+struct ScopeMember
 {
 	char *name;
-	enum symTabEntryType type;
+	enum ScopeMemberType type;
 	void *entry;
 };
 
-struct variableEntry
+struct FunctionEntry;
+
+struct Scope
+{
+	struct Scope *parentScope;
+	struct FunctionEntry *parentFunction;
+	struct Stack *entries;
+	char subScopeCount;
+	char *name; // duplicate pointer from ScopeMember for ease of use
+};
+
+struct FunctionEntry
+{
+	int localStackSize;
+	int argStackSize;
+	enum variableTypes returnType;
+	// struct SymbolTable *table;
+	struct Scope *mainScope;
+	char *name; // duplicate pointer from ScopeMember for ease of use
+	struct LinkedList *BasicBlockList;
+};
+
+struct VariableEntry
 {
 	int stackOffset;
+	struct StackObjectEntry *localPointerTo;
+	char *name; // duplicate pointer from ScopeMember for ease of use
 	enum variableTypes type;
 	int indirectionLevel;
 	int assignedAt;
 	int declaredAt;
 	char isAssigned;
-	char global;
+	// if this variable has the address-of operator used on it
+	// we need to denote that it *must* live on the stack so it isn't lost
+	// and can have an address
+	char mustSpill;
 };
 
-struct functionEntry
+struct StackObjectEntry
 {
-	enum variableTypes returnType;
-	struct symbolTable *table;
+	int size;
+	int arraySize;
+	int stackOffset;
+	struct VariableEntry *localPointer;
 };
 
-struct symbolTable
+struct SymbolTable
 {
 	char *name;
-	struct symTabEntry **entries;
-	struct symbolTable *parentScope;
-	int size;
-	struct tempList *tl;
-	int localStackSize;
-	int argStackSize;
-	struct LinkedList *BasicBlockList;
+	struct Scope *globalScope;
 };
 
-char *getTempString(struct tempList *tempList, int tempNum);
 
-struct tempList *newTempList();
+void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum variableTypes type, int indirectionLevel, int arraySize);
 
-void freeTempList(struct tempList *it);
+// symbol table functions
+struct SymbolTable *SymbolTable_new(char *name);
 
-struct variableEntry *newVariableEntry(int indirectionLevel, enum variableTypes type);
+// scope functions
+struct Scope *Scope_new(struct Scope *parentScope, char *name);
 
-struct functionEntry *newFunctionEntry(struct symbolTable *table);
+void Scope_free(struct Scope *scope, int depth);
 
-struct symbolTable *newSymbolTable(char *name);
+void Scope_print(struct Scope *it, int depth, char printTAC);
 
-int symbolTableContains(struct symbolTable *table, char *name);
+void Scope_insert(struct Scope *scope, char *name, void *newEntry, enum ScopeMemberType type);
 
-struct symTabEntry *symbolTableLookup(struct symbolTable *table, char *name);
+void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes type, int indirectionLevel, int arraySize);
 
-struct variableEntry *symbolTableLookup_var(struct symbolTable *table, char *name);
+struct FunctionEntry *Scope_createFunction(struct Scope *scope, char *name);
 
-struct functionEntry *symbolTableLookup_fun(struct symbolTable *table, char *name);
+struct Scope *Scope_createSubScope(struct Scope *scope);
 
-int symbolTable_getSizeOfVariable(struct symbolTable *table, enum variableTypes type);
+// scope lookup functions
+char Scope_contains(struct Scope *scope, char *name);
 
-void symTabInsert(struct symbolTable *table, char *name, void *newEntry, enum symTabEntryType type);
+struct ScopeMember *Scope_lookup(struct Scope *scope, char *name);
 
-void symTab_insertVariable(struct symbolTable *table, char *name, enum variableTypes type, int indirectionLevel);
+struct VariableEntry *Scope_lookupVar(struct Scope *scope, char *name);
 
-void symTab_insertArgument(struct symbolTable *table, char *name, enum variableTypes type, int indirectionLevel);
+struct FunctionEntry *Scope_lookupFun(struct Scope *scope, char *name);
 
-void symTab_insertFunction(struct symbolTable *table, char *name, struct symbolTable *subTable);
+struct Scope *Scope_lookupSubScope(struct Scope *scope, char *name);
 
-void printSymTabRec(struct symbolTable *it, int depth, char printTAC);
+struct Scope *Scope_lookupSubScopeByNumber(struct Scope *scope, unsigned char subScopeNumber);
 
-void printSymTab(struct symbolTable *it, char printTAC);
+int Scope_getSizeOfVariable(struct Scope *scope, char *name);
 
-void freeSymTab(struct symbolTable *it);
+// scope linearization functions
+
+// adds an entry in the given scope denoting that the block is from that scope
+void Scope_addBasicBlock(struct Scope *scope, struct BasicBlock *b);
+
+// add the basic block to the linkedlist for the parent function
+void Function_addBasicBlock(struct FunctionEntry *function, struct BasicBlock *b);
+
+void SymbolTable_print(struct SymbolTable *it, char printTAC);
+
+void SymbolTable_free(struct SymbolTable *it);
 
 // AST walk functions
-void walkStatement(struct ASTNode *it, struct symbolTable *wip);
+void walkStatement(struct ASTNode *it, struct Scope *wip);
 
-void walkFunction(struct ASTNode *it, struct symbolTable *wip);
+void walkScope(struct ASTNode *it, struct Scope *wip, char isMainScope);
 
-struct symbolTable *walkAST(struct ASTNode *it);
+void walkFunction(struct ASTNode *it, struct Scope *parentScope);
+
+struct SymbolTable *walkAST(struct ASTNode *it);

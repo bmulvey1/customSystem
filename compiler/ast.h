@@ -2,6 +2,7 @@
 
 #pragma once
 
+
 enum token
 {
 	t_asm,
@@ -27,7 +28,11 @@ enum token
 	t_rParen,
 	t_lCurly,
 	t_rCurly,
+	t_lBracket,
+	t_rBracket,
+	t_array,
 	t_call,
+	t_scope,
 	t_EOF,
 };
 
