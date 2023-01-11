@@ -78,7 +78,7 @@ int linearizeDereference(struct Scope *scope,
 		{
 			thisDereference->operandTypes[1] = vt_var;
 			thisDereference->operandPermutations[1] = vp_literal;
-			LHSSize = 2; // hardcode lhs as uint size if a literal
+			LHSSize = 4; // hardcode lhs as uint size if a literal
 		}
 		break;
 
@@ -556,7 +556,7 @@ int linearizeExpression(struct Scope *scope,
 			case vp_literal:
 				// TODO: dynamically multiply here, fix memory leak
 				char *scaledLiteral = malloc(16);
-				sprintf(scaledLiteral, "%d", atoi(thisExpression->operands[2]) * 2);
+				sprintf(scaledLiteral, "%d", atoi(thisExpression->operands[2]) * 4);
 				thisExpression->operands[2] = scaledLiteral;
 				thisExpression->indirectionLevels[2] = thisExpression->indirectionLevels[1];
 				break;
@@ -586,7 +586,7 @@ int linearizeExpression(struct Scope *scope,
 				// TODO: auto scale by size of pointer and operand with types
 				// TODO: scaling memory leak
 				char *scalingLiteral = malloc(16);
-				sprintf(scalingLiteral, "%d", 2);
+				sprintf(scalingLiteral, "%d", 4);
 				scaleMultiply->operands[2] = scalingLiteral;
 				scaleMultiply->operandPermutations[2] = vp_literal;
 				scaleMultiply->operandTypes[2] = vt_var;
@@ -603,7 +603,7 @@ int linearizeExpression(struct Scope *scope,
 				case vp_literal:
 					// TODO: dynamically multiply here, fix memory leak
 					char *scaledLiteral = malloc(16);
-					sprintf(scaledLiteral, "%d", atoi(thisExpression->operands[1]) * 2);
+					sprintf(scaledLiteral, "%d", atoi(thisExpression->operands[1]) * 4);
 					thisExpression->operands[1] = scaledLiteral;
 					thisExpression->indirectionLevels[1] = thisExpression->indirectionLevels[2];
 					break;
@@ -634,7 +634,7 @@ int linearizeExpression(struct Scope *scope,
 					// TODO: auto scale by size of pointer and operand with types
 					// TODO: scaling memory leak
 					char *scalingLiteral = malloc(16);
-					sprintf(scalingLiteral, "%d", 2);
+					sprintf(scalingLiteral, "%d", 4);
 					scaleMultiply->operands[2] = scalingLiteral;
 					scaleMultiply->operandPermutations[2] = vp_literal;
 					scaleMultiply->operandTypes[2] = vt_var;

@@ -451,13 +451,13 @@ void movOp(instructionData instruction, int nBytes)
         switch (nBytes)
         {
         case 1:
-            printf("%02x\n", registers[RS]);
+            printf("%02x (%d/%u)\n", registers[RS], registers[RS], registers[RS]);
             break;
         case 2:
-            printf("%04x\n", registers[RS]);
+            printf("%04x (%d/%u)\n", registers[RS], registers[RS], registers[RS]);
             break;
         case 4:
-            printf("%08x\n", registers[RS]);
+            printf("%08x (%d/%u)\n", registers[RS], registers[RS], registers[RS]);
             break;
         default:
             break;
@@ -486,6 +486,10 @@ void movOp(instructionData instruction, int nBytes)
     case 0xf:
     {
         uint8_t RD = instruction.byte.b1 >> 4;
+#ifdef PRINTEXECUTION
+        printf("%%r%d, %d\n", RD, instruction.hword.h1);
+#endif
+
         switch (nBytes)
         {
         case 1:
@@ -1232,11 +1236,11 @@ int main(int argc, char *argv[])
 
         // printState();
         // printf("\n");
-        /*
-        {
-            using namespace std::chrono_literals;
-            std::this_thread::sleep_for(25ms);
-        }*/
+        
+        // {
+            // using namespace std::chrono_literals;
+            // std::this_thread::sleep_for(25ms);
+        // }
 
         // printf("\n");
 
