@@ -1,5 +1,17 @@
 #include "codegen.h"
 
+int ALIGNSIZE(unsigned int size)
+{
+	unsigned int mask = 0b1;
+	int i = 0;
+	while (mask < size)
+	{
+		mask <<= 1;
+		i++;
+	}
+	return i;
+}
+
 struct Stack *generateCode(struct SymbolTable *table, FILE *outFile)
 {
 	printf("generate code for [%s]\n", table->name);
@@ -735,7 +747,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
 			int offsetReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
 			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[3], asmBlock, 16, touchedRegisters);
-			sprintf(thisLine, "mov (%%r%d+%%r%d*%d), %%r%d", baseReg, offsetReg, (int)(long int)thisTAC->operands[2], sourceReg);
+			sprintf(thisLine, "mov (%%r%d+%%r%d,%d), %%r%d", baseReg, offsetReg, ALIGNSIZE((int)(long int)thisTAC->operands[2]), sourceReg);
 			ASMblock_append(asmBlock, thisLine);
 		}
 		break;
@@ -791,7 +803,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
 				int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
 				int offsetReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[2], asmBlock, 16, touchedRegisters);
-				sprintf(thisLine, "mov %%r%d, (%%r%d+%%r%d*%d)", destReg, baseReg, offsetReg, (int)(long int)thisTAC->operands[3]);
+				sprintf(thisLine, "mov %%r%d, (%%r%d+%%r%d,%d)", destReg, baseReg, offsetReg, ALIGNSIZE((int)(long int)thisTAC->operands[3]));
 			}
 			ASMblock_append(asmBlock, thisLine);
 		}
@@ -948,7 +960,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			{
 			case vp_literal:
 			{
-				sprintf(thisLine, "mov %%rr, $%s", thisTAC->operands[0]);
+				sprintf(thisLine, "movh %%rr, $%s", thisTAC->operands[0]);
 				ASMblock_append(asmBlock, thisLine);
 			}
 			break;

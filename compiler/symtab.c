@@ -19,7 +19,7 @@ void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum v
 	newArgument->name = name;
 
 	int argSize = Scope_getSizeOfVariable(func->mainScope, name);
-	newArgument->stackOffset = func->argStackSize + 4;
+	newArgument->stackOffset = func->argStackSize + 8;
 	func->argStackSize += argSize;
 
 	if (arraySize > 1)

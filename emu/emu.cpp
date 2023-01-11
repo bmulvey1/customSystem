@@ -7,7 +7,7 @@
 #include "names.hpp"
 #include "memory.h"
 
-#define PRINTEXECUTION
+// #define PRINTEXECUTION
 
 SystemMemory memory;
 // uint8_t memory[0x10000] = {0};
@@ -244,16 +244,21 @@ void movOp(instructionData instruction, int nBytes)
         uint8_t RS = instruction.byte.b1 >> 4;
         uint8_t RD = instruction.byte.b1 & 0b1111;
         uint32_t value;
+
+#ifdef PRINTEXECUTION
+        printf("%%r%d, %%r%d\n", RD, RS);
+#endif
+
         switch (nBytes)
         {
         case 1:
-            value = registers[RS] & 0xffffff00;
+            value = registers[RS] & 0x000000ff;
             break;
         case 2:
-            value = registers[RS] & 0xffff0000;
+            value = registers[RS] & 0x0000ffff;
             break;
         case 4:
-            value = registers[RS] & 0x00000000;
+            value = registers[RS] & 0xffffffff;
             break;
         default:
             printf("Illegal nBytes argument to movOp!\n");
@@ -269,19 +274,23 @@ void movOp(instructionData instruction, int nBytes)
         uint8_t RD = instruction.byte.b1 >> 4;
         uint8_t rBase = instruction.byte.b1 & 0b1111;
 
+#ifdef PRINTEXECUTION
+        printf("%%r%d, (%%r%d)\t(%08x)\n", RD, rBase, registers[rBase]);
+#endif
+
         switch (nBytes)
         {
         case 1:
             // registers[RD] &= 0xffffff00;
-            registers[RD] = readB(rBase);
+            registers[RD] = readB(registers[rBase]);
             break;
         case 2:
             // registers[RD] &= 0xffff0000;
-            registers[RD] = readH(rBase);
+            registers[RD] = readH(registers[rBase]);
             break;
         case 4:
             // registers[RD] &= 0x00000000;
-            registers[RD] = readW(rBase);
+            registers[RD] = readW(registers[rBase]);
             break;
         default:
             printf("Illegal nBytes argument to movOp!\n");
@@ -294,18 +303,22 @@ void movOp(instructionData instruction, int nBytes)
     case 0x4:
     {
         uint8_t rBase = instruction.byte.b1 >> 4;
-        uint8_t rs = instruction.byte.b1 & 0b1111;
+        uint8_t RS = instruction.byte.b1 & 0b1111;
+
+#ifdef PRINTEXECUTION
+        printf("(%%r%d), %%r%d\t(%08x)\n", rBase, RS, registers[rBase]);
+#endif
 
         switch (nBytes)
         {
         case 1:
-            writeB(registers[rBase], registers[rs]);
+            writeB(registers[rBase], registers[RS]);
             break;
         case 2:
-            writeH(registers[rBase], registers[rs]);
+            writeH(registers[rBase], registers[RS]);
             break;
         case 4:
-            writeW(registers[rBase], registers[rs]);
+            writeW(registers[rBase], registers[RS]);
             break;
         default:
             printf("Illegal nBytes argument to movOp!\n");
@@ -314,7 +327,7 @@ void movOp(instructionData instruction, int nBytes)
     }
     break;
 
-    // mov reg, (reg + off)
+    // mov reg, (reg + offimm)
     case 0x5:
     {
         uint8_t RD = instruction.byte.b1 >> 4;
@@ -325,6 +338,10 @@ void movOp(instructionData instruction, int nBytes)
         longAddress += offset;
         uint32_t address = longAddress;
 
+#ifdef PRINTEXECUTION
+        printf("%%r%d, (%%r%d+%d)\t(%08x)\n", RD, rBase, offset, address);
+#endif
+
         // printf("address %08x + %d = %08x\n", registers[rBase], offset, address);
 
         switch (nBytes)
@@ -345,7 +362,7 @@ void movOp(instructionData instruction, int nBytes)
     }
     break;
 
-    // mov (reg + off * sclpow), reg
+    // mov (reg + offimm), reg
     case 0x7:
     {
         uint8_t RS = instruction.byte.b1 >> 4;
@@ -355,6 +372,10 @@ void movOp(instructionData instruction, int nBytes)
         int64_t longaddress = registers[rBase] + offset;
         int32_t address = longaddress;
 
+#ifdef PRINTEXECUTION
+        printf("(%%r%d + %d), %%r%d\t(%08x)\n", rBase, offset, RS, address);
+#endif
+
         // printf("address %08x + %d = %08x\n", registers[rBase], offset, address);
 
         switch (nBytes)
@@ -375,18 +396,23 @@ void movOp(instructionData instruction, int nBytes)
     }
     break;
 
+    // mov reg, (reg + offreg * sclpow)
     case 0x9:
     {
         uint8_t RD = instruction.byte.b1 >> 4;
         uint8_t rBase = instruction.byte.b1 & 0b1111;
-        uint8_t sclPow = instruction.byte.b2 >> 4;
-        int16_t offset = ((instruction.byte.b2 & 0b1111) << 8) | instruction.byte.b3;
+
+        uint8_t rOff = instruction.byte.b2 & 0b1111;
+        uint8_t sclPow = instruction.byte.b3 & 0b11111;
+        uint32_t offset = registers[rOff];
 
         int64_t longaddress = registers[rBase];
         longaddress += (offset << sclPow);
         uint32_t address = longaddress;
 
-        // printf("address %08x + (%d * (2 ^ %d)) = %08x\n", registers[rBase], offset, sclPow, address);
+#ifdef PRINTEXECUTION
+        printf("%%r%d, (%%r%d+%%r%d*%d)\t(%08x)\n", RD, rBase, rOff, (1 << sclPow), address);
+#endif
 
         switch (nBytes)
         {
@@ -406,17 +432,37 @@ void movOp(instructionData instruction, int nBytes)
     }
     break;
 
+    // mov (reg + offreg * sclpow), reg
     case 0xb:
     {
         uint8_t RS = instruction.byte.b1 >> 4;
         uint8_t rBase = instruction.byte.b1 & 0b1111;
-        uint8_t sclPow = instruction.byte.b2 >> 4;
-        int16_t offset = ((instruction.byte.b2 & 0b1111) << 8) | instruction.byte.b3;
+
+        uint8_t rOff = instruction.byte.b2 & 0b1111;
+        uint8_t sclPow = instruction.byte.b3 & 0b11111;
+        uint32_t offset = registers[rOff];
 
         int64_t longaddress = registers[rBase];
         longaddress += (offset << sclPow);
         uint32_t address = longaddress;
-        // printf("address %08x + (%d * (2 ^ %d)) = %08x\n", registers[rBase], offset, sclPow, address);
+
+#ifdef PRINTEXECUTION
+        printf("(%%r%d+%%r%d*%d), %%r%d\t(%08x)<-", rBase, rOff, (1 << sclPow), RS, address);
+        switch (nBytes)
+        {
+        case 1:
+            printf("%02x\n", registers[RS]);
+            break;
+        case 2:
+            printf("%04x\n", registers[RS]);
+            break;
+        case 4:
+            printf("%08x\n", registers[RS]);
+            break;
+        default:
+            break;
+        }
+#endif
 
         switch (nBytes)
         {
@@ -436,6 +482,7 @@ void movOp(instructionData instruction, int nBytes)
     }
     break;
 
+    // reg, imm
     case 0xf:
     {
         uint8_t RD = instruction.byte.b1 >> 4;
@@ -477,6 +524,12 @@ int main(int argc, char *argv[])
     while (running)
     {
         instructionData instruction = {0};
+        if (registers[ip] & (0b11))
+        {
+            printf("Instruction alignment fault.\n");
+            running = false;
+            break;
+        }
         instruction.word = consumeW(registers[ip]);
 
         // instruction.byte.b0 = consumeB(registers[ip]);
@@ -506,6 +559,9 @@ int main(int argc, char *argv[])
         {
             // hlt/no instruction
         case 0x00:
+#ifdef PRINTEXECUTION
+            printf("\n");
+#endif
             running = 0;
             break;
 
@@ -515,7 +571,9 @@ int main(int argc, char *argv[])
         // JMP
         case 0x11:
         {
+#ifdef PRINTEXECUTION
             printf("\n");
+#endif
             // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
             jmpOp(instruction.word & 0x00ffffff);
         }
@@ -735,9 +793,6 @@ int main(int argc, char *argv[])
         case 0xab:
         case 0xaf:
         {
-#ifdef PRINTEXECUTION
-            printf("\n");
-#endif
             movOp(instruction, 1);
         }
         break;
@@ -752,9 +807,6 @@ int main(int argc, char *argv[])
         case 0xbb:
         case 0xbf:
         {
-#ifdef PRINTEXECUTION
-            printf("\n");
-#endif
             movOp(instruction, 2);
         }
         break;
@@ -768,9 +820,6 @@ int main(int argc, char *argv[])
         case 0xc9:
         case 0xcb:
         {
-#ifdef PRINTEXECUTION
-            printf("\n");
-#endif
             movOp(instruction, 4);
         }
         break;
@@ -804,7 +853,7 @@ int main(int argc, char *argv[])
         {
             uint8_t RD = instruction.byte.b1 & 0b1111;
 #ifdef PRINTEXECUTION
-            printf("%u\n", RD);
+            printf("%%r%u\n", RD);
 #endif
             // fault condition by which attempt to pop from a completely empty stack
             if (registers[sp] >= 0xfffffffc)
@@ -1168,7 +1217,10 @@ int main(int argc, char *argv[])
         }
         break;
 
-        case 0xfe:
+        case 0xfe: // HLT
+#ifdef PRINTEXECUTION
+            printf("\n");
+#endif
             running = false;
             break;
 
@@ -1180,10 +1232,11 @@ int main(int argc, char *argv[])
 
         // printState();
         // printf("\n");
+        /*
         {
             using namespace std::chrono_literals;
             std::this_thread::sleep_for(25ms);
-        }
+        }*/
 
         // printf("\n");
 

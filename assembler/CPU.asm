@@ -133,8 +133,8 @@
     movb %{rd: reg}, (%{rbase: reg}+%{offset: i16})              => 0xa5 @ rd @ rbase @ offset
     movb (%{rbase: reg}+%{offset: i16}, %{rs: reg}               => 0xa7 @ rs @ rbase @ offset
 
-    movb %{rd: reg}, (%{rbase: reg}+%{roffset: reg}*{sclpow: i5}) => 0xa9 @ rd @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
-    movb (%{rbase: reg}+%{roffset: reg}*{sclpow:i5}), %{rs: reg}  => 0xab @ rs @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
+    movb %{rd: reg}, (%{rbase: reg}+%{roffset: reg},{sclpow: i5}) => 0xa9 @ rd @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
+    movb (%{rbase: reg}+%{roffset: reg},{sclpow:i5}), %{rs: reg}  => 0xab @ rs @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
 
     movb %{rd: reg}, ${imm: i8}                                  => 0xaf @ rd @ 0x0 @ imm
 
@@ -145,10 +145,10 @@
     movh (%{rbase: reg}), %{rs: reg}                             => 0xb4 @ rbase @ rs @ 0x0000
     
     movh %{rd: reg}, (%{rbase: reg}+%{offset: i16})              => 0xb5 @ rd @ rbase @ offset
-    movh (%{rbase: reg}+%{offset: i16}, %{rs: reg}               => 0xb7 @ rs @ rbase @ offset
+    movh (%{rbase: reg}+%{offset: i16}), %{rs: reg}              => 0xb7 @ rs @ rbase @ offset
 
-    movh %{rd: reg}, (%{rbase: reg}+%{roffset: reg}*{sclpow: i5}) => 0xb9 @ rd @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
-    movh (%{rbase: reg}+%{roffset: reg}*{sclpow:i5}), %{rs: reg}  => 0xbb @ rs @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
+    movh %{rd: reg}, (%{rbase: reg}+%{roffset: reg},{sclpow: i5})=> 0xb9 @ rd @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
+    movh (%{rbase: reg}+%{roffset: reg},{sclpow:i5}), %{rs: reg} => 0xbb @ rs @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
 
     movh %{rd: reg}, ${imm: i16}                                 => 0xbf @ rd @ 0x0 @ imm
 
@@ -162,8 +162,8 @@
     mov %{rd: reg}, (%{rbase: reg}+{offset: i16})                => 0xc5 @ rd @ rbase @ offset
     mov (%{rbase: reg}+{offset: i16}), %{rs: reg}                => 0xc7 @ rs @ rbase @ offset
 
-    mov %{rd: reg}, (%{rbase: reg}+%{roffset: reg}*{sclpow: i5}) => 0xc9 @ rd @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
-    mov (%{rbase: reg}+%{roffset: reg}*{sclpow:i5}), %{rs: reg}  => 0xcb @ rs @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
+    mov %{rd: reg}, (%{rbase: reg}+%{roffset: reg},{sclpow: i5}) => 0xc9 @ rd @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
+    mov (%{rbase: reg}+%{roffset: reg},{sclpow:i5}), %{rs: reg}  => 0xcb @ rs @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
 
 
     push %{rs: reg}                         => 0xd0 @ 0x0 @ rs @ 0x0000
