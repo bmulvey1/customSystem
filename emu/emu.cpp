@@ -520,14 +520,14 @@ void SWI(uint8_t num)
 
 void Output(uint8_t port, uint8_t byte)
 {
-    switch(port)
+    switch (port)
     {
-        case 0x00:
-            putchar(byte);
-            break;
+    case 0x00:
+        putchar(byte);
+        break;
 
-        default:
-            SWI(0x04);
+    default:
+        SWI(0x04);
     }
 }
 
@@ -910,6 +910,27 @@ int main(int argc, char *argv[])
             registers[ip] = stackPop();
             registers[bp] = stackPop();
             registers[sp] += argw;
+        }
+        break;
+
+        // INT
+        case 0xd5:
+        {
+            uint8_t intNum = instruction.byte.b1;
+#ifdef PRINTEXECUTION
+            printf("%02x\n", intNum);
+#endif
+            SWI(intNum);
+        }
+        break;
+
+        // RETI
+        case 0xd6:
+        {
+#ifdef PRINTEXECUTION
+            printf("\n", intNum);
+#endif
+            registers[ip] = stackPop();
         }
         break;
 

@@ -170,7 +170,7 @@
     ret                                     => asm{ret 0}
     
     int {code: i8}                          => 0xd5 @ code @ 0x0000
-
+    reti                                    => 0xd6 @ 0x000000
 
     out {port: i8}, %{rs: reg}                         => 0xe2 @ port @ 0x0 @ rs @ 0x00
 
