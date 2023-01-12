@@ -26,16 +26,8 @@
 ; lsb of opcode indicates length (0 for hword 1 for word)
 #ruledef{
 
-    nop             => 0x01000000
+    nop             => 0x01 @ 0x000000
     
-    
-    #fn calcjumpoffset(dst) =>
-    {
-        ; calculate offset, then rshift by 2 since instructions are 4 byte aligned
-        
-        reladdr`24
-    }
-
     jmp {dst:i32}  => 
     {
         reladdr = ((dst - $) - 4) >> 2
@@ -174,12 +166,15 @@
     call {address: i32}                     => 0xd3 @ (address >> 8)`24
 
     ; wipe 'argw' number of bytes off the stack from arguments
-    ret {argw: i24}                          => 0xd4 @ argw
+    ret {argw: i24}                         => 0xd4 @ argw
     ret                                     => asm{ret 0}
+    
+    int {code: i8}                          => 0xd5 @ code @ 0x0000
 
-    out %{rs: reg}                          => 0xe2 @ 0x0 @ rs @ 0x0000
 
-    hlt                                     => 0xfe000000
+    out {port: i8}, %{rs: reg}                         => 0xe2 @ port @ 0x0 @ rs @ 0x00
+
+    hlt                                    => 0xfe000000
 
     entry {address: i32}    => address ; specify the entry point to the code
 

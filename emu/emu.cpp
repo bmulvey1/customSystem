@@ -512,6 +512,25 @@ void movOp(instructionData instruction, int nBytes)
     }
 }
 
+void SWI(uint8_t num)
+{
+    stackPush(registers[ip]);
+    registers[ip] = readH(num * 4);
+}
+
+void Output(uint8_t port, uint8_t byte)
+{
+    switch(port)
+    {
+        case 0x00:
+            putchar(byte);
+            break;
+
+        default:
+            SWI(0x04);
+    }
+}
+
 int main(int argc, char *argv[])
 {
     if (argc < 1)
@@ -530,24 +549,13 @@ int main(int argc, char *argv[])
         instructionData instruction = {0};
         if (registers[ip] & (0b11))
         {
-            printf("Instruction alignment fault.\n");
-            running = false;
-            break;
+            SWI(0x02); // throw INT 1 on misaligned PC
         }
+
         instruction.word = consumeW(registers[ip]);
-
-        // instruction.byte.b0 = consumeB(registers[ip]);
-        // instruction.byte.b1 = consumeB(registers[ip]);
-        // {
-        // uint8_t swapped = instruction.byte.b0;
-        // instruction.byte.b0 = instruction.byte.b1;
-        // instruction.byte.b1 = swapped;
-        // }
-
         if (opcodeNames.count(instruction.byte.b0) == 0)
         {
-            printf("Unexpected opcode %2x at %08x\n", instruction.byte.b0, registers[ip] - 4);
-            exit(1);
+            SWI(0x03); // throw INT 2 on opcode with no name in names.h
         }
         else
         {
@@ -561,16 +569,23 @@ int main(int argc, char *argv[])
 
         switch (instruction.byte.b0)
         {
-            // hlt/no instruction
+            // hlt instruction
         case 0x00:
+        {
 #ifdef PRINTEXECUTION
             printf("\n");
 #endif
             running = 0;
-            break;
+        }
+        break;
 
         case 0x01: // nop
-            break;
+        {
+#ifdef PRINTEXECUTION
+            printf("\n");
+#endif
+        }
+        break;
 
         // JMP
         case 0x11:
@@ -898,348 +913,35 @@ int main(int argc, char *argv[])
         }
         break;
 
-            /*
-            ase 0xd0: // CALL
-                {
-                    uint16_t callAddr = consumeWord(registers[ip]);
-                    stackPush(registers[bp]);
-                    stackPush(registers[ip]);
-                    registers[bp] = registers[sp];
-                    registers[ip] = callAddr;
-                }
-                break;
-
-                case 0xd1: // RET
-                {
-                    registers[ip] = stackPop();
-                    registers[bp] = stackPop();
-                }
-                break;
-
-                case 0xd2: // RET {argc}
-                {
-                    uint16_t argw = consumeWord(registers[ip]);
-                    registers[ip] = stackPop();
-                    registers[bp] = stackPop();
-                    registers[sp] += argw;
-                }
-                break;*/
-
-            /*
-            // MOVB (move byte)
-            case 0xa0: // register -> register MOV
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 >> 4;
-                uint8_t RD = insByte2 & 0b1111;
-                registers[RD] = registers[RS] & 0b11111111;
-            }
-            break;
-
-            case 0xa1: // dereferenced register -> register mov
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 >> 4;
-                uint8_t RD = insByte2 & 0b1111;
-                registers[RD] = readByte(registers[RS]);
-            }
-            break;
-
-            case 0xa2: // register -> dereferenced register mov
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 >> 4;
-                uint8_t RD = insByte2 & 0b1111;
-                writeByte(registers[RD], registers[RS] & 0b11111111);
-            }
-            break;
-
-            // dereferenced register + offset -> register
-            case 0xa3:
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 >> 4;
-                uint8_t RD = insByte2 & 0b1111;
-                int8_t offset = consumeByte(registers[ip]);
-                registers[RD] = readByte(registers[RS] + offset);
-            }
-            break;
-
-            case 0xa4:
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 >> 4;
-                uint8_t RD = insByte2 & 0b1111;
-                int8_t offset = consumeByte(registers[ip]);
-                writeByte(registers[RD] + offset, registers[RS] & 0b11111111);
-            }
-            break;
-
-            case 0xa5: // movb roffset(rd, scale), rd
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 >> 4;
-                uint8_t RD = insByte2 & 0b1111;
-                uint8_t RO = consumeByte(registers[ip]);
-                uint8_t scale = consumeByte(registers[ip]);
-                uint16_t address = registers[RS] + (scale * registers[RO]);
-                registers[RD] = readByte(address);
-            }
-            break;
-
-            case 0xa6: // movb rs, roffset(rd, scale)
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 >> 4;
-                uint8_t RD = insByte2 & 0b1111;
-                uint8_t RO = consumeByte(registers[ip]);
-                uint8_t scale = consumeByte(registers[ip]);
-                uint16_t address = registers[RD] + (scale * registers[RO]);
-                writeByte(address, registers[RS] & 0b11111111);
-            }
-            break;
-
-            case 0xa7:
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RD = insByte2 & 0b1111;
-                uint8_t imm = consumeByte(registers[ip]);
-                registers[RD] = imm;
-            }
-            break;
-            */
-            // MOVW (move word)
-
-            /*case 0xa8:
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint8_t RS = operands >> 11;
-                uint8_t RD = operands >> 6 & 0b11111;
-                registers[RD] = registers[RS];
-            }
-            break;
-
-            case 0xa9: // dereferenced register -> register mov
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint8_t RS = operands >> 11;
-                uint16_t sourceAddress = registers[RS];
-                uint8_t RD = operands >> 6 & 0b11111;
-                registers[RD] = readByte(sourceAddress) << 8;
-                registers[RD] |= readByte(sourceAddress + 1);
-            }
-            break;
-
-            case 0xaa: // register -> dereferenced register mov
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint8_t RS = operands >> 11;
-                uint16_t sourceAddress = registers[RS];
-                uint8_t RD = operands >> 6 & 0b11111;
-                writeByte(registers[RD], sourceAddress >> 8);
-                writeByte(registers[RD] + 1, sourceAddress);
-            }
-            break;
-
-            // (register + offset) dereferenced -> register
-            case 0xab: // MOV
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint8_t RS = operands >> 11;
-                uint16_t sourceAddress = registers[RS];
-                uint8_t RD = operands >> 6 & 0b11111;
-                int16_t offset = consumeWord(registers[ip]);
-                registers[RD] = readByte(sourceAddress + offset) << 8;
-                registers[RD] |= readByte(sourceAddress + offset + 1);
-            }
-            break;
-
-            case 0xac: // MOV offset(rd), rs
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint8_t RS = operands >> 11;
-                uint16_t sourceAddress = registers[RS];
-                uint8_t RD = (operands >> 6) & 0b11111;
-                int16_t offset = consumeWord(registers[ip]);
-                writeByte(registers[RD] + offset, sourceAddress >> 8);
-                writeByte(registers[RD] + offset + 1, sourceAddress & 0b11111111);
-            }
-            break;
-
-            case 0xad: // MOV rd, roffset(rs, scale)
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint8_t RS = operands >> 11;
-                uint8_t RD = operands >> 6 & 0b11111;
-                uint8_t RO = operands >> 1 & 0b11111;
-                uint8_t scale = consumeByte(registers[ip]);
-                uint16_t address = registers[RS] + (scale * registers[RO]);
-                registers[RD] = readByte(address) << 8;
-                registers[RD] |= readByte(address + 1);
-            }
-            break;
-
-            case 0xae: // MOV roffset(rd, scale), rS
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint8_t RS = operands >> 11;
-                uint16_t sourceAddress = registers[RS];
-                uint8_t RD = operands >> 6 & 0b11111;
-                uint8_t RO = operands >> 1 & 0b11111;
-                uint8_t scale = consumeByte(registers[ip]);
-
-                uint16_t address = registers[RD] + (scale * registers[RO]);
-                writeByte(address, sourceAddress >> 8);
-                writeByte(address + 1, sourceAddress & 0b11111111);
-            }
-            break;
-
-            case 0xaf: // MOV reg, imm
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RD = insByte2 & 0b11111;
-                uint16_t imm = consumeWord(registers[ip]);
-                registers[RD] = imm;
-            }
-            break;
-
-            case 0xb0:
-            {
-                uint16_t operands = consumeByte(registers[ip]);
-                uint16_t offset = consumeWord(registers[ip]);
-                uint16_t immediate = consumeWord(registers[ip]);
-                uint8_t RD = operands & 0b11111;
-
-                uint16_t address = registers[RD] + offset;
-                writeByte(address, immediate >> 8);
-                writeByte(address + 1, immediate & 0b11111111);
-            }
-            break;
-
-            case 0xb1:
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint16_t immediate = consumeWord(registers[ip]);
-                uint8_t RD = operands >> 6 & 0b11111;
-                uint8_t RO = operands >> 1 & 0b11111;
-                uint8_t scale = consumeByte(registers[ip]);
-
-                uint16_t address = registers[RD] + (scale * registers[RO]);
-                writeByte(address, immediate >> 8);
-                writeByte(address + 1, immediate & 0b11111111);
-            }
-            break;
-
-            case 0xc0: // PUSH
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                stackPush(registers[insByte2]);
-            }
-            break;
-
-            case 0xc1: // PUSH
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint16_t value = readWord(registers[insByte2]);
-                stackPush(value);
-            }
-            break;
-
-            case 0xc2: // PUSH
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                int8_t offset = consumeByte(registers[ip]);
-                uint16_t value = readWord(registers[insByte2] + offset);
-                stackPush(value);
-            }
-            break;
-
-            case 0xc3: // PUSH
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 & 0b1111;
-                uint8_t RO = insByte2 >> 4;
-                uint8_t scale = consumeByte(registers[ip]);
-                uint16_t value = readWord(registers[RS] + (registers[RO] * scale));
-                stackPush(value);
-            }
-            break;
-
-            case 0xc4: // PUSH imm
-            {
-                uint16_t immediate = consumeWord(registers[ip]);
-                stackPush(immediate);
-            }
-            break;
-
-            case 0xcf: // POP
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                registers[insByte2] = stackPop();
-            }
-            break;
-
-            case 0xd0: // CALL
-            {
-                uint16_t callAddr = consumeWord(registers[ip]);
-                stackPush(registers[bp]);
-                stackPush(registers[ip]);
-                registers[bp] = registers[sp];
-                registers[ip] = callAddr;
-            }
-            break;
-
-            case 0xd1: // RET
-            {
-                registers[ip] = stackPop();
-                registers[bp] = stackPop();
-            }
-            break;
-
-            case 0xd2: // RET {argc}
-            {
-                uint16_t argw = consumeWord(registers[ip]);
-                registers[ip] = stackPop();
-                registers[bp] = stackPop();
-                registers[sp] += argw;
-            }
-            break;
-
-            // OUT (bootleg print)
-            case 0xd3:
-            {
-                uint8_t rs = consumeByte(registers[ip]);
-                printf("%%r%d: %d\n", rs, registers[rs]);
-            }
-            break;
-            */
-
+        // OUT
         case 0xe2:
         {
-            uint8_t rs = instruction.byte.b1 & 0xf;
-            printf("\t\t%%r%d: %u\n", rs, registers[rs]);
+            uint8_t port = instruction.byte.b1;
+            uint8_t rs = instruction.byte.b2 & 0xf;
+            Output(port, registers[rs]);
+            // printf("\t\t%%r%d: %u\n", rs, registers[rs]);
         }
         break;
 
         case 0xfe: // HLT
+        {
 #ifdef PRINTEXECUTION
             printf("\n");
 #endif
             running = false;
-            break;
+        }
+        break;
 
         default:
-            printf("\n\n\nError: Undefined opcode %02x at memory loctaion %02x\n", instruction.byte.b0, registers[ip - 1]);
-            printf("Instruction was: %02x, %02x, %02x, %02x | %04x, %04x | %08x\n", instruction.byte.b0, instruction.byte.b1, instruction.byte.b2, instruction.byte.b3, instruction.hword.h0, instruction.hword.h1, instruction.word);
-            exit(1);
+            SWI(0x02); // throw INT 1 on undefined opcode
         }
 
         // printState();
         // printf("\n");
-        
+
         // {
-            // using namespace std::chrono_literals;
-            // std::this_thread::sleep_for(25ms);
+        // using namespace std::chrono_literals;
+        // std::this_thread::sleep_for(25ms);
         // }
 
         // printf("\n");
