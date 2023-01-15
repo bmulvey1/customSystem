@@ -18,10 +18,8 @@ fun print(var value)
 {
     // store r0, pull the argument into a register, then output that register
     asm {
-		push %r0
-		mov %r0, (%bp+8)
-		out 0, %r0
-		pop %r0
+		mov %rr, (%bp+8)
+        int 5
     }
     ;
 }
@@ -60,7 +58,7 @@ fun mul(var a, var b)
 fun div(var a, var b)
 {
     var quotient = 0;
-    while(a >= b)
+    while (a >= b)
     {
         a = a - b;
         quotient = quotient + 1;
@@ -72,23 +70,23 @@ fun printNum(var num)
 {
     var outStr[16];
     var digits = 1;
-    if(num == 0)
+    if (num == 0)
     {
         outStr[0] = 48;
     }
     // else
     // {
-        while (num > 0)
-        {
-            var remainder = mod(num, 10);
-            outStr[digits] = remainder + 48;
-            num = div(num, 10);
-            digits = digits + 1;
-        }
+    while (num > 0)
+    {
+        var remainder = mod(num, 10);
+        outStr[digits] = remainder + 48;
+        num = div(num, 10);
+        digits = digits + 1;
+    }
     // }
 
     var i = 0;
-    while(i < digits)
+    while (i < digits)
     {
         print(outStr[digits - i]);
         i = i + 1;

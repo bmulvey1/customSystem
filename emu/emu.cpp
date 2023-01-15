@@ -515,7 +515,7 @@ void movOp(instructionData instruction, int nBytes)
 void SWI(uint8_t num)
 {
     stackPush(registers[ip]);
-    registers[ip] = readH(num * 4);
+    registers[ip] = readW(num * 4);
 }
 
 void Output(uint8_t port, uint8_t byte)
@@ -540,7 +540,7 @@ int main(int argc, char *argv[])
     }
     setupMemory(argv[1]);
     registers[sp] = 0xfffffffc;
-    registers[ip] = readW(0); // read the entry point to the code segment
+    registers[ip] = readW(65536); // read the entry point to the code segment
     printf("Read entry address of %08x\n", registers[ip]);
     bool running = true;
     uint32_t instructionCount = 0;
@@ -928,7 +928,7 @@ int main(int argc, char *argv[])
         case 0xd6:
         {
 #ifdef PRINTEXECUTION
-            printf("\n", intNum);
+            printf("\n");
 #endif
             registers[ip] = stackPop();
         }

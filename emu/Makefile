@@ -1,5 +1,5 @@
 CC = g++ 
-CFLAGS = -Werror -Wall -O0 -g 
+CFLAGS = -Werror -Wall -O2 -g 
 programs: emu
 
 emu: emu.o memory.o

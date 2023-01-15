@@ -58,7 +58,7 @@ int main(int argc, char **argv)
 
 	struct Stack *outputBlocks;
 	outputBlocks = generateCode(theTable, outFile);
-	fprintf(outFile, "#include \"CPU.asm\"\n");
+	fprintf(outFile, "#include \"CPU.asm\"\n#include \"INT.asm\"\n");
 	for(int i = 0; i < outputBlocks->size; i++)
 	{
 		ASMblock_output(outputBlocks->data[i], outFile);
