@@ -1027,9 +1027,9 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 		noifJump->operands[0] = (char *)((long int)elseBlock->labelNum);
 
 		// linearize the else block, it returns to the same afterIfBlock as the ifBlock does
-		struct Stack *scopeStack = Stack_new();
-		r = linearizeScope(scope, elseTACIndex, elseBlock, afterIfBlock, it->child->sibling->sibling->child->child, tempNum, labelCount, scopeStack);
-		Stack_free(scopeStack);
+		// struct Stack *scopeStack = Stack_new();
+		r = linearizeScope(scope, elseTACIndex, elseBlock, afterIfBlock, it->child->sibling->sibling->child->child, tempNum, labelCount, scopeNesting);
+		// Stack_free(scopeStack);
 		Stack_push(results, r);
 	}
 	else
@@ -1079,19 +1079,29 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 }
 
 // given the AST for a function, generate TAC and return a pointer to the head of the generated block
-struct LinearizationResult *linearizeScope(struct Scope *scope,
-										   int currentTACIndex,
-										   struct BasicBlock *currentBlock,
-										   struct BasicBlock *controlConvergesTo,
-										   struct ASTNode *it,
-										   int *tempNum,
-										   int *labelCount,
-										   struct Stack *scopeNesting)
+struct LinearizationResult *linearizeScope(struct Scope *scope,					  // the symtab entry for the scope we are working in
+										   int currentTACIndex,					  // index of the TAC we are generating
+										   struct BasicBlock *currentBlock,		  // current block we are generating TAC to
+										   struct BasicBlock *controlConvergesTo, // once we are done generating the currentBlock, where should control jump to (if anywhere, null if not)
+										   struct ASTNode *it,					  // AST node of the scope
+										   int *tempNum,						  // what temp index we are at
+										   int *labelCount,						  // what label index we are at
+										   struct Stack *scopeNesting			  // stack containing the nestings of the scopes
+)
 {
-	// if we are descending into a nested scope, look up the correct scope
+	// if we are descending into a nested scope, look up the correct scope and use it
+	// the subscope will be used in this call and any calls generated from this one, allowing the scopes to recursively nest properly
 	if (scopeNesting->size > 0)
 	{
-		scope = Scope_lookupSubScopeByNumber(scope, *(long int *)Stack_peek(scopeNesting));
+		printf("Linearize scope at subscope number %d\n", *(int *)Stack_peek(scopeNesting));
+		scope = Scope_lookupSubScopeByNumber(scope, *(int *)Stack_peek(scopeNesting));
+	}
+	// otherwise the stack is empty so we should set it up to start at index 0
+	else
+	{
+		printf("Not descending into subscope, start off by making a new subscope index\n");
+		int newSubscopeIndex = 0;
+		Stack_push(scopeNesting, &newSubscopeIndex);
 	}
 
 	// locally scope a variable for scope count at this depth, push it to the stack
@@ -1295,6 +1305,9 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,
 	Stack_pop(scopeNesting);
 	if (scopeNesting->size > 0)
 		*((int *)Stack_peek(scopeNesting)) += 1;
+
+
+
 	return r;
 }
 
@@ -1493,8 +1506,6 @@ void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dict
 		}
 		runner = runner->sibling;
 	}
-
-	collapseScopes(globalScope, dict, 1);
 }
 
 /*

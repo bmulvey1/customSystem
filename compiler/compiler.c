@@ -43,9 +43,15 @@ int main(int argc, char **argv)
 	printf("Symbol table before scope collapse:\n");
 	SymbolTable_print(theTable, 0);
 
+	
+
+
 	printf("Linearizing code to basic blocks\n");
 	linearizeProgram(program, theTable->globalScope, parseDict);
-	printf("Done linearizing code\n");
+
+	collapseScopes(theTable->globalScope, parseDict, 1);
+
+	printf("Symbol table after lienarization/scope collapse:\n");
 	SymbolTable_print(theTable, 1);
 
 	FILE *outFile = fopen(argv[2], "wb");
@@ -53,7 +59,6 @@ int main(int argc, char **argv)
 	struct Stack *outputBlocks;
 	outputBlocks = generateCode(theTable, outFile);
 	fprintf(outFile, "#include \"CPU.asm\"\n");
-	fprintf(outFile, "#include \"INT.asm\"\n");
 	for(int i = 0; i < outputBlocks->size; i++)
 	{
 		ASMblock_output(outputBlocks->data[i], outFile);

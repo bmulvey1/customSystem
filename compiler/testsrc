@@ -1,0 +1,31 @@
+asm{
+	entry code
+
+code:
+    hlt
+};
+
+fun printNum(var num)
+{
+
+    if(num == 0)
+    {
+        var asdf = 0;
+    }
+    else
+    {
+
+        while (num > 0)
+        {
+            var remainder = 0;
+
+            remainder = remainder + 48;
+        }
+    }
+
+    if(num == 1)
+    {
+        var hjkl = 0;
+    }
+}
+$$
