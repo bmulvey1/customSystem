@@ -1,5 +1,7 @@
 #include "regalloc.h"
 
+void PlaceLiteralInRegister(struct ASMblock *currentBlock, char *literalStr, char *destReg);
+
 struct Stack *generateCode(struct SymbolTable *table, FILE *outFile);
 
 struct Stack *generateCodeForScope(struct Scope *scope, FILE *outFile);

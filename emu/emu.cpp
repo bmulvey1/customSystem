@@ -92,14 +92,18 @@ union instructionData
 
 void printState()
 {
-    for (int i = 0; i < 17; i++)
+    for(int row = 0; row < 2; row++)
     {
-        printf("%8s|", registerNames[i].c_str());
-    }
-    std::cout << std::endl;
-    for (int i = 0; i < 17; i++)
-    {
-        printf("%8x|", registers[i]);
+        for (int i = 0; i < (9 - row); i++)
+        {
+            printf("%8s|", registerNames[(9 * row) + i].c_str());
+        }
+        std::cout << std::endl;
+        for (int i = 0; i < (9 - row); i++)
+        {
+            printf("%8x|", registers[(9 * row) + i]);
+        }
+        std::cout << std::endl;
     }
     printf("\nNF: %d ZF: %d CF: %d VF: %d\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
 
@@ -524,6 +528,7 @@ void Output(uint8_t port, uint8_t byte)
     {
     case 0x00:
         putchar(byte);
+        fflush(stdout);
         break;
 
     default:
@@ -962,7 +967,7 @@ int main(int argc, char *argv[])
 
         // {
         // using namespace std::chrono_literals;
-        // std::this_thread::sleep_for(25ms);
+        // std::this_thread::sleep_for(250ms);
         // }
 
         // printf("\n");

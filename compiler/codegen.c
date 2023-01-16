@@ -12,6 +12,40 @@ int ALIGNSIZE(unsigned int size)
 	return i;
 }
 
+void PlaceLiteralInRegister(struct ASMblock *currentBlock, char *literalStr, char *destReg)
+{
+	char *thisLine = malloc(64);
+	int literalValue = atoi(literalStr);
+	if (literalValue < 0x100)
+	{
+		sprintf(thisLine, "movb %s, $%s", destReg, literalStr);
+	}
+	else if (literalValue < 0x10000)
+	{
+		sprintf(thisLine, "movh %s, $%s", destReg, literalStr);
+	}
+	else
+	{
+		int firstHalf, secondHalf;
+		firstHalf = literalValue & 0xffff;
+		secondHalf = literalValue >> 16;
+		char halvedString[16]; // will be long enough to hold any int32/uint32 so can definitely hold half of one
+
+		sprintf(halvedString, "%d", secondHalf);
+		sprintf(thisLine, "movh %s, $%s", destReg, halvedString);
+
+		ASMblock_append(currentBlock, thisLine);
+		thisLine = malloc(64);
+		sprintf(thisLine, "shli %s, $16", destReg);
+		ASMblock_append(currentBlock, thisLine);
+		thisLine = malloc(64);
+
+		sprintf(halvedString, "%d", firstHalf);
+		sprintf(thisLine, "movh %s, $%s", destReg, halvedString);
+	}
+	ASMblock_append(currentBlock, thisLine);
+}
+
 struct Stack *generateCode(struct SymbolTable *table, FILE *outFile)
 {
 	printf("generate code for [%s]\n", table->name);
@@ -559,8 +593,15 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 					break;
 
 				case vp_literal:
-					sprintf(thisLine, "movh %%r%d, $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
-					break;
+				{
+					// char destReg[5];
+					// sprintf(destReg, "%%r%d", assignedLifetime->stackOrRegLocation);
+					// PlaceLiteralInRegister(asmBlock, thisTAC->operands[1], destReg);
+					// free(thisLine);
+					// thisLine = NULL;
+				}
+				sprintf(thisLine, "movh %%r%d, $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
+				break;
 				}
 			}
 			// assign to spilled
@@ -583,11 +624,29 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 					break;
 
 				case vp_literal:
-					sprintf(thisLine, "movh (%%bp+%d), $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
-					break;
+				{
+					// if the literal is too large for one instruction, we will need to put it into a register first
+					// if (atoi(thisTAC->operands[1]) > 0xffff)
+					// {
+						// char destReg[5];
+						// this use of the first reserved register could potentially stomp other operations if we expect them to persist over more than one TAC instruction
+						// expecting this is unrealistic but leaving this comment juuuuust in case
+						// sprintf(destReg, "%%r%d", reservedRegisters[0]);
+						// PlaceLiteralInRegister(asmBlock, thisTAC->operands[1], destReg);
+						// sprintf(thisLine, "mov (%%bp+%d), %%r%d", assignedLifetime->stackOrRegLocation, reservedRegisters[0]);
+					// }
+					// else
+					// {
+						sprintf(thisLine, "mov (%%bp+%d), $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
+					// }
+				}
+				break;
 				}
 			}
-			ASMblock_append(asmBlock, thisLine);
+			if (thisLine != NULL)
+			{
+				ASMblock_append(asmBlock, thisLine);
+			}
 		}
 		break;
 
@@ -960,6 +1019,8 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			{
 			case vp_literal:
 			{
+				// PlaceLiteralInRegister(asmBlock, thisTAC->operands[0], "%%rr");
+				// free(thisLine);
 				sprintf(thisLine, "movh %%rr, $%s", thisTAC->operands[0]);
 				ASMblock_append(asmBlock, thisLine);
 			}

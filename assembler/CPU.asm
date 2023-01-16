@@ -123,7 +123,7 @@
     movb (%{rbase: reg}), %{rs: reg}                             => 0xa4 @ rbase @ rs @ 0x0000
     
     movb %{rd: reg}, (%{rbase: reg}+%{offset: i16})              => 0xa5 @ rd @ rbase @ offset
-    movb (%{rbase: reg}+%{offset: i16}, %{rs: reg}               => 0xa7 @ rs @ rbase @ offset
+    movb (%{rbase: reg}+%{offset: i16}), %{rs: reg}               => 0xa7 @ rs @ rbase @ offset
 
     movb %{rd: reg}, (%{rbase: reg}+%{roffset: reg},{sclpow: i5}) => 0xa9 @ rd @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
     movb (%{rbase: reg}+%{roffset: reg},{sclpow:i5}), %{rs: reg}  => 0xab @ rs @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
@@ -156,7 +156,6 @@
 
     mov %{rd: reg}, (%{rbase: reg}+%{roffset: reg},{sclpow: i5}) => 0xc9 @ rd @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
     mov (%{rbase: reg}+%{roffset: reg},{sclpow:i5}), %{rs: reg}  => 0xcb @ rs @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
-
 
     push %{rs: reg}                         => 0xd0 @ 0x0 @ rs @ 0x0000
     pushi ${imm: i24}                       => 0xd1 @ imm
