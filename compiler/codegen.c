@@ -600,8 +600,8 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 					// free(thisLine);
 					// thisLine = NULL;
 				}
-				sprintf(thisLine, "movh %%r%d, $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
-				break;
+					sprintf(thisLine, "movh %%r%d, $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
+					break;
 				}
 			}
 			// assign to spilled
@@ -628,16 +628,16 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 					// if the literal is too large for one instruction, we will need to put it into a register first
 					// if (atoi(thisTAC->operands[1]) > 0xffff)
 					// {
-						// char destReg[5];
-						// this use of the first reserved register could potentially stomp other operations if we expect them to persist over more than one TAC instruction
-						// expecting this is unrealistic but leaving this comment juuuuust in case
-						// sprintf(destReg, "%%r%d", reservedRegisters[0]);
-						// PlaceLiteralInRegister(asmBlock, thisTAC->operands[1], destReg);
-						// sprintf(thisLine, "mov (%%bp+%d), %%r%d", assignedLifetime->stackOrRegLocation, reservedRegisters[0]);
+					// char destReg[5];
+					// this use of the first reserved register could potentially stomp other operations if we expect them to persist over more than one TAC instruction
+					// expecting this is unrealistic but leaving this comment juuuuust in case
+					// sprintf(destReg, "%%r%d", reservedRegisters[0]);
+					// PlaceLiteralInRegister(asmBlock, thisTAC->operands[1], destReg);
+					// sprintf(thisLine, "mov (%%bp+%d), %%r%d", assignedLifetime->stackOrRegLocation, reservedRegisters[0]);
 					// }
 					// else
 					// {
-						sprintf(thisLine, "mov (%%bp+%d), $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
+					sprintf(thisLine, "mov (%%bp+%d), $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
 					// }
 				}
 				break;
@@ -989,11 +989,11 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			thisLine = malloc(64);
 			sprintf(thisLine, "call %s", thisTAC->operands[1]);
 			LinkedList_Append(asmBlock, thisLine);
-			thisLine = malloc(64);
 
 			// the call returns a value
 			if (thisTAC->operands[0] != NULL)
 			{
+				thisLine = malloc(64);
 				struct Lifetime *returnedLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
 				if (!returnedLifetime->isSpilled)
 				{
@@ -1004,10 +1004,6 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 					sprintf(thisLine, "mov (%%bp+%d), %%rr", returnedLifetime->stackOrRegLocation);
 				}
 				LinkedList_Append(asmBlock, thisLine);
-			}
-			else
-			{
-				free(thisLine);
 			}
 		}
 		break;
