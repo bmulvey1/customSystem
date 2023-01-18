@@ -28,13 +28,13 @@ int main(int argc, char **argv)
 	printf("Parsing program from %s\n", argv[1]);
 
 	printf("Generating output to %s\n", argv[2]);
-	parseDict = newDictionary(10);
-	struct ASTNode *program = parseProgram(argv[1], parseDict);
+	parseDict = Dictionary_New(10);
+	struct AST *program = ParseProgram(argv[1], parseDict);
 
 	serializeAST("astdump", program);
 	printf("\n");
 
-	ASTNode_print(program, 0);
+	AST_Print(program, 0);
 	printf("Generating symbol table from AST");
 	struct SymbolTable *theTable = walkAST(program);
 	printf("\n");
@@ -61,16 +61,16 @@ int main(int argc, char **argv)
 	fprintf(outFile, "#include \"CPU.asm\"\n#include \"INT.asm\"\n");
 	for(int i = 0; i < outputBlocks->size; i++)
 	{
-		ASMblock_output(outputBlocks->data[i], outFile);
-		ASMblock_free(outputBlocks->data[i]);
+		ASM_output(outputBlocks->data[i], outFile);
+		ASM_free(outputBlocks->data[i]);
 	}
 	SymbolTable_free(theTable);
 
-	Stack_free(outputBlocks);
+	Stack_Free(outputBlocks);
 
 	fclose(outFile);
 	// freeDictionary(parseDict);
-	ASTNode_free(program);
+	AST_Free(program);
 
 	printf("done printing\n");
 }

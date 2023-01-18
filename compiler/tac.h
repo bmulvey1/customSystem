@@ -53,7 +53,7 @@ enum TACType
 
 struct TACLine
 {
-	struct ASTNode *correspondingTree;
+	struct AST *correspondingTree;
 	char *operands[4];                  // track operands by name
 	enum variableTypes operandTypes[4]; // track the types of each operand
 	enum variablePermutations operandPermutations[4];		// permutations for the operands, 0 if normal, 1 if temp, 2 if literal
@@ -69,7 +69,7 @@ void printTACLine(struct TACLine *it);
 
 char *sPrintTACLine(struct TACLine *it);
 
-struct TACLine *newTACLine(int index, enum TACType operation, struct ASTNode *correspondingTree);
+struct TACLine *newTACLine(int index, enum TACType operation, struct AST *correspondingTree);
 
 void freeTAC(struct TACLine *it);
 

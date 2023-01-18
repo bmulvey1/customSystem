@@ -95,7 +95,7 @@ char *getAsmOp(enum TACType t)
 	return "";
 }
 
-struct TACLine *newTACLine(int index, enum TACType operation, struct ASTNode *correspondingTree)
+struct TACLine *newTACLine(int index, enum TACType operation, struct AST *correspondingTree)
 {
 	struct TACLine *wip = malloc(sizeof(struct TACLine));
 	wip->correspondingTree = correspondingTree;
@@ -442,7 +442,7 @@ char TACLine_isEffective(struct TACLine *it)
 struct BasicBlock *BasicBlock_new(int labelNum)
 {
 	struct BasicBlock *wip = malloc(sizeof(struct BasicBlock));
-	wip->TACList = LinkedList_new();
+	wip->TACList = LinkedList_New();
 	wip->labelNum = labelNum;
 	wip->containsEffectiveCode = 0;
 	return wip;
@@ -450,20 +450,20 @@ struct BasicBlock *BasicBlock_new(int labelNum)
 
 void BasicBlock_free(struct BasicBlock *b)
 {
-	LinkedList_free(b->TACList, free);
+	LinkedList_Free(b->TACList, free);
 	free(b);
 }
 
 void BasicBlock_append(struct BasicBlock *b, struct TACLine *l)
 {
 	b->containsEffectiveCode |= TACLine_isEffective(l);
-	LinkedList_append(b->TACList, l);
+	LinkedList_Append(b->TACList, l);
 }
 
 void BasicBlock_prepend(struct BasicBlock *b, struct TACLine *l)
 {
 	b->containsEffectiveCode |= TACLine_isEffective(l);
-	LinkedList_prepend(b->TACList, l);
+	LinkedList_Prepend(b->TACList, l);
 }
 
 struct TACLine *findLastEffectiveTAC(struct BasicBlock *b)

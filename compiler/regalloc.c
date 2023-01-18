@@ -29,7 +29,7 @@ struct Lifetime *updateOrInsertLifetime(struct LinkedList *ltList,
 										enum variableTypes type,
 										int newEnd)
 {
-	struct Lifetime *thisLt = LinkedList_find(ltList, &compareLifetimes, variable);
+	struct Lifetime *thisLt = LinkedList_Find(ltList, &compareLifetimes, variable);
 
 	if (thisLt != NULL)
 	{
@@ -45,7 +45,7 @@ struct Lifetime *updateOrInsertLifetime(struct LinkedList *ltList,
 	else
 	{
 		thisLt = newLifetime(variable, type, newEnd);
-		LinkedList_append(ltList, thisLt);
+		LinkedList_Append(ltList, thisLt);
 	}
 
 	return thisLt;
@@ -77,7 +77,7 @@ void recordVariableRead(struct LinkedList *ltList,
 // does *NOT* guarantee that returned register indices are modifiable in the case where the variable is found in a register
 int placeOrFindOperandInRegister(struct LinkedList *lifetimes, char *variable, struct ASMblock *currentBlock, int registerIndex, char *touchedRegisters)
 {
-	struct Lifetime *relevantLifetime = LinkedList_find(lifetimes, compareLifetimes, variable);
+	struct Lifetime *relevantLifetime = LinkedList_Find(lifetimes, compareLifetimes, variable);
 	if (relevantLifetime == NULL)
 	{
 		ErrorAndExit(ERROR_INTERNAL, "Unable to find lifetime for variable %s!\n", variable);
@@ -90,7 +90,7 @@ int placeOrFindOperandInRegister(struct LinkedList *lifetimes, char *variable, s
 		{
 			char *copyLine = malloc(32);
 			sprintf(copyLine, "mov %%r%d, %d(%%bp)", registerIndex, relevantLifetime->stackOrRegLocation);
-			ASMblock_append(currentBlock, copyLine);
+			ASM_append(currentBlock, copyLine);
 			touchedRegisters[registerIndex] = 1;
 			return registerIndex;
 		}
@@ -118,7 +118,7 @@ int placeOrFindOperandInRegister(struct LinkedList *lifetimes, char *variable, s
 			{
 				sprintf(constructLocalPointerLine, "mov %%r%d, %%bp", registerIndex);
 			}
-			ASMblock_append(currentBlock, constructLocalPointerLine);
+			ASM_append(currentBlock, constructLocalPointerLine);
 			touchedRegisters[registerIndex] = 1;
 			return registerIndex;
 		}
@@ -132,7 +132,7 @@ int placeOrFindOperandInRegister(struct LinkedList *lifetimes, char *variable, s
 
 struct LinkedList *findLifetimes(struct FunctionEntry *function)
 {
-	struct LinkedList *lifetimes = LinkedList_new();
+	struct LinkedList *lifetimes = LinkedList_New();
 	for (int i = 0; i < function->mainScope->entries->size; i++)
 	{
 		struct ScopeMember *thisMember = function->mainScope->entries->data[i];
@@ -146,7 +146,7 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 	}
 
 	struct LinkedListNode *blockRunner = function->BasicBlockList->head;
-	struct Stack *doDepth = Stack_new();
+	struct Stack *doDepth = Stack_New();
 	while (blockRunner != NULL)
 	{
 		struct BasicBlock *thisBlock = blockRunner->data;
@@ -159,13 +159,13 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 			switch (thisLine->operation)
 			{
 			case tt_do:
-				Stack_push(doDepth, (void *)(long int)thisLine->index);
+				Stack_Push(doDepth, (void *)(long int)thisLine->index);
 				break;
 
 			case tt_enddo:
 			{
 				int extendTo = thisLine->index;
-				int extendFrom = (int)(long int)Stack_pop(doDepth);
+				int extendFrom = (int)(long int)Stack_Pop(doDepth);
 				for (struct LinkedListNode *lifetimeRunner = lifetimes->head; lifetimeRunner != NULL; lifetimeRunner = lifetimeRunner->next)
 				{
 					struct Lifetime *examinedLifetime = lifetimeRunner->data;
@@ -265,7 +265,7 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 		blockRunner = blockRunner->next;
 	}
 
-	Stack_free(doDepth);
+	Stack_Free(doDepth);
 
 	return lifetimes;
 }

@@ -3,24 +3,25 @@
 #include <string.h>
 
 #pragma once
-struct ASMline
+// a linkedlist of strings - should probably use the linkedlist implementaion in util
+struct ASM
 {
 	char *data;
-	struct ASMline *next;
+	struct ASM *next;
 };
 
 struct ASMblock
 {
-	struct ASMline *head;
-	struct ASMline *tail;
+	struct ASM *head;
+	struct ASM *tail;
 };
 
 struct ASMblock *newASMblock();
 
-void ASMblock_free(struct ASMblock* it);
+void ASM_free(struct ASMblock* it);
 
-void ASMblock_prepend(struct ASMblock *block, char *data);
+void ASM_prepend(struct ASMblock *block, char *data);
 
-void ASMblock_append(struct ASMblock *block, char *data);
+void ASM_append(struct ASMblock *block, char *data);
 
-void ASMblock_output(struct ASMblock *block, FILE *outFile);
+void ASM_output(struct ASMblock *block, FILE *outFile);

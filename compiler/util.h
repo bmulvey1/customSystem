@@ -19,6 +19,7 @@ enum CompilerErrors
  * Economizes heap space by only storing strings once each
  * Uses a simple hash table which supports different bucket counts
  */
+// this is another linked list, should pbobably use the linkedlist
 struct DictionaryEntry
 {
 	char *data;
@@ -33,15 +34,15 @@ struct Dictionary
 
 unsigned int hash(char *str);
 
-struct Dictionary *newDictionary(int nBuckets);
+struct Dictionary *Dictionary_New(int nBuckets);
 
-char *DictionaryInsert(struct Dictionary *dict, char *value);
+char *Dictionary_Insert(struct Dictionary *dict, char *value);
 
-char *DictionaryLookup(struct Dictionary *dict, char *value);
+char *Dictionary_Lookup(struct Dictionary *dict, char *value);
 
-char *DictionaryLookupOrInsert(struct Dictionary *dict, char *value);
+char *Dictionary_LookupOrInsert(struct Dictionary *dict, char *value);
 
-void freeDictionary(struct Dictionary *dict);
+void Dictionary_Free(struct Dictionary *dict);
 
 /*
  * Stack data structure
@@ -55,15 +56,15 @@ struct Stack
 	int allocated;
 };
 
-struct Stack *Stack_new();
+struct Stack *Stack_New();
 
-void Stack_free(struct Stack *s);
+void Stack_Free(struct Stack *s);
 
-void Stack_push(struct Stack *s, void *data);
+void Stack_Push(struct Stack *s, void *data);
 
-void *Stack_pop(struct Stack *s);
+void *Stack_Pop(struct Stack *s);
 
-void *Stack_peek(struct Stack *s);
+void *Stack_Peek(struct Stack *s);
 
 
 /*
@@ -85,23 +86,23 @@ struct LinkedList
 	int size;
 };
 
-struct LinkedList *LinkedList_new();
+struct LinkedList *LinkedList_New();
 
-void LinkedList_free(struct LinkedList *l,  void (*dataFreeFunction)());
+void LinkedList_Free(struct LinkedList *l,  void (*dataFreeFunction)());
 
-void LinkedList_append(struct LinkedList *l, void *element);
+void LinkedList_Append(struct LinkedList *l, void *element);
 
-void LinkedList_prepend(struct LinkedList *l, void *element);
+void LinkedList_Prepend(struct LinkedList *l, void *element);
 
-void *LinkedList_delete(struct LinkedList *l, char (*compareFunction)(), void *element);
+void *LinkedList_Delete(struct LinkedList *l, char (*compareFunction)(), void *element);
 
-void *LinkedList_find(struct LinkedList *l, char (*compareFunction)(), void *element);
+void *LinkedList_Find(struct LinkedList *l, char (*compareFunction)(), void *element);
 
 char *strTrim(char *s, int l);
 
 /*
- *
- *
+ * TempList is a struct containing string names for TAC temps by number (eg t0, t1, t2, etc...)
+ * _Get retrieves the string for the given number, or if it doesn't exist, generates it and then returns it
  * 
  */
 
@@ -110,9 +111,11 @@ struct TempList
 	struct Stack *temps;
 };
 
+// get the string for a given temp num
+char *TempList_Get(struct TempList *tempList, int tempNum);
 
-char *TempList_getString(struct TempList *tempList, int tempNum);
+// create a new templist
+struct TempList *TempList_New();
 
-struct TempList *TempList_new();
-
-void TempList_free(struct TempList *it);
+// free the templist
+void TempList_Free(struct TempList *it);

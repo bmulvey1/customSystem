@@ -36,24 +36,24 @@ enum token
 	t_EOF,
 };
 
-struct ASTNode
+struct AST
 {
 	char *value;
 	enum token type;
-	struct ASTNode *child;
-	struct ASTNode *sibling;
+	struct AST *child;
+	struct AST *sibling;
 	int sourceLine;
 	int sourceCol;
 };
 
-struct ASTNode *ASTNode_new(enum token t, char *value);
+struct AST *AST_new(enum token t, char *value);
 
-void ASTNode_insertSibling(struct ASTNode *it, struct ASTNode *newSibling);
+void AST_InsertSibling(struct AST *it, struct AST *newSibling);
 
-void ASTNode_insertChild(struct ASTNode *it, struct ASTNode *newChild);
+void AST_InsertChild(struct AST *it, struct AST *newChild);
 
-void ASTNode_print(struct ASTNode *it, int depth);
+void AST_Print(struct AST *it, int depth);
 
-void ASTNode_printHorizontal(struct ASTNode *it);
+void AST_PrintHorizontal(struct AST *it);
 
-void ASTNode_free(struct ASTNode *it);
+void AST_Free(struct AST *it);

@@ -8,12 +8,12 @@ struct ASMblock *newASMblock()
 	return wip;
 }
 
-void ASMblock_free(struct ASMblock *it)
+void ASM_free(struct ASMblock *it)
 {
-	struct ASMline *runner = it->head;
+	struct ASM *runner = it->head;
 	while (runner != NULL)
 	{
-		struct ASMline *old = runner;
+		struct ASM *old = runner;
 		runner = runner->next;
 		free(old->data);
 		free(old);
@@ -21,9 +21,9 @@ void ASMblock_free(struct ASMblock *it)
 	free(it);
 }
 
-void ASMblock_prepend(struct ASMblock *block, char *data)
+void ASM_prepend(struct ASMblock *block, char *data)
 {
-	struct ASMline *newLine = malloc(sizeof(struct ASMline));
+	struct ASM *newLine = malloc(sizeof(struct ASM));
 	newLine->data = data;
 
 	if (block->head != NULL)
@@ -38,10 +38,10 @@ void ASMblock_prepend(struct ASMblock *block, char *data)
 	block->head = newLine;
 }
 
-void ASMblock_append(struct ASMblock *block, char *data)
+void ASM_append(struct ASMblock *block, char *data)
 {
 	// printf("append [%s]\n", data);
-	struct ASMline *newLine = malloc(sizeof(struct ASMline));
+	struct ASM *newLine = malloc(sizeof(struct ASM));
 	newLine->data = data;
 	newLine->next = NULL;
 
@@ -56,9 +56,9 @@ void ASMblock_append(struct ASMblock *block, char *data)
 	block->tail = newLine;
 }
 
-void ASMblock_output(struct ASMblock *block, FILE *outFile)
+void ASM_output(struct ASMblock *block, FILE *outFile)
 {
-	for (struct ASMline *runner = block->head; runner != NULL; runner = runner->next)
+	for (struct ASM *runner = block->head; runner != NULL; runner = runner->next)
 	{
 		if (runner->data[strlen(runner->data) - 1] != ':')
 		{
