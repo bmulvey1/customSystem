@@ -46,7 +46,7 @@ struct AST
 	int sourceCol;
 };
 
-struct AST *AST_new(enum token t, char *value);
+struct AST *AST_New(enum token t, char *value);
 
 void AST_InsertSibling(struct AST *it, struct AST *newSibling);
 

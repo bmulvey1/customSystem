@@ -3,7 +3,7 @@
 
 #include "ast.h"
 
-struct AST *AST_new(enum token t, char *value)
+struct AST *AST_New(enum token t, char *value)
 {
 	struct AST *wip = malloc(sizeof(struct AST));
 	wip->child = NULL;

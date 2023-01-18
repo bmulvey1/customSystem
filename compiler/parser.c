@@ -317,7 +317,7 @@ struct AST *match(enum token t, struct Dictionary *dict)
 		ParserError("match", "Error matching a token!");
 	}
 
-	struct AST *matched = AST_new(result, Dictionary_LookupOrInsert(dict, buffer));
+	struct AST *matched = AST_New(result, Dictionary_LookupOrInsert(dict, buffer));
 	matched->sourceLine = line;
 	matched->sourceCol = col;
 	return matched;
@@ -425,7 +425,7 @@ struct AST *parseAssignment(struct AST *name, struct Dictionary *dict)
 
 struct AST *parseScope(struct Dictionary *dict)
 {
-	struct AST *scope = AST_new(t_scope, "scope");
+	struct AST *scope = AST_New(t_scope, "scope");
 	consume(t_lCurly);
 	// parse statements until we see the end of this scope
 	while (lookahead() != '}')
@@ -450,7 +450,7 @@ struct AST *parseName(struct Dictionary *dict)
 	struct AST *name = match(t_name, dict);
 	if (lookahead() == '[')
 	{
-		struct AST *bracketOp = AST_new(t_un_add, "+");
+		struct AST *bracketOp = AST_New(t_un_add, "+");
 		AST_InsertChild(bracketOp, name);
 		consume(t_lBracket);
 		switch (lookaheadToken())
@@ -467,7 +467,7 @@ struct AST *parseName(struct Dictionary *dict)
 
 		consume(t_rBracket);
 
-		name = AST_new(t_dereference, "*");
+		name = AST_New(t_dereference, "*");
 		AST_InsertChild(name, bracketOp);
 		// name = newName;
 	}
@@ -499,7 +499,7 @@ struct AST *parseDeclaration(struct Dictionary *dict)
 	if (lookahead() == '[')
 	{
 		consume(t_lBracket);
-		struct AST *arrayDecl = AST_new(t_array, "[]");
+		struct AST *arrayDecl = AST_New(t_array, "[]");
 		AST_InsertChild(arrayDecl, identifier);
 		AST_InsertChild(arrayDecl, match(t_literal, dict));
 		if(declaredRunner != NULL)
@@ -819,7 +819,7 @@ struct AST *parseArgList(struct Dictionary *dict)
 struct AST *parseFunctionCall(struct AST *name, struct Dictionary *dict)
 {
 	consume(t_lParen);
-	struct AST *callNode = AST_new(t_call, "call");
+	struct AST *callNode = AST_New(t_call, "call");
 	AST_InsertChild(callNode, name);
 	AST_InsertChild(name, parseArgList(dict));
 	consume(t_rParen);
@@ -832,7 +832,7 @@ struct AST *parseIfStatement(struct Dictionary *dict)
 	consume(t_lParen);
 	AST_InsertChild(ifStatement, parseExpression(dict));
 	consume(t_rParen);
-	struct AST *doBlock = AST_new(t_do, "do");
+	struct AST *doBlock = AST_New(t_do, "do");
 	AST_InsertChild(ifStatement, doBlock);
 
 	if (lookahead() == '{')
@@ -841,7 +841,7 @@ struct AST *parseIfStatement(struct Dictionary *dict)
 	}
 	else
 	{
-		struct AST *ifScope = AST_new(t_scope, "scope");
+		struct AST *ifScope = AST_New(t_scope, "scope");
 		AST_InsertChild(ifScope, parseStatement(dict));
 		AST_InsertChild(doBlock, ifScope);
 	}
@@ -859,7 +859,7 @@ struct AST *parseIfStatement(struct Dictionary *dict)
 struct AST *parseElseStatement(struct Dictionary *dict)
 {
 	struct AST *elseStatement = match(t_else, dict);
-	struct AST *doBlock = AST_new(t_do, "do");
+	struct AST *doBlock = AST_New(t_do, "do");
 	AST_InsertChild(elseStatement, doBlock);
 	if (lookahead() == '{')
 	{
@@ -867,7 +867,7 @@ struct AST *parseElseStatement(struct Dictionary *dict)
 	}
 	else
 	{
-		struct AST *elseScope = AST_new(t_scope, "scope");
+		struct AST *elseScope = AST_New(t_scope, "scope");
 		AST_InsertChild(elseScope, parseStatement(dict));
 		AST_InsertChild(doBlock, elseScope);
 	}
@@ -881,7 +881,7 @@ struct AST *parseWhileLoop(struct Dictionary *dict)
 	consume(t_lParen);
 	AST_InsertChild(whileLoop, parseExpression(dict));
 	consume(t_rParen);
-	struct AST *doBlock = AST_new(t_do, "do");
+	struct AST *doBlock = AST_New(t_do, "do");
 	AST_InsertChild(whileLoop, doBlock);
 	if (lookahead() == '{')
 	{
@@ -889,7 +889,7 @@ struct AST *parseWhileLoop(struct Dictionary *dict)
 	}
 	else
 	{
-		struct AST *whileScope = AST_new(t_scope, "scope");
+		struct AST *whileScope = AST_New(t_scope, "scope");
 		AST_InsertChild(whileScope, parseStatement(dict));
 		AST_InsertChild(doBlock, whileScope);
 	}
@@ -916,7 +916,7 @@ struct AST *parseASM(struct Dictionary *dict)
 			if (lineLen > 0)
 			{
 				asmLine[lineLen] = '\0';
-				AST_InsertChild(asmNode, AST_new(t_asm, Dictionary_LookupOrInsert(dict, asmLine)));
+				AST_InsertChild(asmNode, AST_New(t_asm, Dictionary_LookupOrInsert(dict, asmLine)));
 			}
 			curCol++;
 			inASMblock = 0;
@@ -925,7 +925,7 @@ struct AST *parseASM(struct Dictionary *dict)
 		case '\n':
 			asmLine[lineLen] = '\0';
 			curCol = 0;
-			AST_InsertChild(asmNode, AST_new(t_asm, Dictionary_LookupOrInsert(dict, asmLine)));
+			AST_InsertChild(asmNode, AST_New(t_asm, Dictionary_LookupOrInsert(dict, asmLine)));
 			trimWhitespace(1);
 			lineLen = 0;
 			break;

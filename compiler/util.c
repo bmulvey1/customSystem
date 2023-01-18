@@ -24,7 +24,7 @@ struct Dictionary *Dictionary_New(int nBuckets)
 
 	for (int i = 0; i < nBuckets; i++)
 	{
-		wip->buckets[i] = NULL;
+		wip->buckets[i] = malloc(sizeof(struct LinkedList));
 	}
 
 	return wip;
@@ -39,23 +39,7 @@ char *Dictionary_Insert(struct Dictionary *dict, char *value)
 	unsigned int strHash = hash(value);
 	strHash = strHash % dict->nBuckets;
 
-	struct DictionaryEntry *newEntry = malloc(sizeof(struct DictionaryEntry));
-	newEntry->data = string;
-	newEntry->next = NULL;
-
-	struct DictionaryEntry *runner = dict->buckets[strHash];
-	if (runner != NULL)
-	{
-		while (runner->next != NULL)
-		{
-			runner = runner->next;
-		}
-		runner->next = newEntry;
-	}
-	else
-	{
-		dict->buckets[strHash] = newEntry;
-	}
+	LinkedList_Append(dict->buckets[strHash], string);
 
 	return string;
 }
@@ -65,11 +49,13 @@ char *Dictionary_Lookup(struct Dictionary *dict, char *value)
 	unsigned int strHash = hash(value);
 	strHash = strHash % dict->nBuckets;
 
-	struct DictionaryEntry *runner = dict->buckets[strHash];
-	if (runner == NULL)
+	struct LinkedList *bucket = dict->buckets[strHash];
+	if (bucket->size == 0)
 	{
 		return NULL;
 	}
+
+	struct LinkedListNode *runner = bucket->head;
 
 	while (runner != NULL)
 	{
@@ -101,14 +87,7 @@ void Dictionary_Free(struct Dictionary *dict)
 {
 	for (int i = 0; i < dict->nBuckets; i++)
 	{
-		struct DictionaryEntry *runner = dict->buckets[i];
-		while (runner != NULL)
-		{
-			struct DictionaryEntry *old = runner;
-			free(runner->data);
-			runner = runner->next;
-			free(old);
-		}
+		LinkedList_Free(dict->buckets[i], free);
 	}
 	free(dict->buckets);
 	free(dict);

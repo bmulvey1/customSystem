@@ -19,16 +19,9 @@ enum CompilerErrors
  * Economizes heap space by only storing strings once each
  * Uses a simple hash table which supports different bucket counts
  */
-// this is another linked list, should pbobably use the linkedlist
-struct DictionaryEntry
-{
-	char *data;
-	struct DictionaryEntry *next;
-};
-
 struct Dictionary
 {
-	struct DictionaryEntry **buckets;
+	struct LinkedList **buckets;
 	int nBuckets;
 };
 

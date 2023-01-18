@@ -8,7 +8,6 @@
 #include "symtab.h"
 #include "util.h"
 #include "linearizer.h"
-#include "asm.h"
 #include "codegen.h"
 #include "serialize.h"
 
@@ -61,8 +60,19 @@ int main(int argc, char **argv)
 	fprintf(outFile, "#include \"CPU.asm\"\n#include \"INT.asm\"\n");
 	for(int i = 0; i < outputBlocks->size; i++)
 	{
-		ASM_output(outputBlocks->data[i], outFile);
-		ASM_free(outputBlocks->data[i]);
+		struct LinkedList *thisBlock = outputBlocks->data[i];
+		for(struct LinkedListNode *asmLine = thisBlock->head; asmLine != NULL; asmLine = asmLine->next)
+		{
+			char *s = asmLine->data;
+			if(s[strlen(s) - 1] != ':')
+			{
+				fprintf(outFile, "\t");	
+			}
+
+			fprintf(outFile, "%s\n", s);
+		}
+		// ASM_output(outputBlocks->data[i], outFile);
+		LinkedList_Free(thisBlock, free);
 	}
 	SymbolTable_free(theTable);
 
