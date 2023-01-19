@@ -20,11 +20,11 @@ struct Dictionary *Dictionary_New(int nBuckets)
 {
 	struct Dictionary *wip = malloc(sizeof(struct Dictionary));
 	wip->nBuckets = nBuckets;
-	wip->buckets = malloc(nBuckets * sizeof(struct DictionaryNode *));
+	wip->buckets = malloc(nBuckets * sizeof(struct LinkedList *));
 
 	for (int i = 0; i < nBuckets; i++)
 	{
-		wip->buckets[i] = malloc(sizeof(struct LinkedList));
+		wip->buckets[i] = LinkedList_New();
 	}
 
 	return wip;

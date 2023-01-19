@@ -1,5 +1,14 @@
 #include "codegen.h"
 
+#define MAX_ASM_LINE_SIZE 256
+
+char printedLine[MAX_ASM_LINE_SIZE];
+
+#define TRIM_APPEND(currentBlock, nChars) (LinkedList_Append(currentBlock, strTrim(printedLine, nChars)))
+#define TRIM_PREPEND(currentBlock, nChars) (LinkedList_Prepend(currentBlock, strTrim(printedLine, nChars)))
+
+
+
 int ALIGNSIZE(unsigned int size)
 {
 	unsigned int mask = 0b1;
@@ -14,15 +23,14 @@ int ALIGNSIZE(unsigned int size)
 
 void PlaceLiteralInRegister(struct LinkedList *currentBlock, char *literalStr, char *destReg)
 {
-	char *thisLine = malloc(64);
 	int literalValue = atoi(literalStr);
 	if (literalValue < 0x100)
 	{
-		sprintf(thisLine, "movb %s, $%s", destReg, literalStr);
+		TRIM_APPEND(currentBlock, sprintf(printedLine, "movb %s, $%s", destReg, literalStr));
 	}
 	else if (literalValue < 0x10000)
 	{
-		sprintf(thisLine, "movh %s, $%s", destReg, literalStr);
+		TRIM_APPEND(currentBlock, sprintf(printedLine, "movh %s, $%s", destReg, literalStr));
 	}
 	else
 	{
@@ -32,18 +40,13 @@ void PlaceLiteralInRegister(struct LinkedList *currentBlock, char *literalStr, c
 		char halvedString[16]; // will be long enough to hold any int32/uint32 so can definitely hold half of one
 
 		sprintf(halvedString, "%d", secondHalf);
-		sprintf(thisLine, "movh %s, $%s", destReg, halvedString);
+		TRIM_APPEND(currentBlock, sprintf(printedLine, "movh %s, $%s", destReg, halvedString));
 
-		LinkedList_Append(currentBlock, thisLine);
-		thisLine = malloc(64);
-		sprintf(thisLine, "shli %s, $16", destReg);
-		LinkedList_Append(currentBlock, thisLine);
-		thisLine = malloc(64);
+		TRIM_APPEND(currentBlock, sprintf(printedLine, "shli %s, $16", destReg));
 
 		sprintf(halvedString, "%d", firstHalf);
-		sprintf(thisLine, "movh %s, $%s", destReg, halvedString);
+		TRIM_APPEND(currentBlock, sprintf(printedLine, "movh %s, $%s", destReg, halvedString));
 	}
-	LinkedList_Append(currentBlock, thisLine);
 }
 
 struct Stack *generateCode(struct SymbolTable *table, FILE *outFile)
@@ -433,7 +436,6 @@ struct LinkedList *generateCodeForFunction(struct FunctionEntry *function, FILE 
 	printf(".");
 
 	struct LinkedList *functionBlock = LinkedList_New();
-	char *functionSetup;
 
 	// move any applicable arguments into registers if we are expecting them not to be spilled
 	for (struct LinkedListNode *ltRunner = metadata.allLifetimes->head; ltRunner != NULL; ltRunner = ltRunner->next)
@@ -451,10 +453,8 @@ struct LinkedList *generateCodeForFunction(struct FunctionEntry *function, FILE 
 				(thisLifetime->nreads || thisLifetime->nwrites)) // theyre are either read from or written to at all
 			{
 				struct VariableEntry *theArgument = thisEntry->entry;
-				functionSetup = malloc(64);
-				sprintf(functionSetup, "mov %%r%d, (%%bp+%d) ;place %s", thisLifetime->stackOrRegLocation, theArgument->stackOffset, thisLifetime->variable);
+				TRIM_APPEND(functionBlock, sprintf(printedLine, "mov %%r%d, (%%bp+%d) ;place %s", thisLifetime->stackOrRegLocation, theArgument->stackOffset, thisLifetime->variable));
 				metadata.touchedRegisters[thisLifetime->stackOrRegLocation] = 1;
-				LinkedList_Append(functionBlock, functionSetup);
 			}
 		}
 	}
@@ -470,57 +470,42 @@ struct LinkedList *generateCodeForFunction(struct FunctionEntry *function, FILE 
 
 	// meaningful code generated
 	printf(".");
+				//TRIM_APPEND(currentBlock, sprintf(printedLine
 
-	functionSetup = malloc(64);
-	sprintf(functionSetup, "%s_done:", function->name);
-	LinkedList_Append(functionBlock, functionSetup);
+	TRIM_APPEND(functionBlock, sprintf(printedLine, "%s_done:", function->name));
 
 	for (int i = REGISTER_COUNT - 1; i >= 0; i--)
 	{
 		if (metadata.touchedRegisters[i])
 		{
-			functionSetup = malloc(64);
-			sprintf(functionSetup, "pop %%r%d", i);
-			LinkedList_Append(functionBlock, functionSetup);
+			TRIM_APPEND(functionBlock, sprintf(printedLine, "pop %%r%d", i));
 
-			functionSetup = malloc(64);
-			sprintf(functionSetup, "push %%r%d", i);
-			LinkedList_Prepend(functionBlock, functionSetup);
+			TRIM_PREPEND(functionBlock, sprintf(printedLine, "push %%r%d", i));
 		}
 	}
 
 	if (stackOffset > 0)
 	{
-		functionSetup = malloc(64);
-		sprintf(functionSetup, "subi %%sp, %%sp, $%d", stackOffset);
-		LinkedList_Prepend(functionBlock, functionSetup);
+		TRIM_PREPEND(functionBlock, sprintf(printedLine, "subi %%sp, %%sp, $%d", stackOffset));
 	}
 
-	functionSetup = malloc(64);
-	sprintf(functionSetup, "%s:", function->name);
-	LinkedList_Prepend(functionBlock, functionSetup);
+	TRIM_PREPEND(functionBlock, sprintf(printedLine, "%s:", function->name));
 
-	functionSetup = malloc(64);
-	sprintf(functionSetup, "#align 2048");
-	LinkedList_Prepend(functionBlock, functionSetup);
+	TRIM_PREPEND(functionBlock, sprintf(printedLine, "#align 2048"));
 
 	if (stackOffset > 0)
 	{
-		functionSetup = malloc(64);
-		sprintf(functionSetup, "addi %%sp, %%sp, $%d", stackOffset);
-		LinkedList_Append(functionBlock, functionSetup);
+		TRIM_APPEND(functionBlock, sprintf(printedLine, "addi %%sp, %%sp, $%d", stackOffset));
 	}
 
-	functionSetup = malloc(64);
 	if (function->argStackSize > 0)
 	{
-		sprintf(functionSetup, "ret %d", function->argStackSize);
+		TRIM_APPEND(functionBlock, sprintf(printedLine, "ret %d", function->argStackSize));
 	}
 	else
 	{
-		sprintf(functionSetup, "ret");
+		TRIM_APPEND(functionBlock, sprintf(printedLine, "ret"));
 	}
-	LinkedList_Append(functionBlock, functionSetup);
 
 	// function setup and teardown code generated
 	printf(".");
@@ -539,29 +524,25 @@ struct LinkedList *generateCodeForFunction(struct FunctionEntry *function, FILE 
 	return functionBlock;
 }
 
+// TODO: thisBlock vs asmBlock?!
 void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *allLifetimes, struct LinkedList *asmBlock, char *functionName, int reservedRegisters[2], char *touchedRegisters)
 {
 	// TODO: generate localpointers as necessary
 	// to registers for those that get them and on-the-fly for those that don't
-	char *blockLabel = malloc(64);
 	if (thisBlock->labelNum > 0)
 	{
-		sprintf(blockLabel, "%s_%d:", functionName, thisBlock->labelNum);
+		TRIM_APPEND(asmBlock, sprintf(printedLine, "%s_%d:", functionName, thisBlock->labelNum));
 	}
 	else
 	{
-		sprintf(blockLabel, "%s_0:", functionName);
+		TRIM_APPEND(asmBlock, sprintf(printedLine, "%s_0:", functionName));
 	}
-	LinkedList_Append(asmBlock, blockLabel);
 
 	for (struct LinkedListNode *TACRunner = thisBlock->TACList->head; TACRunner != NULL; TACRunner = TACRunner->next)
 	{
 		struct TACLine *thisTAC = TACRunner->data;
-		char *thisLine;
-		thisLine = malloc(64);
 		char *printedTAC = sPrintTACLine(thisTAC);
-		sprintf(thisLine, ";%s", printedTAC);
-		LinkedList_Append(asmBlock, thisLine);
+		TRIM_APPEND(asmBlock, sprintf(printedLine, ";%s", printedTAC));
 		free(printedTAC);
 
 		switch (thisTAC->operation)
@@ -574,7 +555,6 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		{
 			struct Lifetime *assignedLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
 			struct Lifetime *assignerLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[1]);
-			thisLine = malloc(64);
 			// assign to register
 			if (assignedLifetime->isSpilled == 0)
 			{
@@ -584,23 +564,16 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				case vp_temp:
 					if (!assignerLifetime->isSpilled)
 					{
-						sprintf(thisLine, "mov %%r%d, %%r%d", assignedLifetime->stackOrRegLocation, assignerLifetime->stackOrRegLocation);
+						TRIM_APPEND(asmBlock, sprintf(printedLine, "mov %%r%d, %%r%d", assignedLifetime->stackOrRegLocation, assignerLifetime->stackOrRegLocation));
 					}
 					else
 					{
-						sprintf(thisLine, "mov %%r%d, (%%bp+%d*1)", assignedLifetime->stackOrRegLocation, assignerLifetime->stackOrRegLocation);
+						TRIM_APPEND(asmBlock, sprintf(printedLine, "mov %%r%d, (%%bp+%d*1)", assignedLifetime->stackOrRegLocation, assignerLifetime->stackOrRegLocation));
 					}
 					break;
 
 				case vp_literal:
-				{
-					// char destReg[5];
-					// sprintf(destReg, "%%r%d", assignedLifetime->stackOrRegLocation);
-					// PlaceLiteralInRegister(asmBlock, thisTAC->operands[1], destReg);
-					// free(thisLine);
-					// thisLine = NULL;
-				}
-					sprintf(thisLine, "movh %%r%d, $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
+					TRIM_APPEND(asmBlock, sprintf(printedLine, "movh %%r%d, $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]));
 					break;
 				}
 			}
@@ -613,7 +586,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				case vp_temp:
 					if (!assignerLifetime->isSpilled)
 					{
-						sprintf(thisLine, "mov (%%bp+%d), %%r%d", assignedLifetime->stackOrRegLocation, assignerLifetime->stackOrRegLocation);
+						TRIM_APPEND(asmBlock, sprintf(printedLine, "mov (%%bp+%d), %%r%d", assignedLifetime->stackOrRegLocation, assignerLifetime->stackOrRegLocation));
 					}
 					else
 					{
@@ -625,27 +598,10 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 
 				case vp_literal:
 				{
-					// if the literal is too large for one instruction, we will need to put it into a register first
-					// if (atoi(thisTAC->operands[1]) > 0xffff)
-					// {
-					// char destReg[5];
-					// this use of the first reserved register could potentially stomp other operations if we expect them to persist over more than one TAC instruction
-					// expecting this is unrealistic but leaving this comment juuuuust in case
-					// sprintf(destReg, "%%r%d", reservedRegisters[0]);
-					// PlaceLiteralInRegister(asmBlock, thisTAC->operands[1], destReg);
-					// sprintf(thisLine, "mov (%%bp+%d), %%r%d", assignedLifetime->stackOrRegLocation, reservedRegisters[0]);
-					// }
-					// else
-					// {
-					sprintf(thisLine, "mov (%%bp+%d), $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]);
-					// }
+					TRIM_APPEND(asmBlock, sprintf(printedLine, "mov (%%bp+%d), $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]));
 				}
 				break;
 				}
-			}
-			if (thisLine != NULL)
-			{
-				LinkedList_Append(asmBlock, thisLine);
 			}
 		}
 		break;
@@ -658,9 +614,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			if ((declaredLifetime->localPointerTo != NULL) &&
 				(!declaredLifetime->isSpilled))
 			{
-				thisLine = malloc(64);
-				sprintf(thisLine, "subi %%r%d, %%bp, $%d", declaredLifetime->stackOrRegLocation, declaredLifetime->localPointerTo->stackOffset * -1);
-				LinkedList_Append(asmBlock, thisLine);
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "subi %%r%d, %%bp, $%d", declaredLifetime->stackOrRegLocation, declaredLifetime->localPointerTo->stackOffset * -1));
 			}
 		}
 		break;
@@ -671,7 +625,6 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		case tt_div:
 		{
 			char immediateInstruction = 0;
-			thisLine = malloc(64);
 
 			struct Lifetime *assignedLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
 			struct Lifetime *operand1Lifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[1]);
@@ -746,31 +699,28 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			{
 				if (immediateInstruction)
 				{
-					sprintf(thisLine, "%si %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op2, op1);
+					TRIM_APPEND(asmBlock, sprintf(printedLine, "%si %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op2, op1));
 				}
 				else
 				{
-					sprintf(thisLine, "%s %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op2, op1);
+					TRIM_APPEND(asmBlock, sprintf(printedLine, "%s %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op2, op1));
 				}
 			}
 			else
 			{
 				if (immediateInstruction)
 				{
-					sprintf(thisLine, "%si %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op1, op2);
+					TRIM_APPEND(asmBlock, sprintf(printedLine, "%si %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op1, op2));
 				}
 				else
 				{
-					sprintf(thisLine, "%s %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op1, op2);
+					TRIM_APPEND(asmBlock, sprintf(printedLine, "%s %%r%d, %s, %s", getAsmOp(thisTAC->operation), destinationRegister, op1, op2));
 				}
 			}
-			LinkedList_Append(asmBlock, thisLine);
 
 			if (assignedLifetime->isSpilled)
 			{
-				thisLine = malloc(64);
-				sprintf(thisLine, "mov (%%bp+%d), %%r%d;replace %s", assignedLifetime->stackOrRegLocation, destinationRegister, assignedLifetime->variable);
-				LinkedList_Append(asmBlock, thisLine);
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "mov (%%bp+%d), %%r%d;replace %s", assignedLifetime->stackOrRegLocation, destinationRegister, assignedLifetime->variable));
 			}
 		}
 		break;
@@ -781,40 +731,32 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 
 		case tt_memw_1:
 		{
-			thisLine = malloc(64);
 			int dstIndexReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
 			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
-			sprintf(thisLine, "mov (%%r%d), %%r%d", dstIndexReg, sourceReg);
-			LinkedList_Append(asmBlock, thisLine);
+			TRIM_APPEND(asmBlock, sprintf(printedLine, "mov (%%r%d), %%r%d", dstIndexReg, sourceReg));
 		}
 		break;
 
 		case tt_memw_2:
 		{
-			thisLine = malloc(64);
 			int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
 			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[2], asmBlock, reservedRegisters[1], touchedRegisters);
-			sprintf(thisLine, "mov (%%r%d+%d), %%r%d", baseReg, (int)(long int)thisTAC->operands[1], sourceReg);
-			LinkedList_Append(asmBlock, thisLine);
+			TRIM_APPEND(asmBlock, sprintf(printedLine, "mov (%%r%d+%d), %%r%d", baseReg, (int)(long int)thisTAC->operands[1], sourceReg));
 		}
 		// ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
 		break;
 
 		case tt_memw_3:
 		{
-			thisLine = malloc(64);
 			int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
 			int offsetReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
 			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[3], asmBlock, 16, touchedRegisters);
-			sprintf(thisLine, "mov (%%r%d+%%r%d,%d), %%r%d", baseReg, offsetReg, ALIGNSIZE((int)(long int)thisTAC->operands[2]), sourceReg);
-			LinkedList_Append(asmBlock, thisLine);
-		}
+			TRIM_APPEND(asmBlock, sprintf(printedLine, "mov (%%r%d+%%r%d,%d), %%r%d", baseReg, offsetReg, ALIGNSIZE((int)(long int)thisTAC->operands[2]), sourceReg));		}
 		break;
 
 		case tt_dereference: // these are redundant... probably makes sense to remove one?
 		case tt_memr_1:
 		{
-			thisLine = malloc(64);
 			struct Lifetime *destinationLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
 			if (destinationLifetime->isSpilled)
 			{
@@ -824,16 +766,14 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			{
 				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
 				int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
-				sprintf(thisLine, "mov %%r%d, (%%r%d)", destReg, sourceReg);
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "mov %%r%d, (%%r%d)", destReg, sourceReg));
 			}
-			LinkedList_Append(asmBlock, thisLine);
 		}
 		break;
 			break;
 
 		case tt_memr_2:
 		{
-			thisLine = malloc(64);
 			struct Lifetime *destinationLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
 			if (destinationLifetime->isSpilled)
 			{
@@ -843,15 +783,13 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			{
 				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
 				int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
-				sprintf(thisLine, "mov %%r%d, (%%r%d+%d)", destReg, sourceReg, (int)(long int)thisTAC->operands[2]);
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "mov %%r%d, (%%r%d+%d)", destReg, sourceReg, (int)(long int)thisTAC->operands[2]));
 			}
-			LinkedList_Append(asmBlock, thisLine);
 		}
 		break;
 
 		case tt_memr_3:
 		{
-			thisLine = malloc(64);
 			struct Lifetime *destinationLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
 			if (destinationLifetime->isSpilled)
 			{
@@ -862,16 +800,14 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
 				int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
 				int offsetReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[2], asmBlock, 16, touchedRegisters);
-				sprintf(thisLine, "mov %%r%d, (%%r%d+%%r%d,%d)", destReg, baseReg, offsetReg, ALIGNSIZE((int)(long int)thisTAC->operands[3]));
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "mov %%r%d, (%%r%d+%%r%d,%d)", destReg, baseReg, offsetReg, ALIGNSIZE((int)(long int)thisTAC->operands[3])));
 			}
-			LinkedList_Append(asmBlock, thisLine);
 		}
 		break;
 
 		case tt_cmp:
 		{
 			char immediateInstruction = 0;
-			thisLine = malloc(64);
 
 			struct Lifetime *operand1Lifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[1]);
 			struct Lifetime *operand2Lifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[2]);
@@ -932,13 +868,12 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 
 			if (immediateInstruction)
 			{
-				sprintf(thisLine, "%si %s, %s", getAsmOp(thisTAC->operation), op1, op2);
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "%si %s, %s", getAsmOp(thisTAC->operation), op1, op2));
 			}
 			else
 			{
-				sprintf(thisLine, "%s %s, %s", getAsmOp(thisTAC->operation), op1, op2);
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "%s %s, %s", getAsmOp(thisTAC->operation), op1, op2));
 			}
-			LinkedList_Append(asmBlock, thisLine);
 		}
 		break;
 
@@ -949,61 +884,51 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		case tt_je:
 		case tt_jne:
 		{
-			thisLine = malloc(64);
-			sprintf(thisLine, "%s %s_%ld", getAsmOp(thisTAC->operation), functionName, (long int)thisTAC->operands[0]);
-			LinkedList_Append(asmBlock, thisLine);
+			TRIM_APPEND(asmBlock, sprintf(printedLine, "%s %s_%ld", getAsmOp(thisTAC->operation), functionName, (long int)thisTAC->operands[0]));
 		}
 		break;
 
 		case tt_jmp:
 		{
-			thisLine = malloc(64);
-			sprintf(thisLine, "jmp %s_%d", functionName, (int)(long int)thisTAC->operands[0]);
-			LinkedList_Append(asmBlock, thisLine);
+			TRIM_APPEND(asmBlock, sprintf(printedLine, "jmp %s_%d", functionName, (int)(long int)thisTAC->operands[0]));
 		}
 		break;
 
 		case tt_push:
 		{
-			thisLine = malloc(64);
 			switch (thisTAC->operandPermutations[0])
 			{
 			case vp_standard:
 			case vp_temp:
 			{
 				int registerIndex = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
-				sprintf(thisLine, "push %%r%d", registerIndex);
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "push %%r%d", registerIndex));
 			}
 			break;
 
 			case vp_literal:
-				sprintf(thisLine, "pushi $%s", thisTAC->operands[0]);
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "pushi $%s", thisTAC->operands[0]));
 				break;
 			}
-			LinkedList_Append(asmBlock, thisLine);
 		}
 		break;
 
 		case tt_call:
 		{
-			thisLine = malloc(64);
-			sprintf(thisLine, "call %s", thisTAC->operands[1]);
-			LinkedList_Append(asmBlock, thisLine);
+			TRIM_APPEND(asmBlock, sprintf(printedLine, "call %s", thisTAC->operands[1]));
 
 			// the call returns a value
 			if (thisTAC->operands[0] != NULL)
 			{
-				thisLine = malloc(64);
 				struct Lifetime *returnedLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
 				if (!returnedLifetime->isSpilled)
 				{
-					sprintf(thisLine, "mov %%r%d, %%rr", returnedLifetime->stackOrRegLocation);
+					TRIM_APPEND(asmBlock, sprintf(printedLine, "mov %%r%d, %%rr", returnedLifetime->stackOrRegLocation));
 				}
 				else
 				{
-					sprintf(thisLine, "mov (%%bp+%d), %%rr", returnedLifetime->stackOrRegLocation);
+					TRIM_APPEND(asmBlock, sprintf(printedLine, "mov (%%bp+%d), %%rr", returnedLifetime->stackOrRegLocation));
 				}
-				LinkedList_Append(asmBlock, thisLine);
 			}
 		}
 		break;
@@ -1014,15 +939,11 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 
 		case tt_return:
 		{
-			thisLine = malloc(64);
 			switch (thisTAC->operandPermutations[0])
 			{
 			case vp_literal:
 			{
-				// PlaceLiteralInRegister(asmBlock, thisTAC->operands[0], "%%rr");
-				// free(thisLine);
-				sprintf(thisLine, "movh %%rr, $%s", thisTAC->operands[0]);
-				LinkedList_Append(asmBlock, thisLine);
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "movh %%rr, $%s", thisTAC->operands[0]));
 			}
 			break;
 
@@ -1030,9 +951,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			case vp_temp:
 			{
 				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
-				sprintf(thisLine, "mov %%rr, %%r%d", destReg);
-				LinkedList_Append(asmBlock, thisLine);
-				// ASMblock_Append(outputBlock, trimmedStr);
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "mov %%rr, %%r%d", destReg));
 			}
 			break;
 
