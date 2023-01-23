@@ -14,7 +14,7 @@ int linearizeASMBlock(int currentTACIndex,
 	while (asmRunner != NULL)
 	{
 		struct TACLine *asmLine = newTACLine(currentTACIndex++, tt_asm, asmRunner);
-		asmLine->operands[0] = asmRunner->value;
+		asmLine->operands[0].name.str = asmRunner->value;
 		BasicBlock_append(currentBlock, asmLine);
 		asmRunner = asmRunner->sibling;
 	}
@@ -29,8 +29,8 @@ int linearizeDereference(struct Scope *scope,
 {
 	struct TACLine *thisDereference = newTACLine(currentTACIndex, tt_memr_1, it);
 
-	thisDereference->operands[0] = TempList_Get(temps, *tempNum);
-	thisDereference->operandPermutations[0] = vp_temp;
+	thisDereference->operands[0].name.str = TempList_Get(temps, *tempNum);
+	thisDereference->operands[0].permutation = vp_temp;
 	(*tempNum)++;
 
 	switch (it->type)
@@ -38,22 +38,22 @@ int linearizeDereference(struct Scope *scope,
 		// directly dereference variables
 	case t_name:
 	{
-		thisDereference->operands[1] = it->value;
-		thisDereference->operandTypes[1] = vt_var;
-		thisDereference->indirectionLevels[1] = Scope_lookupVar(scope, it->value)->indirectionLevel;
+		thisDereference->operands[1].name.str = it->value;
+		thisDereference->operands[1].type = vt_var;
+		thisDereference->operands[1].indirectionLevel = Scope_lookupVar(scope, it->value)->indirectionLevel;
 	}
 	break;
 
 		// recursively dereference nested dereferences
 	case t_dereference:
 	{
-		thisDereference->operands[1] = TempList_Get(temps, *tempNum);
-		thisDereference->operandPermutations[1] = vp_temp;
+		thisDereference->operands[1].name.str = TempList_Get(temps, *tempNum);
+		thisDereference->operands[1].permutation = vp_temp;
 
 		currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, it->child, tempNum);
 		struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
-		thisDereference->operandTypes[1] = recursiveDereference->operandTypes[0];
-		thisDereference->indirectionLevels[1] = recursiveDereference->indirectionLevels[0];
+		thisDereference->operands[1].type = recursiveDereference->operands[0].type;
+		thisDereference->operands[1].indirectionLevel = recursiveDereference->operands[0].indirectionLevel;
 	}
 	break;
 
@@ -61,37 +61,37 @@ int linearizeDereference(struct Scope *scope,
 	case t_un_add:
 	case t_un_sub:
 	{
-		thisDereference->operands[1] = it->child->value; // base
+		thisDereference->operands[1].name.str = it->child->value; // base
 		int LHSSize;
 		switch (it->child->type)
 		{
 		case t_name:
 		{
 			struct VariableEntry *theVariable = Scope_lookupVar(scope, it->child->value);
-			thisDereference->operandTypes[1] = theVariable->type;
-			thisDereference->indirectionLevels[1] = theVariable->indirectionLevel;
+			thisDereference->operands[1].type = theVariable->type;
+			thisDereference->operands[1].indirectionLevel = theVariable->indirectionLevel;
 			LHSSize = Scope_getSizeOfVariable(scope, it->child->value);
 		}
 		break;
 
 		case t_literal:
 		{
-			thisDereference->operandTypes[1] = vt_var;
-			thisDereference->operandPermutations[1] = vp_literal;
+			thisDereference->operands[1].type = vt_var;
+			thisDereference->operands[1].permutation = vp_literal;
 			LHSSize = 4; // hardcode lhs as uint size if a literal
 		}
 		break;
 
 		case t_dereference:
 		{
-			thisDereference->operands[1] = TempList_Get(temps, *tempNum);
-			thisDereference->operandPermutations[1] = vp_temp;
+			thisDereference->operands[1].name.str = TempList_Get(temps, *tempNum);
+			thisDereference->operands[1].permutation = vp_temp;
 
 			currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, it->child->child, tempNum);
 			struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
-			thisDereference->operandTypes[1] = recursiveDereference->operandTypes[0];
-			thisDereference->indirectionLevels[1] = recursiveDereference->indirectionLevels[0];
-			LHSSize = Scope_getSizeOfVariable(scope, recursiveDereference->operands[0]);
+			thisDereference->operands[1].type = recursiveDereference->operands[0].type;
+			thisDereference->operands[1].indirectionLevel = recursiveDereference->operands[0].indirectionLevel;
+			LHSSize = Scope_getSizeOfVariable(scope, recursiveDereference->operands[0].name.str);
 		}
 		break;
 
@@ -100,41 +100,41 @@ int linearizeDereference(struct Scope *scope,
 			ErrorAndExit(ERROR_INTERNAL, "Illegal type on LHS of dereferenced expression\n");
 		}
 		thisDereference->operation = tt_memr_3;
-		thisDereference->operands[3] = (char *)(long int)LHSSize; // scale
-		thisDereference->operandTypes[3] = vt_var;
-		thisDereference->operandPermutations[3] = vp_literal;
+		thisDereference->operands[3].name.val = LHSSize; // scale
+		thisDereference->operands[3].type = vt_var;
+		thisDereference->operands[3].permutation = vp_literal;
 		switch (it->child->sibling->type) // offset
 		{
 		case t_name:
 			if (it->type == t_un_sub)
 			{
 				struct TACLine *subtractInvert = newTACLine(currentTACIndex++, tt_mul, it);
-				subtractInvert->operands[0] = TempList_Get(temps, *tempNum);
-				subtractInvert->operandPermutations[0] = vp_temp;
+				subtractInvert->operands[0].name.str = TempList_Get(temps, *tempNum);
+				subtractInvert->operands[0].permutation = vp_temp;
 				(*tempNum)++;
 				char *invertedVariableName = it->child->sibling->value;
 				struct VariableEntry *invertedVariable = Scope_lookupVar(scope, invertedVariableName);
 
-				subtractInvert->operandTypes[0] = invertedVariable->type;
-				subtractInvert->operands[1] = invertedVariableName;
-				subtractInvert->operandTypes[1] = invertedVariable->type;
+				subtractInvert->operands[0].type = invertedVariable->type;
+				subtractInvert->operands[1].name.str = invertedVariableName;
+				subtractInvert->operands[1].type = invertedVariable->type;
 
-				subtractInvert->operands[2] = "-1";
-				subtractInvert->operandTypes[2] = vt_var;
-				subtractInvert->operandPermutations[2] = vp_literal;
+				subtractInvert->operands[2].name.str = "-1";
+				subtractInvert->operands[2].type = vt_var;
+				subtractInvert->operands[2].permutation = vp_literal;
 
-				thisDereference->operands[2] = subtractInvert->operands[0];
-				thisDereference->operandTypes[2] = invertedVariable->type;
-				thisDereference->indirectionLevels[2] = invertedVariable->indirectionLevel;
+				thisDereference->operands[2].name.str = subtractInvert->operands[0].name.str;
+				thisDereference->operands[2].type = invertedVariable->type;
+				thisDereference->operands[2].indirectionLevel = invertedVariable->indirectionLevel;
 				BasicBlock_append(currentBlock, subtractInvert);
 			}
 			else
 			{
 				char *variableName = it->child->sibling->value;
-				thisDereference->operands[2] = variableName;
+				thisDereference->operands[2].name.str = variableName;
 				struct VariableEntry *theVariable = Scope_lookupVar(scope, variableName);
-				thisDereference->operandTypes[2] = theVariable->type;
-				thisDereference->indirectionLevels[2] = theVariable->indirectionLevel;
+				thisDereference->operands[2].type = theVariable->type;
+				thisDereference->operands[2].indirectionLevel = theVariable->indirectionLevel;
 			}
 
 			break;
@@ -142,18 +142,16 @@ int linearizeDereference(struct Scope *scope,
 		// if literal, just use addressing mode base + offset
 		case t_literal:
 		{
-			// thisDereference->operands[1] = thisDereference->operands[2];
-			// thisDereference->operandTypes[1] = thisDereference->operandTypes[2];
 			thisDereference->operation = tt_memr_2;
 
 			// invalidate the previously set 4th operand, will be unused
-			thisDereference->operandTypes[3] = vt_null;
+			thisDereference->operands[3].type = vt_null;
 
 			int offset = atoi(it->child->sibling->value);
 			// multiply offset by 4 for word size
-			thisDereference->operands[2] = (char *)(long int)((offset * 4) * ((it->type == t_un_sub) ? -1 : 1));
-			thisDereference->operandTypes[2] = vt_var;
-			thisDereference->operandPermutations[2] = vp_literal;
+			thisDereference->operands[2].name.val = (offset * 4) * ((it->type == t_un_sub) ? -1 : 1);
+			thisDereference->operands[2].type = vt_var;
+			thisDereference->operands[2].permutation = vp_literal;
 		}
 		break;
 
@@ -163,34 +161,34 @@ int linearizeDereference(struct Scope *scope,
 			if (it->type == t_un_sub)
 			{
 				struct TACLine *subtractInvert = newTACLine(currentTACIndex++, tt_mul, it);
-				subtractInvert->operands[0] = TempList_Get(temps, *tempNum);
-				subtractInvert->operandPermutations[0] = vp_temp;
+				subtractInvert->operands[0].name.str = TempList_Get(temps, *tempNum);
+				subtractInvert->operands[0].permutation = vp_temp;
 				(*tempNum)++;
 				currentTACIndex = linearizeExpression(scope, currentTACIndex, currentBlock, it->child->sibling, tempNum);
 				struct TACLine *recursiveExpression = currentBlock->TACList->tail->data;
 
 				// set inverted types based on the expression result type
-				subtractInvert->operandTypes[0] = recursiveExpression->operandTypes[0];
-				// subtractInvert->operands[1] = it->child->sibling->value; // use expression operand instead?
-				subtractInvert->operands[1] = recursiveExpression->operands[0];
-				subtractInvert->operandTypes[1] = recursiveExpression->operandTypes[0];
-				subtractInvert->indirectionLevels[1] = recursiveExpression->indirectionLevels[0];
+				subtractInvert->operands[0].type = recursiveExpression->operands[0].type;
 
-				subtractInvert->operands[2] = "-1";
-				subtractInvert->operandTypes[2] = vt_var;
-				subtractInvert->operandPermutations[2] = vp_literal;
+				subtractInvert->operands[1].name.str = recursiveExpression->operands[0].name.str;
+				subtractInvert->operands[1].type = recursiveExpression->operands[0].type;
+				subtractInvert->operands[1].indirectionLevel = recursiveExpression->operands[0].indirectionLevel;
 
-				thisDereference->operands[2] = subtractInvert->operands[0];
-				thisDereference->operandTypes[2] = subtractInvert->operandTypes[0];
+				subtractInvert->operands[2].name.str = "-1";
+				subtractInvert->operands[2].type = vt_var;
+				subtractInvert->operands[2].permutation = vp_literal;
+
+				thisDereference->operands[2].name.str = subtractInvert->operands[0].name.str;
+				thisDereference->operands[2].type = subtractInvert->operands[0].type;
 				BasicBlock_append(currentBlock, subtractInvert);
 			}
 			else
 			{
-				thisDereference->operands[2] = TempList_Get(temps, *tempNum);
-				thisDereference->operandTypes[2] = vp_temp;
+				thisDereference->operands[2].name.str = TempList_Get(temps, *tempNum);
+				thisDereference->operands[2].type = vp_temp;
 				currentTACIndex = linearizeExpression(scope, currentTACIndex, currentBlock, it->child->sibling, tempNum);
 			}
-			thisDereference->operandPermutations[2] = vp_temp;
+			thisDereference->operands[2].permutation = vp_temp;
 			break;
 
 		default:
@@ -203,18 +201,18 @@ int linearizeDereference(struct Scope *scope,
 		ErrorAndExit(ERROR_INTERNAL, "Malformed parse tree when linearizing dereference!\n");
 	}
 
-	thisDereference->operandTypes[0] = thisDereference->operandTypes[1];
-	// thisDereference->operandPermutations[0] = thisDereference->operandPermutations[1];
+	thisDereference->operands[0].type = thisDereference->operands[1].type;
+	// thisDereference->operands[0].permutation = thisDereference->operands[1].permutation;
 
 	thisDereference->index = currentTACIndex++;
-	int newIndirection = thisDereference->indirectionLevels[1];
+	int newIndirection = thisDereference->operands[1].indirectionLevel;
 	if (newIndirection > 0)
 	{
 		newIndirection--;
 	}
 	else
 	{
-		printf("\n%s - ", thisDereference->operands[1]);
+		printf("\n%s - ", thisDereference->operands[1].name.str);
 		printf("Warning - dereference of non-indirect expression or statement\n\t");
 		AST_PrintHorizontal(it);
 		printf("\n\tLine %d, Col %d\n", it->sourceLine, it->sourceCol);
@@ -222,7 +220,7 @@ int linearizeDereference(struct Scope *scope,
 		printf("\n");
 	}
 
-	thisDereference->indirectionLevels[0] = newIndirection;
+	thisDereference->operands[0].indirectionLevel = newIndirection;
 	BasicBlock_append(currentBlock, thisDereference);
 	return currentTACIndex;
 }
@@ -243,16 +241,16 @@ int linearizeArgumentPushes(struct Scope *scope,
 	{
 	case t_name:
 		thisArgument = newTACLine(currentTACIndex++, tt_push, argRunner);
-		thisArgument->operandTypes[0] = vt_var;
+		thisArgument->operands[0].type = vt_var;
 	case t_literal:
 	{
 		if (thisArgument == NULL)
 		{
 			thisArgument = newTACLine(currentTACIndex++, tt_push, argRunner);
-			thisArgument->operandTypes[0] = vt_var;
-			thisArgument->operandPermutations[0] = vp_literal;
+			thisArgument->operands[0].type = vt_var;
+			thisArgument->operands[0].permutation = vp_literal;
 		}
-		thisArgument->operands[0] = argRunner->value;
+		thisArgument->operands[0].name.str = argRunner->value;
 	}
 	break;
 
@@ -261,10 +259,10 @@ int linearizeArgumentPushes(struct Scope *scope,
 		currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, argRunner->child, tempNum);
 		thisArgument = newTACLine(currentTACIndex++, tt_push, argRunner);
 		struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
-		thisArgument->operands[0] = recursiveDereference->operands[0];
-		thisArgument->operandTypes[0] = recursiveDereference->operandTypes[0];
-		thisArgument->indirectionLevels[0] = recursiveDereference->indirectionLevels[0];
-		thisArgument->operandPermutations[0] = recursiveDereference->operandPermutations[0];
+		thisArgument->operands[0].name.str = recursiveDereference->operands[0].name.str;
+		thisArgument->operands[0].type = recursiveDereference->operands[0].type;
+		thisArgument->operands[0].indirectionLevel = recursiveDereference->operands[0].indirectionLevel;
+		thisArgument->operands[0].permutation = recursiveDereference->operands[0].permutation;
 	}
 	break;
 
@@ -275,10 +273,10 @@ int linearizeArgumentPushes(struct Scope *scope,
 		struct TACLine *recursiveExpression = currentBlock->TACList->tail->data;
 
 		thisArgument = newTACLine(currentTACIndex++, tt_push, argRunner);
-		thisArgument->operands[0] = recursiveExpression->operands[0];
-		thisArgument->operandTypes[0] = recursiveExpression->operandTypes[0];
-		thisArgument->indirectionLevels[0] = recursiveExpression->indirectionLevels[0];
-		thisArgument->operandPermutations[0] = recursiveExpression->operandPermutations[0];
+		thisArgument->operands[0].name.str = recursiveExpression->operands[0].name.str;
+		thisArgument->operands[0].type = recursiveExpression->operands[0].type;
+		thisArgument->operands[0].indirectionLevel = recursiveExpression->operands[0].indirectionLevel;
+		thisArgument->operands[0].permutation = recursiveExpression->operands[0].permutation;
 	}
 	break;
 
@@ -314,24 +312,24 @@ int linearizeFunctionCall(struct Scope *scope,
 	}
 
 	struct TACLine *calltac = newTACLine(currentTACIndex++, tt_call, it);
-	calltac->operands[0] = operand0;
+	calltac->operands[0].name.str = operand0;
 
 	// always set the return permutation to temp
 	// null vs non-null type will be the handler for whether the return value exists
-	calltac->operandPermutations[0] = vp_temp;
+	calltac->operands[0].permutation = vp_temp;
 
 	// no type check because it contains the name of the function itself
 
-	calltac->operands[1] = functionName;
+	calltac->operands[1].name.str = functionName;
 
 	if (calledFunction->returnType != vt_null)
 	{
-		calltac->operandTypes[0] = calledFunction->returnType;
+		calltac->operands[0].type = calledFunction->returnType;
 	}
 	// TODO: set variabletype based on function return type, error if void function
 
 	// struct FunctionEntry *calledFunction = symbolTableLookup_fun(table, functionName);
-	// calltac->operandTypes[1] = calledFunction->returnType;
+	// calltac->operands[1].type = calledFunction->returnType;
 
 	BasicBlock_append(currentBlock, calltac);
 	return currentTACIndex;
@@ -346,8 +344,8 @@ int linearizeSubExpression(struct Scope *scope,
 						   struct TACLine *parentExpression,
 						   int operandIndex)
 {
-	parentExpression->operands[operandIndex] = TempList_Get(temps, *tempNum);
-	parentExpression->operandPermutations[operandIndex] = vp_temp;
+	parentExpression->operands[operandIndex].name.str = TempList_Get(temps, *tempNum);
+	parentExpression->operands[operandIndex].permutation = vp_temp;
 
 	switch (it->type)
 	{
@@ -360,9 +358,9 @@ int linearizeSubExpression(struct Scope *scope,
 		// TODO: check return type (or at least that function returns something)
 
 		// using a returned value will always be a temp
-		parentExpression->operandPermutations[operandIndex] = vp_temp;
-		parentExpression->operandTypes[operandIndex] = recursiveFunctionCall->operandTypes[0];
-		parentExpression->indirectionLevels[operandIndex] = recursiveFunctionCall->indirectionLevels[1];
+		parentExpression->operands[operandIndex].permutation = vp_temp;
+		parentExpression->operands[operandIndex].type = recursiveFunctionCall->operands[0].type;
+		parentExpression->operands[operandIndex].indirectionLevel = recursiveFunctionCall->operands[1].indirectionLevel;
 	}
 	break;
 
@@ -373,8 +371,8 @@ int linearizeSubExpression(struct Scope *scope,
 		currentTACIndex = linearizeExpression(scope, currentTACIndex, currentBlock, it, tempNum);
 		struct TACLine *recursiveExpression = currentBlock->TACList->tail->data;
 
-		parentExpression->operandTypes[operandIndex] = recursiveExpression->operandTypes[1];
-		parentExpression->indirectionLevels[operandIndex] = recursiveExpression->indirectionLevels[0];
+		parentExpression->operands[operandIndex].type = recursiveExpression->operands[1].type;
+		parentExpression->operands[operandIndex].indirectionLevel = recursiveExpression->operands[0].indirectionLevel;
 	}
 	break;
 
@@ -383,8 +381,8 @@ int linearizeSubExpression(struct Scope *scope,
 		currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, it->child, tempNum);
 		struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
 
-		parentExpression->operandTypes[operandIndex] = recursiveDereference->operandTypes[0];
-		parentExpression->indirectionLevels[operandIndex] = recursiveDereference->indirectionLevels[0];
+		parentExpression->operands[operandIndex].type = recursiveDereference->operands[0].type;
+		parentExpression->operands[operandIndex].indirectionLevel = recursiveDereference->operands[0].indirectionLevel;
 	}
 	break;
 
@@ -408,8 +406,8 @@ int linearizeExpression(struct Scope *scope,
 	// since 'cmp' doesn't generate a result, it just sets flags, no need to consume a temp
 	if (it->type != t_compOp)
 	{
-		thisExpression->operands[0] = TempList_Get(temps, *tempNum);
-		thisExpression->operandPermutations[0] = vp_temp;
+		thisExpression->operands[0].name.str = TempList_Get(temps, *tempNum);
+		thisExpression->operands[0].permutation = vp_temp;
 		// increment count of temp variables, the parse of this expression will be written to a temp
 		(*tempNum)++;
 	}
@@ -422,20 +420,20 @@ int linearizeExpression(struct Scope *scope,
 		// if simply dereferencing a name
 		if (it->child->type == t_name)
 		{
-			thisExpression->operands[1] = it->child->value;
-			thisExpression->operandTypes[1] = vt_var;
+			thisExpression->operands[1].name.str = it->child->value;
+			thisExpression->operands[1].type = vt_var;
 		}
 		// otherwise there's pointer arithmetic involved
 		else
 		{
-			thisExpression->operands[1] = TempList_Get(temps, *tempNum);
-			thisExpression->operandPermutations[1] = vp_temp;
+			thisExpression->operands[1].name.str = TempList_Get(temps, *tempNum);
+			thisExpression->operands[1].permutation = vp_temp;
 
 			currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, it->child, tempNum);
 			struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
 
-			thisExpression->indirectionLevels[1] = recursiveDereference->indirectionLevels[0];
-			thisExpression->operandTypes[1] = recursiveDereference->operandTypes[0];
+			thisExpression->operands[1].indirectionLevel = recursiveDereference->operands[0].indirectionLevel;
+			thisExpression->operands[1].type = recursiveDereference->operands[0].type;
 		}
 
 		thisExpression->index = currentTACIndex++;
@@ -459,18 +457,18 @@ int linearizeExpression(struct Scope *scope,
 
 	case t_name:
 	{
-		thisExpression->operands[1] = it->child->value;
+		thisExpression->operands[1].name.str = it->child->value;
 		struct VariableEntry *theVariable = Scope_lookupVar(scope, it->child->value);
-		thisExpression->operandTypes[1] = theVariable->type;
-		thisExpression->indirectionLevels[1] = theVariable->indirectionLevel;
+		thisExpression->operands[1].type = theVariable->type;
+		thisExpression->operands[1].indirectionLevel = theVariable->indirectionLevel;
 	}
 	break;
 
 	case t_literal:
 	{
-		thisExpression->operands[1] = it->child->value;
-		thisExpression->operandTypes[1] = vt_var;
-		thisExpression->operandPermutations[1] = vp_literal;
+		thisExpression->operands[1].name.str = it->child->value;
+		thisExpression->operands[1].type = vt_var;
+		thisExpression->operands[1].permutation = vp_literal;
 		// indirection levels set to 0 by default
 	}
 	break;
@@ -514,18 +512,18 @@ int linearizeExpression(struct Scope *scope,
 
 	case t_name:
 	{
-		thisExpression->operands[2] = it->child->sibling->value;
+		thisExpression->operands[2].name.str = it->child->sibling->value;
 		struct VariableEntry *theVariable = Scope_lookupVar(scope, it->child->sibling->value);
-		thisExpression->operandTypes[2] = theVariable->type;
-		thisExpression->indirectionLevels[2] = theVariable->indirectionLevel;
+		thisExpression->operands[2].type = theVariable->type;
+		thisExpression->operands[2].indirectionLevel = theVariable->indirectionLevel;
 	}
 	break;
 
 	case t_literal:
 	{
-		thisExpression->operands[2] = it->child->sibling->value;
-		thisExpression->operandTypes[2] = vt_var;
-		thisExpression->operandPermutations[2] = vp_literal;
+		thisExpression->operands[2].name.str = it->child->sibling->value;
+		thisExpression->operands[2].type = vt_var;
+		thisExpression->operands[2].permutation = vp_literal;
 		// indirection levels set to 0 by default
 	}
 	break;
@@ -538,7 +536,7 @@ int linearizeExpression(struct Scope *scope,
 	if (thisExpression->operation != tt_cmp)
 	{
 		// TODO (with type system) - properly determine type of expression when different operands
-		thisExpression->operandTypes[0] = vt_var;
+		thisExpression->operands[0].type = vt_var;
 	}
 
 	// automatically scale pointer arithmetic
@@ -549,95 +547,95 @@ int linearizeExpression(struct Scope *scope,
 	case tt_subtract:
 	{
 		// op1 is a pointer, op2 isn't
-		if (thisExpression->indirectionLevels[1] > 0 && thisExpression->indirectionLevels[2] == 0)
+		if (thisExpression->operands[1].indirectionLevel > 0 && thisExpression->operands[2].indirectionLevel == 0)
 		{
-			switch (thisExpression->operandPermutations[2])
+			switch (thisExpression->operands[2].permutation)
 			{
 			case vp_literal:
 				// TODO: dynamically multiply here, fix memory leak
 				char *scaledLiteral = malloc(16);
-				sprintf(scaledLiteral, "%d", atoi(thisExpression->operands[2]) * 4);
-				thisExpression->operands[2] = scaledLiteral;
-				thisExpression->indirectionLevels[2] = thisExpression->indirectionLevels[1];
+				sprintf(scaledLiteral, "%d", atoi(thisExpression->operands[2].name.str) * 4);
+				thisExpression->operands[2].name.str = scaledLiteral;
+				thisExpression->operands[2].indirectionLevel = thisExpression->operands[1].indirectionLevel;
 				break;
 
 			case vp_standard:
 			case vp_temp:
 				struct TACLine *scaleMultiply = newTACLine(currentTACIndex++, tt_mul, it);
-				scaleMultiply->operands[0] = TempList_Get(temps, *tempNum);
+				scaleMultiply->operands[0].name.str = TempList_Get(temps, *tempNum);
 				(*tempNum)++;
-				scaleMultiply->operandPermutations[0] = vp_temp;
-				scaleMultiply->operandTypes[0] = thisExpression->operandTypes[2];
+				scaleMultiply->operands[0].permutation = vp_temp;
+				scaleMultiply->operands[0].type = thisExpression->operands[2].type;
 
 				// scale multiplication result has same indirection level as the operand being scaled to
-				scaleMultiply->indirectionLevels[0] = thisExpression->indirectionLevels[1];
+				scaleMultiply->operands[0].indirectionLevel = thisExpression->operands[1].indirectionLevel;
 
 				// transfer the scaled operand out of the main expression
-				scaleMultiply->operands[1] = thisExpression->operands[2];
-				scaleMultiply->operandPermutations[1] = thisExpression->operandPermutations[2];
-				scaleMultiply->operandTypes[1] = thisExpression->operandTypes[2];
+				scaleMultiply->operands[1].name.str = thisExpression->operands[2].name.str;
+				scaleMultiply->operands[1].permutation = thisExpression->operands[2].permutation;
+				scaleMultiply->operands[1].type = thisExpression->operands[2].type;
 
 				// transfer the temp into the main expression
-				thisExpression->operands[2] = scaleMultiply->operands[0];
-				thisExpression->operandTypes[2] = scaleMultiply->operandTypes[0];
-				thisExpression->operandPermutations[2] = scaleMultiply->operandPermutations[0];
-				thisExpression->indirectionLevels[2] = scaleMultiply->indirectionLevels[0];
+				thisExpression->operands[2].name.str = scaleMultiply->operands[0].name.str;
+				thisExpression->operands[2].type = scaleMultiply->operands[0].type;
+				thisExpression->operands[2].permutation = scaleMultiply->operands[0].permutation;
+				thisExpression->operands[2].indirectionLevel = scaleMultiply->operands[0].indirectionLevel;
 
 				// TODO: auto scale by size of pointer and operand with types
 				// TODO: scaling memory leak
 				char *scalingLiteral = malloc(16);
 				sprintf(scalingLiteral, "%d", 4);
-				scaleMultiply->operands[2] = scalingLiteral;
-				scaleMultiply->operandPermutations[2] = vp_literal;
-				scaleMultiply->operandTypes[2] = vt_var;
+				scaleMultiply->operands[2].name.str = scalingLiteral;
+				scaleMultiply->operands[2].permutation = vp_literal;
+				scaleMultiply->operands[2].type = vt_var;
 				BasicBlock_append(currentBlock, scaleMultiply);
 				break;
 			}
 		}
 		else
 		{
-			if (thisExpression->indirectionLevels[2] > 0 && thisExpression->indirectionLevels[1] == 0)
+			if (thisExpression->operands[2].indirectionLevel > 0 && thisExpression->operands[1].indirectionLevel == 0)
 			{
-				switch (thisExpression->operandPermutations[1])
+				switch (thisExpression->operands[1].permutation)
 				{
 				case vp_literal:
 					// TODO: dynamically multiply here, fix memory leak
 					char *scaledLiteral = malloc(16);
-					sprintf(scaledLiteral, "%d", atoi(thisExpression->operands[1]) * 4);
-					thisExpression->operands[1] = scaledLiteral;
-					thisExpression->indirectionLevels[1] = thisExpression->indirectionLevels[2];
+					sprintf(scaledLiteral, "%d", atoi(thisExpression->operands[1].name.str) * 4);
+					thisExpression->operands[1].name.str = scaledLiteral;
+					thisExpression->operands[1].indirectionLevel = thisExpression->operands[2].indirectionLevel;
 					break;
 
 				case vp_standard:
 				case vp_temp:
 					struct TACLine *scaleMultiply;
 					scaleMultiply = newTACLine(currentTACIndex++, tt_mul, it);
-					scaleMultiply->operands[0] = TempList_Get(temps, *tempNum);
+					scaleMultiply->operands[0].name.str = TempList_Get(temps, *tempNum);
 					(*tempNum)++;
-					scaleMultiply->operandPermutations[0] = vp_temp;
-					scaleMultiply->operandTypes[0] = thisExpression->operandTypes[2];
+					scaleMultiply->operands[0].permutation = vp_temp;
+					scaleMultiply->operands[0].type = thisExpression->operands[2].type;
 
 					// scale multiplication result has same indirection level as the operand being scaled to
-					scaleMultiply->indirectionLevels[0] = thisExpression->indirectionLevels[2];
+					scaleMultiply->operands[0].indirectionLevel = thisExpression->operands[2].indirectionLevel;
 
 					// transfer the scaled operand out of the main expression
-					scaleMultiply->operands[1] = thisExpression->operands[1];
-					scaleMultiply->operandPermutations[1] = thisExpression->operandPermutations[1];
-					scaleMultiply->operandTypes[1] = thisExpression->operandTypes[1];
+					scaleMultiply->operands[1].name.str = thisExpression->operands[1].name.str;
+					scaleMultiply->operands[1].permutation = thisExpression->operands[1].permutation;
+					scaleMultiply->operands[1].type = thisExpression->operands[1].type;
 
 					// transfer the temp into the main expression
-					thisExpression->operands[1] = scaleMultiply->operands[0];
-					thisExpression->operandTypes[1] = scaleMultiply->operandTypes[0];
-					thisExpression->operandPermutations[1] = scaleMultiply->operandPermutations[0];
-					thisExpression->indirectionLevels[1] = scaleMultiply->indirectionLevels[0];
+					thisExpression->operands[1].name.str = scaleMultiply->operands[0].name.str;
+					thisExpression->operands[1].type = scaleMultiply->operands[0].type;
+					thisExpression->operands[1].permutation = scaleMultiply->operands[0].permutation;
+					thisExpression->operands[1].indirectionLevel = scaleMultiply->operands[0].indirectionLevel;
 
 					// TODO: auto scale by size of pointer and operand with types
 					// TODO: scaling memory leak
 					char *scalingLiteral = malloc(16);
 					sprintf(scalingLiteral, "%d", 4);
-					scaleMultiply->operands[2] = scalingLiteral;
-					scaleMultiply->operandPermutations[2] = vp_literal;
-					scaleMultiply->operandTypes[2] = vt_var;
+					scaleMultiply->operands[2].name.str = scalingLiteral;
+					scaleMultiply->operands[2].permutation = vp_literal;
+					scaleMultiply->operands[2].type = vt_var;
 					BasicBlock_append(currentBlock, scaleMultiply);
 				}
 			}
@@ -666,22 +664,22 @@ int linearizeAssignment(struct Scope *scope,
 	{
 		// pull out the relevant values and generate a single line of TAC to return
 		struct TACLine *assignment = newTACLine(currentTACIndex++, tt_assign, it);
-		assignment->operands[1] = it->child->sibling->value;
+		assignment->operands[1].name.str = it->child->sibling->value;
 
 		switch (it->child->sibling->type)
 		{
 		case t_literal:
-			assignment->operandTypes[1] = vt_var;
-			assignment->operandTypes[0] = vt_var;
-			assignment->operandPermutations[1] = vp_literal;
+			assignment->operands[1].type = vt_var;
+			assignment->operands[0].type = vt_var;
+			assignment->operands[1].permutation = vp_literal;
 			break;
 
 		case t_name:
 		{
 			struct VariableEntry *theVariable = Scope_lookupVar(scope, it->child->sibling->value);
-			assignment->operandTypes[1] = theVariable->type;
-			assignment->operandTypes[0] = theVariable->type;
-			assignment->indirectionLevels[1] = theVariable->indirectionLevel;
+			assignment->operands[1].type = theVariable->type;
+			assignment->operands[0].type = theVariable->type;
+			assignment->operands[1].indirectionLevel = theVariable->indirectionLevel;
 		}
 		break;
 
@@ -718,19 +716,19 @@ int linearizeAssignment(struct Scope *scope,
 	if (it->child->type == t_name)
 	{
 		struct VariableEntry *assignedVariable = Scope_lookupVar(scope, it->child->value);
-		RHS->operands[0] = it->child->value;
-		RHS->operandTypes[0] = assignedVariable->type;
-		RHS->indirectionLevels[0] = assignedVariable->indirectionLevel;
-		RHS->operandPermutations[0] = vp_standard;
+		RHS->operands[0].name.str = it->child->value;
+		RHS->operands[0].type = assignedVariable->type;
+		RHS->operands[0].indirectionLevel = assignedVariable->indirectionLevel;
+		RHS->operands[0].permutation = vp_standard;
 	}
 	else
 	{
 		struct TACLine *finalAssignment = NULL;
-		RHS->operands[0] = TempList_Get(temps, *tempNum);
-		RHS->operandPermutations[0] = vp_temp;
+		RHS->operands[0].name.str = TempList_Get(temps, *tempNum);
+		RHS->operands[0].permutation = vp_temp;
 		(*tempNum)++;
-		RHS->operandTypes[0] = RHS->operandTypes[1];
-		RHS->indirectionLevels[0] = RHS->indirectionLevels[1];
+		RHS->operands[0].type = RHS->operands[1].type;
+		RHS->operands[0].indirectionLevel = RHS->operands[1].indirectionLevel;
 		switch (it->child->type)
 		{
 		case t_dereference:
@@ -742,13 +740,13 @@ int linearizeAssignment(struct Scope *scope,
 			case t_name:
 			{
 				finalAssignment = newTACLine(currentTACIndex++, tt_memw_1, it->child);
-				finalAssignment->operands[0] = dereferencedExpression->value;
-				finalAssignment->operandTypes[0] = Scope_lookupVar(scope, dereferencedExpression->value)->type;
+				finalAssignment->operands[0].name.str = dereferencedExpression->value;
+				finalAssignment->operands[0].type = Scope_lookupVar(scope, dereferencedExpression->value)->type;
 
-				finalAssignment->operands[1] = RHS->operands[0];
-				finalAssignment->operandPermutations[1] = RHS->operandPermutations[0];
-				finalAssignment->indirectionLevels[1] = RHS->indirectionLevels[0];
-				finalAssignment->operandTypes[1] = RHS->operandTypes[0];
+				finalAssignment->operands[1].name.str = RHS->operands[0].name.str;
+				finalAssignment->operands[1].permutation = RHS->operands[0].permutation;
+				finalAssignment->operands[1].indirectionLevel = RHS->operands[0].indirectionLevel;
+				finalAssignment->operands[1].type = RHS->operands[0].type;
 			}
 			break;
 
@@ -757,15 +755,15 @@ int linearizeAssignment(struct Scope *scope,
 				currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, dereferencedExpression, tempNum);
 				struct TACLine *thisDereference = currentBlock->TACList->tail->data;
 				finalAssignment = newTACLine(currentTACIndex++, tt_memw_1, dereferencedExpression);
-				finalAssignment->operands[1] = RHS->operands[0];
-				finalAssignment->operandPermutations[1] = RHS->operandPermutations[0];
-				finalAssignment->operandTypes[1] = RHS->operandTypes[0];
-				finalAssignment->indirectionLevels[1] = RHS->indirectionLevels[0];
+				finalAssignment->operands[1].name.str = RHS->operands[0].name.str;
+				finalAssignment->operands[1].permutation = RHS->operands[0].permutation;
+				finalAssignment->operands[1].type = RHS->operands[0].type;
+				finalAssignment->operands[1].indirectionLevel = RHS->operands[0].indirectionLevel;
 
-				finalAssignment->operands[0] = thisDereference->operands[0];
-				finalAssignment->operandPermutations[0] = thisDereference->operandPermutations[0];
-				finalAssignment->operandTypes[0] = thisDereference->operandTypes[0];
-				finalAssignment->indirectionLevels[0] = thisDereference->indirectionLevels[0];
+				finalAssignment->operands[0].name.str = thisDereference->operands[0].name.str;
+				finalAssignment->operands[0].permutation = thisDereference->operands[0].permutation;
+				finalAssignment->operands[0].type = thisDereference->operands[0].type;
+				finalAssignment->operands[0].indirectionLevel = thisDereference->operands[0].indirectionLevel;
 			}
 			break;
 
@@ -780,10 +778,10 @@ int linearizeAssignment(struct Scope *scope,
 				case t_literal:
 				{
 					finalAssignment = newTACLine(currentTACIndex++, tt_memw_2, dereferencedRHS);
-					finalAssignment->operands[1] = (char *)(long int)atoi(dereferencedRHS->value);
-					finalAssignment->operandPermutations[1] = vp_literal;
-					finalAssignment->operandTypes[1] = vt_var;
-					finalAssignment->indirectionLevels[1] = 0;
+					finalAssignment->operands[1].name.str = (char *)(long int)atoi(dereferencedRHS->value);
+					finalAssignment->operands[1].permutation = vp_literal;
+					finalAssignment->operands[1].type = vt_var;
+					finalAssignment->operands[1].indirectionLevel = 0;
 				}
 				break;
 
@@ -791,9 +789,9 @@ int linearizeAssignment(struct Scope *scope,
 				{
 					finalAssignment = newTACLine(currentTACIndex++, tt_memw_3, dereferencedRHS);
 					struct VariableEntry *theVariable = Scope_lookupVar(scope, dereferencedRHS->value);
-					finalAssignment->operands[1] = dereferencedRHS->value;
-					finalAssignment->operandTypes[1] = theVariable->type;
-					finalAssignment->indirectionLevels[1] = theVariable->indirectionLevel;
+					finalAssignment->operands[1].name.str = dereferencedRHS->value;
+					finalAssignment->operands[1].type = theVariable->type;
+					finalAssignment->operands[1].indirectionLevel = theVariable->indirectionLevel;
 				}
 				break;
 
@@ -806,10 +804,10 @@ int linearizeAssignment(struct Scope *scope,
 					finalAssignment = newTACLine(currentTACIndex++, tt_memw_3, dereferencedRHS);
 
 					// struct VariableEntry *theVariable = Scope_lookupVar(scope, dereferencedRHS->value);
-					finalAssignment->operands[1] = finalArithmeticLine->operands[0];
-					finalAssignment->operandPermutations[1] = finalArithmeticLine->operandPermutations[0];
-					finalAssignment->operandTypes[1] = finalArithmeticLine->operandTypes[0];
-					finalAssignment->indirectionLevels[1] = finalArithmeticLine->indirectionLevels[0];
+					finalAssignment->operands[1].name.str = finalArithmeticLine->operands[0].name.str;
+					finalAssignment->operands[1].permutation = finalArithmeticLine->operands[0].permutation;
+					finalAssignment->operands[1].type = finalArithmeticLine->operands[0].type;
+					finalAssignment->operands[1].indirectionLevel = finalArithmeticLine->operands[0].indirectionLevel;
 				}
 				break;
 
@@ -824,9 +822,9 @@ int linearizeAssignment(struct Scope *scope,
 				case t_name:
 				{
 					struct VariableEntry *lhsVariable = Scope_lookupVar(scope, dereferencedExpression->child->value);
-					finalAssignment->operands[0] = dereferencedExpression->child->value;
-					finalAssignment->operandTypes[0] = lhsVariable->type;
-					finalAssignment->indirectionLevels[0] = lhsVariable->indirectionLevel;
+					finalAssignment->operands[0].name.str = dereferencedExpression->child->value;
+					finalAssignment->operands[0].type = lhsVariable->type;
+					finalAssignment->operands[0].indirectionLevel = lhsVariable->indirectionLevel;
 					lhsSize = Scope_getSizeOfVariable(scope, dereferencedExpression->child->value);
 				}
 				break;
@@ -839,41 +837,41 @@ int linearizeAssignment(struct Scope *scope,
 				{
 				case tt_memw_2:
 				{
-					finalAssignment->operands[1] = (char *)((long int)lhsSize * (long int)(finalAssignment->operands[1]));
-					finalAssignment->operandPermutations[1] = vp_literal;
-					finalAssignment->operandTypes[1] = vt_var;
-					// finalAssignment->indirectionLevels[1] = 0; // extraneous
+					finalAssignment->operands[1].name.val = lhsSize * (finalAssignment->operands[1].name.val);
+					finalAssignment->operands[1].permutation = vp_literal;
+					finalAssignment->operands[1].type = vt_var;
+					// finalAssignment->operands[1].indirectionLevel = 0; // extraneous
 
 					// make offset value negative if subtracting
 					if (dereferencedExpression->type == t_un_sub)
 					{
-						finalAssignment->operands[1] = (char *)((long int)finalAssignment->operands[1] * -1);
+						finalAssignment->operands[1].name.val = finalAssignment->operands[1].name.val * -1;
 					}
 
-					finalAssignment->operands[2] = RHS->operands[0];
-					finalAssignment->operandPermutations[2] = RHS->operandPermutations[0];
-					finalAssignment->operandTypes[2] = RHS->operandTypes[0];
-					finalAssignment->indirectionLevels[2] = RHS->indirectionLevels[0];
+					finalAssignment->operands[2].name.str = RHS->operands[0].name.str;
+					finalAssignment->operands[2].permutation = RHS->operands[0].permutation;
+					finalAssignment->operands[2].type = RHS->operands[0].type;
+					finalAssignment->operands[2].indirectionLevel = RHS->operands[0].indirectionLevel;
 				}
 				break;
 
 				case tt_memw_3:
 				{
-					finalAssignment->operands[2] = (char *)(long int)lhsSize;
-					finalAssignment->operandPermutations[2] = vp_literal;
-					finalAssignment->operandTypes[2] = vt_var;
-					finalAssignment->indirectionLevels[2] = 0;
+					finalAssignment->operands[2].name.val = lhsSize;
+					finalAssignment->operands[2].permutation = vp_literal;
+					finalAssignment->operands[2].type = vt_var;
+					finalAssignment->operands[2].indirectionLevel = 0;
 
 					// make scale value negative if subtracting
 					if (dereferencedExpression->type == t_un_sub)
 					{
-						finalAssignment->operands[2] = (char *)((long int)finalAssignment->operands[2] * -1);
+						finalAssignment->operands[2].name.val = finalAssignment->operands[2].name.val * -1;
 					}
 
-					finalAssignment->operands[3] = RHS->operands[0];
-					finalAssignment->operandPermutations[3] = RHS->operandPermutations[0];
-					finalAssignment->operandTypes[3] = RHS->operandTypes[0];
-					finalAssignment->indirectionLevels[3] = RHS->indirectionLevels[0];
+					finalAssignment->operands[3].name.str = RHS->operands[0].name.str;
+					finalAssignment->operands[3].permutation = RHS->operands[0].permutation;
+					finalAssignment->operands[3].type = RHS->operands[0].type;
+					finalAssignment->operands[3].indirectionLevel = RHS->operands[0].indirectionLevel;
 				}
 				break;
 
@@ -974,14 +972,14 @@ int linearizeDeclaration(struct Scope *scope,
 	if (it->child->type == t_array)
 	{
 		it = it->child;
-		declarationLine->operands[1] = it->child->sibling->value;
-		declarationLine->operandPermutations[1] = vp_literal;
-		declarationLine->operandTypes[1] = vt_var;
+		declarationLine->operands[1].name.str = it->child->sibling->value;
+		declarationLine->operands[1].permutation = vp_literal;
+		declarationLine->operands[1].type = vt_var;
 	}
 
-	declarationLine->operands[0] = it->child->value;
-	declarationLine->operandTypes[0] = declaredType;
-	declarationLine->indirectionLevels[0] = dereferenceLevel;
+	declarationLine->operands[0].name.str = it->child->value;
+	declarationLine->operands[0].type = declaredType;
+	declarationLine->operands[0].indirectionLevel = dereferenceLevel;
 
 	BasicBlock_append(currentBlock, declarationLine);
 	return currentTACIndex;
@@ -1024,7 +1022,7 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 
 		// bit hax (⌐▨_▨)
 		// store the label index using the char* for this TAC line to avoid more fields in the struct
-		noifJump->operands[0] = (char *)((long int)elseBlock->labelNum);
+		noifJump->operands[0].name.val = elseBlock->labelNum;
 
 		// linearize the else block, it returns to the same afterIfBlock as the ifBlock does
 		// struct Stack *scopeStack = Stack_new();
@@ -1034,7 +1032,7 @@ struct Stack *linearizeIfStatement(struct Scope *scope,
 	}
 	else
 	{
-		noifJump->operands[0] = (char *)((long int)afterIfBlock->labelNum);
+		noifJump->operands[0].name.val = afterIfBlock->labelNum;
 	}
 
 	return results;
@@ -1054,7 +1052,7 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 	Function_addBasicBlock(scope->parentFunction, whileBlock);
 
 	struct TACLine *enterWhileJump = newTACLine(currentTACIndex++, tt_jmp, it);
-	enterWhileJump->operands[0] = (char *)((long int)whileBlock->labelNum);
+	enterWhileJump->operands[0].name.val = whileBlock->labelNum;
 	BasicBlock_append(currentBlock, enterWhileJump);
 
 	struct TACLine *whileDo = newTACLine(currentTACIndex, tt_do, it);
@@ -1064,7 +1062,7 @@ struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
 	currentTACIndex = linearizeExpression(scope, currentTACIndex, whileBlock, it->child, tempNum);
 
 	struct TACLine *noWhileJump = linearizeConditionalJump(currentTACIndex++, it->child->value, it->child);
-	noWhileJump->operands[0] = (char *)((long int)afterWhileBlock->labelNum);
+	noWhileJump->operands[0].name.val = afterWhileBlock->labelNum;
 	BasicBlock_append(whileBlock, noWhileJump);
 
 	// create the scope for the while loop
@@ -1166,8 +1164,8 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,					  // the sym
 			// for a raw call, return value is not used, null out that operand
 			currentTACIndex = linearizeFunctionCall(scope, currentTACIndex, currentBlock, runner, tempNum);
 			struct TACLine *lastLine = currentBlock->TACList->tail->data;
-			lastLine->operands[0] = NULL;
-			lastLine->operandTypes[0] = vt_null;
+			lastLine->operands[0].name.str = NULL;
+			lastLine->operands[0].type = vt_null;
 		}
 		break;
 
@@ -1201,7 +1199,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,					  // the sym
 				returnedPermutation = vp_temp;
 				currentTACIndex = linearizeDereference(scope, currentTACIndex, currentBlock, runner->child->child, tempNum);
 				struct TACLine *recursiveDereference = currentBlock->TACList->tail->data;
-				returnedType = recursiveDereference->operandTypes[0];
+				returnedType = recursiveDereference->operands[0].type;
 			}
 			break;
 
@@ -1212,7 +1210,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,					  // the sym
 				returnedPermutation = vp_temp;
 				currentTACIndex = linearizeExpression(scope, currentTACIndex, currentBlock, runner->child, tempNum);
 				struct TACLine *recursiveExpression = currentBlock->TACList->tail->data;
-				returnedType = recursiveExpression->operandTypes[0];
+				returnedType = recursiveExpression->operands[0].type;
 			}
 			break;
 
@@ -1220,9 +1218,9 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,					  // the sym
 				ErrorAndExit(ERROR_INTERNAL, "Error - Unexpected type within return expression\n");
 			}
 			struct TACLine *returnTac = newTACLine(currentTACIndex++, tt_return, runner);
-			returnTac->operands[0] = returned;
-			returnTac->operandPermutations[0] = returnedPermutation;
-			returnTac->operandTypes[0] = returnedType;
+			returnTac->operands[0].name.str = returned;
+			returnTac->operands[0].permutation = returnedPermutation;
+			returnTac->operands[0].type = returnedType;
 			BasicBlock_append(currentBlock, returnTac);
 		}
 		break;
@@ -1255,7 +1253,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,					  // the sym
 			while (beforeConvergeRestores->size > 0)
 			{
 				struct TACLine *expireLine = Stack_Pop(beforeConvergeRestores);
-				expireLine->operands[0] = (char *)((long int)currentTACIndex);
+				expireLine->operands[0].name.val = currentTACIndex;
 			}
 
 			Stack_Free(beforeConvergeRestores);
@@ -1293,7 +1291,7 @@ struct LinearizationResult *linearizeScope(struct Scope *scope,					  // the sym
 			if (lastLine->operation != tt_return)
 			{
 				struct TACLine *convergeControlJump = newTACLine(currentTACIndex++, tt_jmp, runner);
-				convergeControlJump->operands[0] = (char *)((long int)controlConvergesTo->labelNum);
+				convergeControlJump->operands[0].name.val = controlConvergesTo->labelNum;
 				BasicBlock_append(currentBlock, convergeControlJump);
 			}
 		}
@@ -1362,16 +1360,16 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 					for (int j = 0; j < 4; j++)
 					{
 						// check only TAC operands that both exist and refer to a named variable from the source code (ignore temps etc)
-						if (thisTAC->operandTypes[j] != vt_null && thisTAC->operandPermutations[j] == vp_standard)
+						if (thisTAC->operands[j].type != vt_null && thisTAC->operands[j].permutation == vp_standard)
 						{
-							char *originalName = thisTAC->operands[j];
+							char *originalName = thisTAC->operands[j].name.str;
 							// if this operand refers to a variable declared at this scope
 							if (Scope_contains(scope, originalName))
 							{
 								char *mangledName = malloc(strlen(originalName) + 4);
 								// tack on the name of this scope to the variable name since the same will happen to the variable entry itself in third pass
 								sprintf(mangledName, "%s%s", originalName, scope->name);
-								thisTAC->operands[j] = Dictionary_LookupOrInsert(dict, mangledName);
+								thisTAC->operands[j].name.str = Dictionary_LookupOrInsert(dict, mangledName);
 								free(mangledName);
 							}
 						}

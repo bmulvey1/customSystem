@@ -184,22 +184,22 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 				break;
 
 			case tt_declare:
-				updateOrInsertLifetime(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
+				updateOrInsertLifetime(lifetimes, thisLine->operands[0].name.str, thisLine->operands[0].type, TACIndex);
 				break;
 
 			case tt_call:
-				if (thisLine->operandTypes[0] != vt_null)
+				if (thisLine->operands[0].type != vt_null)
 				{
-					recordVariableWrite(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
+					recordVariableWrite(lifetimes, thisLine->operands[0].name.str, thisLine->operands[0].type, TACIndex);
 				}
 				break;
 
 			case tt_assign:
 			{
-				recordVariableWrite(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
-				if (thisLine->operandPermutations[1] != vp_literal)
+				recordVariableWrite(lifetimes, thisLine->operands[0].name.str, thisLine->operands[0].type, TACIndex);
+				if (thisLine->operands[1].permutation != vp_literal)
 				{
-					recordVariableRead(lifetimes, thisLine->operands[1], thisLine->operandTypes[1], TACIndex);
+					recordVariableRead(lifetimes, thisLine->operands[1].name.str, thisLine->operands[1].type, TACIndex);
 				}
 			}
 			break;
@@ -208,16 +208,9 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 			case tt_push:
 			case tt_return:
 			{
-				if (thisLine->operandPermutations[0] != vp_literal)
+				if (thisLine->operands[0].permutation != vp_literal)
 				{
-					switch (thisLine->operandTypes[0])
-					{
-					case vt_var:
-						recordVariableRead(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
-						break;
-
-					default:
-					}
+					recordVariableRead(lifetimes, thisLine->operands[0].name.str, thisLine->operands[0].type, TACIndex);
 				}
 			}
 			break;
@@ -234,23 +227,25 @@ struct LinkedList *findLifetimes(struct FunctionEntry *function)
 			case tt_memw_2:
 			case tt_memw_3:
 			{
-				if (thisLine->operandTypes[0] != vt_null)
+				if (thisLine->operands[0].type != vt_null)
 				{
-					recordVariableWrite(lifetimes, thisLine->operands[0], thisLine->operandTypes[0], TACIndex);
+					recordVariableWrite(lifetimes, thisLine->operands[0].name.str, thisLine->operands[0].type, TACIndex);
 				}
 
 				for (int i = 1; i < 4; i++)
 				{
 					// lifetimes for every permutation except literal
-					if (thisLine->operandPermutations[i] != vp_literal)
+					if (thisLine->operands[i].permutation != vp_literal)
 					{
 						// and any type except null
-						switch (thisLine->operandTypes[i])
+						switch (thisLine->operands[i].type)
 						{
-						case vt_var:
-							recordVariableRead(lifetimes, thisLine->operands[i], thisLine->operandTypes[i], TACIndex);
+						case vt_null:
 							break;
+
 						default:
+							recordVariableRead(lifetimes, thisLine->operands[i].name.str, thisLine->operands[i].type, TACIndex);
+							break;
 						}
 					}
 				}

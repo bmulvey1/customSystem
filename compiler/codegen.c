@@ -7,8 +7,6 @@ char printedLine[MAX_ASM_LINE_SIZE];
 #define TRIM_APPEND(currentBlock, nChars) (LinkedList_Append(currentBlock, strTrim(printedLine, nChars)))
 #define TRIM_PREPEND(currentBlock, nChars) (LinkedList_Prepend(currentBlock, strTrim(printedLine, nChars)))
 
-
-
 int ALIGNSIZE(unsigned int size)
 {
 	unsigned int mask = 0b1;
@@ -470,7 +468,7 @@ struct LinkedList *generateCodeForFunction(struct FunctionEntry *function, FILE 
 
 	// meaningful code generated
 	printf(".");
-				//TRIM_APPEND(currentBlock, sprintf(printedLine
+	// TRIM_APPEND(currentBlock, sprintf(printedLine
 
 	TRIM_APPEND(functionBlock, sprintf(printedLine, "%s_done:", function->name));
 
@@ -548,17 +546,17 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		switch (thisTAC->operation)
 		{
 		case tt_asm:
-			LinkedList_Append(asmBlock, thisTAC->operands[0]);
+			LinkedList_Append(asmBlock, thisTAC->operands[0].name.str);
 			break;
 
 		case tt_assign:
 		{
-			struct Lifetime *assignedLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
-			struct Lifetime *assignerLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[1]);
+			struct Lifetime *assignedLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0].name.str);
+			struct Lifetime *assignerLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[1].name.str);
 			// assign to register
 			if (assignedLifetime->isSpilled == 0)
 			{
-				switch (thisTAC->operandPermutations[1])
+				switch (thisTAC->operands[1].permutation)
 				{
 				case vp_standard:
 				case vp_temp:
@@ -573,14 +571,14 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 					break;
 
 				case vp_literal:
-					TRIM_APPEND(asmBlock, sprintf(printedLine, "movh %%r%d, $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]));
+					TRIM_APPEND(asmBlock, sprintf(printedLine, "movh %%r%d, $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1].name.str));
 					break;
 				}
 			}
 			// assign to spilled
 			else
 			{
-				switch (thisTAC->operandPermutations[1])
+				switch (thisTAC->operands[1].permutation)
 				{
 				case vp_standard:
 				case vp_temp:
@@ -598,7 +596,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 
 				case vp_literal:
 				{
-					TRIM_APPEND(asmBlock, sprintf(printedLine, "mov (%%bp+%d), $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1]));
+					TRIM_APPEND(asmBlock, sprintf(printedLine, "mov (%%bp+%d), $%s", assignedLifetime->stackOrRegLocation, thisTAC->operands[1].name.str));
 				}
 				break;
 				}
@@ -610,7 +608,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		// everything else (args and regular variables) handled explicitly elsewhere
 		case tt_declare:
 		{
-			struct Lifetime *declaredLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
+			struct Lifetime *declaredLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0].name.str);
 			if ((declaredLifetime->localPointerTo != NULL) &&
 				(!declaredLifetime->isSpilled))
 			{
@@ -626,9 +624,9 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		{
 			char immediateInstruction = 0;
 
-			struct Lifetime *assignedLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
-			struct Lifetime *operand1Lifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[1]);
-			struct Lifetime *operand2Lifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[2]);
+			struct Lifetime *assignedLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0].name.str);
+			struct Lifetime *operand1Lifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[1].name.str);
+			struct Lifetime *operand2Lifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[2].name.str);
 			int destinationRegister;
 			char op1[12];
 			char op2[12];
@@ -642,13 +640,13 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				destinationRegister = assignedLifetime->stackOrRegLocation;
 			}
 
-			if (thisTAC->operandPermutations[1] == vp_literal && thisTAC->operandPermutations[2] == vp_literal)
+			if (thisTAC->operands[1].permutation == vp_literal && thisTAC->operands[2].permutation == vp_literal)
 			{
 				ErrorAndExit(ERROR_INTERNAL, "Arithmetic between two literals!\n");
 			}
 
 			// examine the first operand, place it in regisetr if necessary, and handle reordering (if possible/beneficial)
-			switch (thisTAC->operandPermutations[1])
+			switch (thisTAC->operands[1].permutation)
 			{
 			case vp_standard:
 			case vp_temp:
@@ -668,13 +666,13 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				{
 					reordering = 1;
 					immediateInstruction = 1;
-					sprintf(op1, "$%s", thisTAC->operands[1]);
+					sprintf(op1, "$%s", thisTAC->operands[1].name.str);
 				}
 				break;
 			}
 
 			// examine the second operand, place it in register
-			switch (thisTAC->operandPermutations[2])
+			switch (thisTAC->operands[2].permutation)
 			{
 			case vp_standard:
 			case vp_temp:
@@ -690,7 +688,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				break;
 
 			case vp_literal:
-				sprintf(op2, "$%s", thisTAC->operands[2]);
+				sprintf(op2, "$%s", thisTAC->operands[2].name.str);
 				immediateInstruction = 1;
 				break;
 			}
@@ -731,41 +729,42 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 
 		case tt_memw_1:
 		{
-			int dstIndexReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
-			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
+			int dstIndexReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0].name.str, asmBlock, reservedRegisters[0], touchedRegisters);
+			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1].name.str, asmBlock, reservedRegisters[1], touchedRegisters);
 			TRIM_APPEND(asmBlock, sprintf(printedLine, "mov (%%r%d), %%r%d", dstIndexReg, sourceReg));
 		}
 		break;
 
 		case tt_memw_2:
 		{
-			int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
-			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[2], asmBlock, reservedRegisters[1], touchedRegisters);
-			TRIM_APPEND(asmBlock, sprintf(printedLine, "mov (%%r%d+%d), %%r%d", baseReg, (int)(long int)thisTAC->operands[1], sourceReg));
+			int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0].name.str, asmBlock, reservedRegisters[0], touchedRegisters);
+			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[2].name.str, asmBlock, reservedRegisters[1], touchedRegisters);
+			TRIM_APPEND(asmBlock, sprintf(printedLine, "mov (%%r%d+%d), %%r%d", baseReg, thisTAC->operands[1].name.val, sourceReg));
 		}
 		// ErrorAndExit(ERROR_INTERNAL, "Code generation not implemented for this operation (%s) yet!\n", getAsmOp(thisTAC->operation));
 		break;
 
 		case tt_memw_3:
 		{
-			int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
-			int offsetReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
-			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[3], asmBlock, 16, touchedRegisters);
-			TRIM_APPEND(asmBlock, sprintf(printedLine, "mov (%%r%d+%%r%d,%d), %%r%d", baseReg, offsetReg, ALIGNSIZE((int)(long int)thisTAC->operands[2]), sourceReg));		}
+			int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0].name.str, asmBlock, reservedRegisters[0], touchedRegisters);
+			int offsetReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1].name.str, asmBlock, reservedRegisters[1], touchedRegisters);
+			int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[3].name.str, asmBlock, 16, touchedRegisters);
+			TRIM_APPEND(asmBlock, sprintf(printedLine, "mov (%%r%d+%%r%d,%d), %%r%d", baseReg, offsetReg, ALIGNSIZE(thisTAC->operands[2].name.val), sourceReg));
+		}
 		break;
 
 		case tt_dereference: // these are redundant... probably makes sense to remove one?
 		case tt_memr_1:
 		{
-			struct Lifetime *destinationLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
+			struct Lifetime *destinationLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0].name.str);
 			if (destinationLifetime->isSpilled)
 			{
 				ErrorAndExit(ERROR_INTERNAL, "Code generation for tt_dereference/tt_memr_w with spilled destination not supported!\n");
 			}
 			else
 			{
-				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
-				int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
+				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0].name.str, asmBlock, reservedRegisters[0], touchedRegisters);
+				int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1].name.str, asmBlock, reservedRegisters[1], touchedRegisters);
 				TRIM_APPEND(asmBlock, sprintf(printedLine, "mov %%r%d, (%%r%d)", destReg, sourceReg));
 			}
 		}
@@ -774,33 +773,33 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 
 		case tt_memr_2:
 		{
-			struct Lifetime *destinationLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
+			struct Lifetime *destinationLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0].name.str);
 			if (destinationLifetime->isSpilled)
 			{
 				ErrorAndExit(ERROR_INTERNAL, "Code generation for tt_memr_2 with spilled destination not supported!\n");
 			}
 			else
 			{
-				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
-				int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
-				TRIM_APPEND(asmBlock, sprintf(printedLine, "mov %%r%d, (%%r%d+%d)", destReg, sourceReg, (int)(long int)thisTAC->operands[2]));
+				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0].name.str, asmBlock, reservedRegisters[0], touchedRegisters);
+				int sourceReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1].name.str, asmBlock, reservedRegisters[1], touchedRegisters);
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "mov %%r%d, (%%r%d+%d)", destReg, sourceReg, thisTAC->operands[2].name.val));
 			}
 		}
 		break;
 
 		case tt_memr_3:
 		{
-			struct Lifetime *destinationLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
+			struct Lifetime *destinationLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0].name.str);
 			if (destinationLifetime->isSpilled)
 			{
 				ErrorAndExit(ERROR_INTERNAL, "Code generation for tt_memr_3 with spilled destination not supported!\n");
 			}
 			else
 			{
-				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
-				int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1], asmBlock, reservedRegisters[1], touchedRegisters);
-				int offsetReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[2], asmBlock, 16, touchedRegisters);
-				TRIM_APPEND(asmBlock, sprintf(printedLine, "mov %%r%d, (%%r%d+%%r%d,%d)", destReg, baseReg, offsetReg, ALIGNSIZE((int)(long int)thisTAC->operands[3])));
+				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0].name.str, asmBlock, reservedRegisters[0], touchedRegisters);
+				int baseReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[1].name.str, asmBlock, reservedRegisters[1], touchedRegisters);
+				int offsetReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[2].name.str, asmBlock, 16, touchedRegisters);
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "mov %%r%d, (%%r%d+%%r%d,%d)", destReg, baseReg, offsetReg, ALIGNSIZE(thisTAC->operands[3].name.val)));
 			}
 		}
 		break;
@@ -809,18 +808,18 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		{
 			char immediateInstruction = 0;
 
-			struct Lifetime *operand1Lifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[1]);
-			struct Lifetime *operand2Lifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[2]);
+			struct Lifetime *operand1Lifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[1].name.str);
+			struct Lifetime *operand2Lifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[2].name.str);
 			char op1[12];
 			char op2[12];
 
-			if (thisTAC->operandPermutations[1] == vp_literal && thisTAC->operandPermutations[2] == vp_literal)
+			if (thisTAC->operands[1].permutation == vp_literal && thisTAC->operands[2].permutation == vp_literal)
 			{
 				ErrorAndExit(ERROR_INTERNAL, "Cmp between two literals!\n");
 			}
 
 			// examine the first operand, place it in regisetr if necessary, and handle reordering (if possible/beneficial)
-			switch (thisTAC->operandPermutations[1])
+			switch (thisTAC->operands[1].permutation)
 			{
 			case vp_standard:
 			case vp_temp:
@@ -841,7 +840,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 			}
 
 			// examine the second operand, place it in register
-			switch (thisTAC->operandPermutations[2])
+			switch (thisTAC->operands[2].permutation)
 			{
 			case vp_standard:
 			case vp_temp:
@@ -862,7 +861,7 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 				// if they don't fit fully, load into register via 2 instructions
 
 				immediateInstruction = 1;
-				sprintf(op2, "$%s", thisTAC->operands[2]);
+				sprintf(op2, "$%s", thisTAC->operands[2].name.str);
 				break;
 			}
 
@@ -884,30 +883,30 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 		case tt_je:
 		case tt_jne:
 		{
-			TRIM_APPEND(asmBlock, sprintf(printedLine, "%s %s_%ld", getAsmOp(thisTAC->operation), functionName, (long int)thisTAC->operands[0]));
+			TRIM_APPEND(asmBlock, sprintf(printedLine, "%s %s_%d", getAsmOp(thisTAC->operation), functionName, thisTAC->operands[0].name.val));
 		}
 		break;
 
 		case tt_jmp:
 		{
-			TRIM_APPEND(asmBlock, sprintf(printedLine, "jmp %s_%d", functionName, (int)(long int)thisTAC->operands[0]));
+			TRIM_APPEND(asmBlock, sprintf(printedLine, "jmp %s_%d", functionName, thisTAC->operands[0].name.val));
 		}
 		break;
 
 		case tt_push:
 		{
-			switch (thisTAC->operandPermutations[0])
+			switch (thisTAC->operands[0].permutation)
 			{
 			case vp_standard:
 			case vp_temp:
 			{
-				int registerIndex = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
+				int registerIndex = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0].name.str, asmBlock, reservedRegisters[0], touchedRegisters);
 				TRIM_APPEND(asmBlock, sprintf(printedLine, "push %%r%d", registerIndex));
 			}
 			break;
 
 			case vp_literal:
-				TRIM_APPEND(asmBlock, sprintf(printedLine, "pushi $%s", thisTAC->operands[0]));
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "pushi $%s", thisTAC->operands[0].name.str));
 				break;
 			}
 		}
@@ -915,12 +914,12 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 
 		case tt_call:
 		{
-			TRIM_APPEND(asmBlock, sprintf(printedLine, "call %s", thisTAC->operands[1]));
+			TRIM_APPEND(asmBlock, sprintf(printedLine, "call %s", thisTAC->operands[1].name.str));
 
 			// the call returns a value
-			if (thisTAC->operands[0] != NULL)
+			if (thisTAC->operands[0].name.str != NULL)
 			{
-				struct Lifetime *returnedLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0]);
+				struct Lifetime *returnedLifetime = LinkedList_Find(allLifetimes, compareLifetimes, thisTAC->operands[0].name.str);
 				if (!returnedLifetime->isSpilled)
 				{
 					TRIM_APPEND(asmBlock, sprintf(printedLine, "mov %%r%d, %%rr", returnedLifetime->stackOrRegLocation));
@@ -939,18 +938,18 @@ void GenerateCodeForBasicBlock(struct BasicBlock *thisBlock, struct LinkedList *
 
 		case tt_return:
 		{
-			switch (thisTAC->operandPermutations[0])
+			switch (thisTAC->operands[0].permutation)
 			{
 			case vp_literal:
 			{
-				TRIM_APPEND(asmBlock, sprintf(printedLine, "movh %%rr, $%s", thisTAC->operands[0]));
+				TRIM_APPEND(asmBlock, sprintf(printedLine, "movh %%rr, $%s", thisTAC->operands[0].name.str));
 			}
 			break;
 
 			case vp_standard:
 			case vp_temp:
 			{
-				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0], asmBlock, reservedRegisters[0], touchedRegisters);
+				int destReg = placeOrFindOperandInRegister(allLifetimes, thisTAC->operands[0].name.str, asmBlock, reservedRegisters[0], touchedRegisters);
 				TRIM_APPEND(asmBlock, sprintf(printedLine, "mov %%rr, %%r%d", destReg));
 			}
 			break;
