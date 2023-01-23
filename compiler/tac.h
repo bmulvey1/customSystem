@@ -12,7 +12,8 @@ enum variableTypes
 	vt_var
 };
 
-enum variablePermutations{
+enum variablePermutations
+{
 	vp_standard,
 	vp_temp,
 	vp_literal
@@ -51,13 +52,24 @@ enum TACType
 	tt_enddo,
 };
 
+struct TACOperand
+{
+	union nameUnion // name of variable as char*, or literal value as int
+	{
+		char *str;
+		int val;
+	} name;
+
+	// union nameUnion name;
+	enum variableTypes type;			   // enum of type
+	enum variablePermutations permutation; // enum of permutation (standard/temp/literal)
+	char indirectionLevel;
+};
+
 struct TACLine
 {
 	struct AST *correspondingTree;
-	char *operands[4];                  // track operands by name
-	enum variableTypes operandTypes[4]; // track the types of each operand
-	enum variablePermutations operandPermutations[4];		// permutations for the operands, 0 if normal, 1 if temp, 2 if literal
-	char indirectionLevels[4];          // track indirection levels of all operands
+	struct TACOperand operands[4];
 	enum TACType operation;
 	int index;
 	char reorderable;
@@ -95,7 +107,8 @@ struct TACLine *findLastEffectiveTAC(struct BasicBlock *b);
 
 void printBasicBlock(struct BasicBlock *b, int indentLevel);
 
-struct LinearizationResult{
+struct LinearizationResult
+{
 	struct BasicBlock *block;
 	int endingTACIndex;
 };
