@@ -1,31 +1,44 @@
-asm{
-	entry code
+/*
+https://projecteuler.net/problem=1
 
-code:
-    hlt
-};
+If we list all the natural numbers below 10 that are multiples of 3 or 5, we get 3, 5, 6 and 9. The sum of these multiples is 23.
 
-fun printNum(var num)
-{
+Find the sum of all the multiples of 3 or 5 below 1000.
 
-    if(num == 0)
+results:
+1/15/23 - 1196487 instructions
+
+*/
+asm
     {
-        var asdf = 0;
+    entry code
+    code:
+    call multiples
+    hlt
+}
+;
+
+fun mul(var a, var b)
+{
+    var result = 0;
+    if (a > b)
+    {
+        while (b > 0)
+        {
+            result = result + a;
+            b = b - 1;
+        }
     }
     else
     {
-
-        while (num > 0)
+        while (a > 0)
         {
-            var remainder = 0;
-
-            remainder = remainder + 48;
+            result = result + b;
+            a = a - 1;
         }
     }
-
-    if(num == 1)
-    {
-        var hjkl = 0;
-    }
+    return result;
 }
+
+
 $$
