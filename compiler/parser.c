@@ -464,7 +464,6 @@ struct AST *parseName(struct Dictionary *dict)
 			ParserError("statement", "Expected name or literal in square brackets after identifier");
 		}
 
-
 		consume(t_rBracket);
 
 		name = AST_New(t_dereference, "*");
@@ -502,10 +501,9 @@ struct AST *parseDeclaration(struct Dictionary *dict)
 		struct AST *arrayDecl = AST_New(t_array, "[]");
 		AST_InsertChild(arrayDecl, identifier);
 		AST_InsertChild(arrayDecl, match(t_literal, dict));
-		if(declaredRunner != NULL)
+		if (declaredRunner != NULL)
 		{
 			AST_InsertChild(declaredRunner, arrayDecl);
-
 		}
 		else
 		{
@@ -515,7 +513,7 @@ struct AST *parseDeclaration(struct Dictionary *dict)
 	}
 	else
 	{
-		if(declaredRunner != NULL)
+		if (declaredRunner != NULL)
 		{
 			AST_InsertChild(declaredRunner, identifier);
 		}
@@ -548,7 +546,7 @@ struct AST *parseStatement(struct Dictionary *dict)
 
 		// declared type (including any '*'s)
 		struct AST *declaredType = parseDeclaration(dict);
-		
+
 		/*
 		if (lookahead() == '[')
 		{
@@ -561,7 +559,7 @@ struct AST *parseStatement(struct Dictionary *dict)
 		{
 			struct AST *assignedName = malloc(sizeof(struct AST));
 			struct AST *declaredName = declaredType;
-			while(declaredName->type == t_dereference)
+			while (declaredName->type == t_dereference)
 			{
 				declaredName = declaredName->child;
 			}
@@ -601,6 +599,7 @@ struct AST *parseStatement(struct Dictionary *dict)
 	break;
 
 	case t_dereference:
+	{
 		struct AST *deref = match(t_dereference, dict);
 		switch (lookahead())
 		{
@@ -615,8 +614,8 @@ struct AST *parseStatement(struct Dictionary *dict)
 		}
 		statement = parseAssignment(deref, dict);
 		consume(t_semicolon);
-
-		break;
+	}
+	break;
 
 	case t_return:
 	{

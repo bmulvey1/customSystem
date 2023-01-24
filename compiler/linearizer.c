@@ -107,6 +107,7 @@ int linearizeDereference(struct LinearizationMetadata m)
 		switch (m.ast->child->sibling->type) // offset
 		{
 		case t_name:
+		{
 			if (m.ast->type == t_un_sub)
 			{
 				struct TACLine *subtractInvert = newTACLine(m.currentTACIndex++, tt_mul, m.ast);
@@ -137,8 +138,9 @@ int linearizeDereference(struct LinearizationMetadata m)
 				thisDereference->operands[2].type = theVariable->type;
 				thisDereference->operands[2].indirectionLevel = theVariable->indirectionLevel;
 			}
+		}
 
-			break;
+		break;
 
 		// if literal, just use addressing mode base + offset
 		case t_literal:
@@ -158,6 +160,7 @@ int linearizeDereference(struct LinearizationMetadata m)
 
 		case t_un_add:
 		case t_un_sub:
+		{
 			// parent expression type requiers inversion of entire (right) child expression if subtracting
 			if (m.ast->type == t_un_sub)
 			{
@@ -191,16 +194,19 @@ int linearizeDereference(struct LinearizationMetadata m)
 			else
 			{
 				thisDereference->operands[2].name.str = TempList_Get(temps, *m.tempNum);
-				thisDereference->operands[2].type = vp_temp;
 
 				struct LinearizationMetadata expressionMetadata;
 				memcpy(&expressionMetadata, &m, sizeof(struct LinearizationMetadata));
 				expressionMetadata.ast = m.ast->child->sibling;
 
 				m.currentTACIndex = linearizeExpression(expressionMetadata);
+
+				struct TACLine *lastSubExpressionLine = m.currentBlock->TACList->tail->data;
+				thisDereference->operands[2].type = lastSubExpressionLine->operands[0].type;
 			}
 			thisDereference->operands[2].permutation = vp_temp;
-			break;
+		}
+		break;
 
 		default:
 			ErrorAndExit(ERROR_INTERNAL, "Malformed parse tree in RHS of dereference arithmetic!\n");
@@ -250,8 +256,11 @@ int linearizeArgumentPushes(struct LinearizationMetadata m)
 	switch (m.ast->type)
 	{
 	case t_name:
+	{
 		thisArgument = newTACLine(m.currentTACIndex++, tt_push, m.ast);
 		thisArgument->operands[0].type = vt_var;
+	}
+	// fall through to assign operand[0] name
 	case t_literal:
 	{
 		if (thisArgument == NULL)
@@ -511,20 +520,32 @@ int linearizeExpression(struct LinearizationMetadata m)
 	switch (m.ast->value[0])
 	{
 	case '+':
+	{
 		thisExpression->reorderable = 1;
 		thisExpression->operation = tt_add;
-		break;
+	}
+	break;
 
 	case '-':
+	{
 		thisExpression->operation = tt_subtract;
-		break;
+	}
+	break;
 
 	case '>':
 	case '<':
 	case '!':
 	case '=':
+	{
 		thisExpression->operation = tt_cmp;
+	}
+	break;
+
+	default:
+	{
+		ErrorAndExit(ERROR_INTERNAL, "Unexpected operator type found in linearizeExpression!\n");
 		break;
+	}
 	}
 
 	// handle the RHS of the expression, same as LHS but at third operand of TAC
@@ -587,15 +608,18 @@ int linearizeExpression(struct LinearizationMetadata m)
 			switch (thisExpression->operands[2].permutation)
 			{
 			case vp_literal:
+			{
 				// TODO: dynamically multiply here, fix memory leak
 				char *scaledLiteral = malloc(16);
 				sprintf(scaledLiteral, "%d", atoi(thisExpression->operands[2].name.str) * 4);
 				thisExpression->operands[2].name.str = scaledLiteral;
 				thisExpression->operands[2].indirectionLevel = thisExpression->operands[1].indirectionLevel;
-				break;
+			}
+			break;
 
 			case vp_standard:
 			case vp_temp:
+			{
 				struct TACLine *scaleMultiply = newTACLine(m.currentTACIndex++, tt_mul, m.ast);
 				scaleMultiply->operands[0].name.str = TempList_Get(temps, *m.tempNum);
 				(*m.tempNum)++;
@@ -624,7 +648,8 @@ int linearizeExpression(struct LinearizationMetadata m)
 				scaleMultiply->operands[2].permutation = vp_literal;
 				scaleMultiply->operands[2].type = vt_var;
 				BasicBlock_append(m.currentBlock, scaleMultiply);
-				break;
+			}
+			break;
 			}
 		}
 		else
@@ -634,15 +659,18 @@ int linearizeExpression(struct LinearizationMetadata m)
 				switch (thisExpression->operands[1].permutation)
 				{
 				case vp_literal:
+				{
 					// TODO: dynamically multiply here, fix memory leak
 					char *scaledLiteral = malloc(16);
 					sprintf(scaledLiteral, "%d", atoi(thisExpression->operands[1].name.str) * 4);
 					thisExpression->operands[1].name.str = scaledLiteral;
 					thisExpression->operands[1].indirectionLevel = thisExpression->operands[2].indirectionLevel;
-					break;
+				}
+				break;
 
 				case vp_standard:
 				case vp_temp:
+				{
 					struct TACLine *scaleMultiply;
 					scaleMultiply = newTACLine(m.currentTACIndex++, tt_mul, m.ast);
 					scaleMultiply->operands[0].name.str = TempList_Get(temps, *m.tempNum);
@@ -673,6 +701,7 @@ int linearizeExpression(struct LinearizationMetadata m)
 					scaleMultiply->operands[2].type = vt_var;
 					BasicBlock_append(m.currentBlock, scaleMultiply);
 				}
+				}
 			}
 		}
 	}
@@ -700,10 +729,12 @@ int linearizeAssignment(struct LinearizationMetadata m)
 		switch (m.ast->child->sibling->type)
 		{
 		case t_literal:
+		{
 			assignment->operands[1].type = vt_var;
 			assignment->operands[0].type = vt_var;
 			assignment->operands[1].permutation = vp_literal;
-			break;
+		}
+		break;
 
 		case t_name:
 		{
@@ -961,6 +992,7 @@ struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp, struc
 	switch (cmpOp[0])
 	{
 	case '<':
+	{
 		switch (cmpOp[1])
 		{
 		case '=':
@@ -974,9 +1006,11 @@ struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp, struc
 		default:
 			ErrorAndExit(ERROR_INTERNAL, "Error - Unexpected value in comparison operator node\n");
 		}
-		break;
+	}
+	break;
 
 	case '>':
+	{
 		switch (cmpOp[1])
 		{
 		case '=':
@@ -990,15 +1024,20 @@ struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp, struc
 		default:
 			ErrorAndExit(ERROR_INTERNAL, "Error - Unexpected value in comparison operator node\n");
 		}
-		break;
+	}
+	break;
 
 	case '!':
+	{
 		notMetJump = newTACLine(currentTACIndex, tt_je, correspondingTree);
-		break;
+	}
+	break;
 
 	case '=':
+	{
 		notMetJump = newTACLine(currentTACIndex, tt_jne, correspondingTree);
-		break;
+	}
+	break;
 	}
 	return notMetJump;
 }
@@ -1010,8 +1049,10 @@ int linearizeDeclaration(struct LinearizationMetadata m)
 	switch (m.ast->type)
 	{
 	case t_var:
+	{
 		declaredType = vt_var;
-		break;
+	}
+	break;
 
 	default:
 		ErrorAndExit(ERROR_INTERNAL, "Unexpected type seen while linearizing declaration!");
@@ -1105,7 +1146,6 @@ struct LinearizationResult *linearizeWhileLoop(struct LinearizationMetadata m,
 	m.currentBlock = BasicBlock_new(++(*labelCount));
 	int whileSubScopeIndex = m.scope->subScopeCount - 1;
 	Function_addBasicBlock(m.scope->parentFunction, m.currentBlock);
-	
 
 	struct TACLine *enterWhileJump = newTACLine(m.currentTACIndex++, tt_jmp, m.ast);
 	enterWhileJump->operands[0].name.val = m.currentBlock->labelNum;
@@ -1444,8 +1484,10 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 		switch (thisMember->type)
 		{
 		case e_scope: // recurse to subscopes
+		{
 			collapseScopes(thisMember->entry, dict, depth + 1);
-			break;
+		}
+		break;
 
 		case e_function: // recurse to functions
 		{
@@ -1523,6 +1565,7 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 			break;
 
 		case e_basicblock:
+		{
 			if (depth > 0 && scope->parentScope != NULL)
 			{
 				Scope_insert(scope->parentScope, thisMember->name, thisMember->entry, thisMember->type);
@@ -1534,11 +1577,13 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 				scope->entries->size--;
 				i--;
 			}
-			break;
+		}
+		break;
 
 		case e_stackobj:
 		case e_variable:
 		case e_argument:
+		{
 			if (depth > 0)
 			{
 				char *originalName = thisMember->name;
@@ -1557,7 +1602,8 @@ void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth)
 				scope->entries->size--;
 				i--;
 			}
-			break;
+		}
+		break;
 
 		default:
 			break;
@@ -1623,6 +1669,7 @@ void linearizeProgram(struct AST *it, struct Scope *globalScope, struct Dictiona
 		break;
 
 		case t_var:
+		{
 			struct AST *declarationScraper = runner;
 
 			// scrape down all pointer levels if necessary, then linearize if the variable is actually assigned
@@ -1640,6 +1687,7 @@ void linearizeProgram(struct AST *it, struct Scope *globalScope, struct Dictiona
 				assignmentMetadata.tempNum = &tempNum;
 				currentTACIndex = linearizeAssignment(assignmentMetadata);
 			}
+		}
 			break;
 
 		case t_assign:

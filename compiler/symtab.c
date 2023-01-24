@@ -445,6 +445,7 @@ void walkStatement(struct AST *it, struct Scope *wip)
 		break;
 
 	case t_var:
+	{
 		char *varName;
 		int arraySize;
 		int indirectionLevel = 0;
@@ -493,25 +494,15 @@ void walkStatement(struct AST *it, struct Scope *wip)
 		{
 			ErrorAndExit(ERROR_CODE, "Error - redeclaration of symbol [%s]\n", varName);
 		}
+	}
+	break;
 
-		break;
-
+		// ignore assignments as lifetime checks can be done more easily on TAC
 	case t_assign:
-		/*
-		ignore assignments as lifetime checks can be done more easily on TAC
-		runner = it->child;
-		while(runner->type == t_dereference){
-			runner = runner->child;
-		}
-		if (!SymbolTableContains(wip, runner->value))
-		{
-			printf("Error - variable [%s] assigned before declaration\n", runner->child->value);
-			exit(1);
-		}
-		*/
 		break;
 
 	case t_if:
+	{
 		// having fun yet?
 		struct AST *ifRunner = it->child->sibling->child;
 		while (ifRunner != NULL)
@@ -530,17 +521,19 @@ void walkStatement(struct AST *it, struct Scope *wip)
 				ifRunner = ifRunner->sibling;
 			}
 		}
-
-		break;
+	}
+	break;
 
 	case t_while:
+	{
 		struct AST *whileRunner = it->child->sibling->child;
 		while (whileRunner != NULL)
 		{
 			walkStatement(whileRunner, wip);
 			whileRunner = whileRunner->sibling;
 		}
-		break;
+	}
+	break;
 
 	// function call/return and asm blocks can't create new symbols so ignore
 	case t_call:
@@ -572,6 +565,7 @@ void walkScope(struct AST *it, struct Scope *wipScope, char isMainScope)
 			break;
 
 		case t_if:
+		{
 			// having fun yet?
 			struct AST *ifRunner = scopeRunner->child->sibling->child;
 			while (ifRunner != NULL)
@@ -590,17 +584,19 @@ void walkScope(struct AST *it, struct Scope *wipScope, char isMainScope)
 					ifRunner = ifRunner->sibling;
 				}
 			}
-
-			break;
+		}
+		break;
 
 		case t_while:
+		{
 			struct AST *whileRunner = scopeRunner->child->sibling->child;
 			while (whileRunner != NULL)
 			{
 				walkStatement(whileRunner, wipScope);
 				whileRunner = whileRunner->sibling;
 			}
-			break;
+		}
+		break;
 
 		// otherwise we are looking at the body of the function, which is a statement list
 		default:
@@ -762,13 +758,15 @@ struct SymbolTable *walkAST(struct AST *it)
 		// global variable declarations/definitions are allowed
 		// use walkStatement to handle this
 		case t_var:
+		{
 			walkStatement(runner, programTable->globalScope);
 			struct AST *scraper = runner->child;
 			while (scraper->type != t_name)
 			{
 				scraper = scraper->child;
 			}
-			break;
+		}
+		break;
 
 		case t_fun:
 			walkFunction(runner, programTable->globalScope);

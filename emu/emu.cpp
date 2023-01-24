@@ -551,7 +551,7 @@ int main(int argc, char *argv[])
     uint32_t instructionCount = 0;
     while (running)
     {
-        instructionData instruction = {0};
+        instructionData instruction = {{0}};
         if (registers[ip] & (0b11))
         {
             SWI(0x02); // throw INT 1 on misaligned PC
@@ -983,7 +983,7 @@ int main(int argc, char *argv[])
     for (uint32_t pageIndex : memory.ActivePages())
     {
         char pageHeader[17];
-        sprintf(pageHeader, "Page add%08x", pageIndex << PAGE_BIT_WIDTH);
+        snprintf(pageHeader, 16, "Page add%08x", pageIndex << PAGE_BIT_WIDTH);
         dumpFile << pageHeader;
         for (int i = 0; i < PAGE_SIZE; i++)
         {
