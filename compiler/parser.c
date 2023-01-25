@@ -40,6 +40,32 @@ char *token_names[] = {
 	"scope",
 	"EOF"};
 
+#define VERBOSE_PARSE
+#ifdef VERBOSE_PARSE
+int parseDepth = 0;
+
+#define PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE(string) \
+	for (int i = 0; i < parseDepth; i++)              \
+	{                                                 \
+		printf("\t");                                 \
+	}                                                 \
+	parseDepth++;                                     \
+	printf(string);
+
+#define PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE() parseDepth--
+
+#define PRINT_MATCH_IF_VERBOSE(token, value) \
+	for (int i = 0; i < parseDepth; i++)     \
+	{                                        \
+		printf("\t");                        \
+	}                                        \
+	printf("Matched %s: [%s]\n", token_names[token], value)
+#else
+#define PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE(string)
+#define PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE()
+PRINT_MATCH_IF_VERBOSE()
+#endif
+
 #define ParserError(production, info)                                                 \
 	{                                                                                 \
 		printf("Error while parsing %s\n", production);                               \
@@ -255,7 +281,7 @@ enum token scan(char trackPos)
 				// allow catching both '<', '>', '=', and '<=', '>=', '=='
 				if (buffer[0] == '<' || buffer[0] == '>' || buffer[0] == '=')
 				{
-					if (lookahead() != '=')
+					if (lookahead_char() != '=')
 						return reserved_t[i];
 				}
 				else
@@ -328,7 +354,7 @@ struct AST *match(enum token t, struct Dictionary *dict)
 	struct AST *matched = AST_New(result, Dictionary_LookupOrInsert(dict, buffer));
 	matched->sourceLine = line;
 	matched->sourceCol = col;
-	printf("Matched [%s]\n", buffer);
+	PRINT_MATCH_IF_VERBOSE(matched->type, matched->value);
 	return matched;
 }
 
@@ -341,7 +367,6 @@ void consume(enum token t)
 		printf("Expected token %s, got %s\n", token_names[t], token_names[result]);
 		ParserError("consume", "Error consuming a token!");
 	}
-	printf("Consumed token %s\n", token_names[result]);
 }
 
 char *getTokenName(enum token t)
@@ -351,16 +376,23 @@ char *getTokenName(enum token t)
 
 struct AST *ParseProgram(char *inFileName, struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseProgram\n");
+
 	curLine = 1;
 	curCol = 1;
 	inFile = fopen(inFileName, "rb");
 	struct AST *program = parseTLDList(dict);
 	fclose(inFile);
+
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return program;
 }
 
 struct AST *parseTLDList(struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseTLDList\n");
+
 	struct AST *TLDList = parseTLD(dict);
 	while (1)
 	{
@@ -369,12 +401,16 @@ struct AST *parseTLDList(struct Dictionary *dict)
 
 		AST_InsertSibling(TLDList, parseTLD(dict));
 	}
-	// printf("done parsing tld list\n");
+
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return TLDList;
 }
 
 struct AST *parseTLD(struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseTLD\n");
+
 	struct AST *TLD;
 	switch (lookahead())
 	{
@@ -420,25 +456,35 @@ struct AST *parseTLD(struct Dictionary *dict)
 		ParserError("Top level declaration", "Expected function or variable");
 		exit(1);
 	}
+
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return TLD;
 }
 
 struct AST *parseAssignment(struct AST *name, struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseAssignment\n");
+
 	// pre-parsed name node taken as argument
 	// [name] = [expression]
 	struct AST *assign = match(t_assign, dict);
 	AST_InsertChild(assign, name);
 	AST_InsertChild(assign, parseExpression(dict));
+
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return assign;
 }
 
 struct AST *parseScope(struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseScope\n");
+
 	struct AST *scope = AST_New(t_scope, "scope");
 	consume(t_lCurly);
 	// parse statements until we see the end of this scope
-	while (lookahead() != '}')
+	while (lookahead() != t_rCurly)
 	{
 		if (lookahead() == t_lCurly)
 		{
@@ -451,12 +497,15 @@ struct AST *parseScope(struct Dictionary *dict)
 	}
 	consume(t_rCurly);
 
-	// printf("done parsing statement list");
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return scope;
 }
 
 struct AST *parseName(struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseName\n");
+
 	struct AST *name = match(t_name, dict);
 	if (lookahead() == t_lBracket)
 	{
@@ -480,11 +529,16 @@ struct AST *parseName(struct Dictionary *dict)
 		AST_InsertChild(name, bracketOp);
 		// name = newName;
 	}
+
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return name;
 }
 
 struct AST *parseDeclaration(struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseDeclaration\n");
+
 	struct AST *declared = NULL;
 	struct AST *declaredRunner = NULL;
 	enum token upcomingToken = lookahead();
@@ -532,11 +586,16 @@ struct AST *parseDeclaration(struct Dictionary *dict)
 			declared = identifier;
 		}
 	}
+
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return declared;
 }
 
 struct AST *parseStatement(struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseStatement\n");
+
 	struct AST *statement = NULL;
 	enum token upcomingToken = lookahead();
 	switch (upcomingToken)
@@ -567,7 +626,6 @@ struct AST *parseStatement(struct Dictionary *dict)
 			{
 				declaredName = declaredName->child;
 			}
-			printf("Declared name is %s\n", declaredType->value);
 			memcpy(assignedName, declaredName, sizeof(struct AST));
 			AST_InsertSibling(statement, parseAssignment(assignedName, dict));
 		}
@@ -586,16 +644,14 @@ struct AST *parseStatement(struct Dictionary *dict)
 		switch (lookahead())
 		{
 		case t_assign:
-			// printf("assignment\n");
 			statement = parseAssignment(name, dict);
 			break;
 
 		case t_lCurly:
-			// printf("function call\n");
 			statement = parseFunctionCall(name, dict);
 			break;
 
-			default:
+		default:
 			ParserError("statement", "expected '(' or '=' after name");
 		}
 		consume(t_semicolon);
@@ -640,19 +696,26 @@ struct AST *parseStatement(struct Dictionary *dict)
 	default:
 		ParserError("statement", "expected 'var', 'if', 'while', '}', or name");
 	}
-	// printf("Done parsing statement- heres what we got\n");
-	// printAST(statement, 0);
+
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return statement;
 }
 
 struct AST *parseExpression(struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseExpression\n");
+
 	// printf("parsing expression\n");
 	struct AST *expression = NULL;
 
 	// figure out what the left side of the expression is
 	struct AST *lSide = NULL;
-	if (isalpha(lookahead()))
+
+	enum token nextToken;
+	switch ((nextToken = lookahead()))
+	{
+	case t_name:
 	{
 		struct AST *name = parseName(dict);
 		if (lookahead() == t_lParen)
@@ -664,42 +727,27 @@ struct AST *parseExpression(struct Dictionary *dict)
 			lSide = name;
 		}
 	}
-	else if (isdigit(lookahead()))
-		lSide = match(t_literal, dict);
-	else if (lookahead() == t_lParen)
-	{
+
+	case t_literal:
+		lSide = match(nextToken, dict);
+		break;
+
+	case t_lParen:
 		consume(t_lParen);
 		lSide = parseExpression(dict);
 		consume(t_rParen);
-	}
-	else if (lookahead() == t_dereference || lookahead() == t_reference)
-	{
-		lSide = match(lookahead(), dict);
 
-		/* need to explicitly handle parens so that reference/dereference operators bind properly
-		 * if handled by simply letting the recursive call to parseExpression() deal with the parens
-		 * the reference/dereference will bind as a parent to the entire subtree generated
-		 */
-		switch (lookahead())
-		{
-		case t_lParen:
-		case t_dereference:
-			consume(t_lParen);
-			AST_InsertChild(lSide, parseExpression(dict));
-			consume(t_rParen);
-			break;
+	case t_dereference:
+	case t_reference:
+		lSide = match(nextToken, dict);
+		break;
 
-		default:
-			AST_InsertChild(lSide, parseName(dict));
-		}
-	}
-	else
-	{
+	default:
 		ParserError("expression", "expected literal or name");
+		break;
 	}
 
 	// now, figure out whether there is a right side
-	enum token nextToken;
 	switch ((nextToken = lookahead()))
 	{
 	// [left side][operator][right side]
@@ -733,13 +781,15 @@ struct AST *parseExpression(struct Dictionary *dict)
 		ParserError("expression", "expected unary operator or terminator");
 	}
 
-	// printf("done parsing expression - here's what we got:\n");
-	// printAST(expression, 0);
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return expression;
 }
 
 struct AST *parseArgDefinitions(struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseArgDefinitions\n");
+
 	struct AST *argList = NULL;
 	int parsing = 1;
 	while (parsing)
@@ -774,11 +824,16 @@ struct AST *parseArgDefinitions(struct Dictionary *dict)
 			break;
 		}
 	}
+
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return argList;
 }
 
 struct AST *parseArgList(struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseArgList\n");
+
 	struct AST *argList = NULL;
 	int parsing = 1;
 	while (parsing)
@@ -808,21 +863,31 @@ struct AST *parseArgList(struct Dictionary *dict)
 			break;
 		}
 	}
+
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return argList;
 }
 
 struct AST *parseFunctionCall(struct AST *name, struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseFunctionCall\n");
+
 	consume(t_lParen);
 	struct AST *callNode = AST_New(t_call, "call");
 	AST_InsertChild(callNode, name);
 	AST_InsertChild(name, parseArgList(dict));
 	consume(t_rParen);
+
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return callNode;
 }
 
 struct AST *parseIfStatement(struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseIfStatement\n");
+
 	struct AST *ifStatement = match(t_if, dict);
 	consume(t_lParen);
 	AST_InsertChild(ifStatement, parseExpression(dict));
@@ -846,13 +911,15 @@ struct AST *parseIfStatement(struct Dictionary *dict)
 		AST_InsertChild(ifStatement, parseElseStatement(dict));
 	}
 
-	// printf("done parsing if statement - here's what we got!\n");
-	// printAST(ifStatement, 0);
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return ifStatement;
 }
 
 struct AST *parseElseStatement(struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseElseStatement\n");
+
 	struct AST *elseStatement = match(t_else, dict);
 	struct AST *doBlock = AST_New(t_do, "do");
 	AST_InsertChild(elseStatement, doBlock);
@@ -867,11 +934,15 @@ struct AST *parseElseStatement(struct Dictionary *dict)
 		AST_InsertChild(doBlock, elseScope);
 	}
 
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return elseStatement;
 }
 
 struct AST *parseWhileLoop(struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseWhileLoop\n");
+
 	struct AST *whileLoop = match(t_while, dict);
 	consume(t_lParen);
 	AST_InsertChild(whileLoop, parseExpression(dict));
@@ -888,15 +959,16 @@ struct AST *parseWhileLoop(struct Dictionary *dict)
 		AST_InsertChild(whileScope, parseStatement(dict));
 		AST_InsertChild(doBlock, whileScope);
 	}
-	// ParserError("while loop", "Expected '{' after 'while([condition])'");
 
-	// printf("done parsing if statement - here's what we got!\n");
-	// printAST(ifStatement, 0);
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return whileLoop;
 }
 
 struct AST *parseASM(struct Dictionary *dict)
 {
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseASM\n");
+
 	struct AST *asmNode = match(t_asm, dict);
 	consume(t_lCurly);
 	trimWhitespace(1);
@@ -932,5 +1004,8 @@ struct AST *parseASM(struct Dictionary *dict)
 	}
 	consume(t_rCurly);
 	consume(t_semicolon);
+
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+
 	return asmNode;
 }
