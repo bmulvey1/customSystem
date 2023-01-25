@@ -21,6 +21,7 @@ int linearizeASMBlock(struct LinearizationMetadata m)
 
 int linearizeDereference(struct LinearizationMetadata m)
 {
+	// TAC index set at bottom of function so it aligns properly with any lines resulting from recursive calls
 	struct TACLine *thisDereference = newTACLine(m.currentTACIndex, tt_memr_1, m.ast);
 
 	thisDereference->operands[0].name.str = TempList_Get(temps, *m.tempNum);
@@ -60,6 +61,8 @@ int linearizeDereference(struct LinearizationMetadata m)
 	{
 		thisDereference->operands[1].name.str = m.ast->child->value; // base
 		int LHSSize;
+
+		// figure out what the LHS is
 		switch (m.ast->child->type)
 		{
 		case t_name:
@@ -104,7 +107,9 @@ int linearizeDereference(struct LinearizationMetadata m)
 		thisDereference->operands[3].name.val = LHSSize; // scale
 		thisDereference->operands[3].type = vt_var;
 		thisDereference->operands[3].permutation = vp_literal;
-		switch (m.ast->child->sibling->type) // offset
+
+		// deal with the RHS (offset)
+		switch (m.ast->child->sibling->type)
 		{
 		case t_name:
 		{
@@ -139,7 +144,6 @@ int linearizeDereference(struct LinearizationMetadata m)
 				thisDereference->operands[2].indirectionLevel = theVariable->indirectionLevel;
 			}
 		}
-
 		break;
 
 		// if literal, just use addressing mode base + offset
@@ -161,7 +165,7 @@ int linearizeDereference(struct LinearizationMetadata m)
 		case t_bin_add:
 		case t_bin_sub:
 		{
-			// parent expression type requiers inversion of entire (right) child expression if subtracting
+			// parent expression type requires inversion of entire (right) child expression if subtracting
 			if (m.ast->type == t_bin_sub)
 			{
 				struct TACLine *subtractInvert = newTACLine(m.currentTACIndex++, tt_mul, m.ast);
@@ -179,9 +183,7 @@ int linearizeDereference(struct LinearizationMetadata m)
 				// set inverted types based on the expression result type
 				subtractInvert->operands[0].type = recursiveExpression->operands[0].type;
 
-				subtractInvert->operands[1].name.str = recursiveExpression->operands[0].name.str;
-				subtractInvert->operands[1].type = recursiveExpression->operands[0].type;
-				subtractInvert->operands[1].indirectionLevel = recursiveExpression->operands[0].indirectionLevel;
+				memcpy(&subtractInvert->operands[1], &recursiveExpression->operands[0], sizeof(struct TACOperand));
 
 				subtractInvert->operands[2].name.str = "-1";
 				subtractInvert->operands[2].type = vt_var;
@@ -193,7 +195,7 @@ int linearizeDereference(struct LinearizationMetadata m)
 			}
 			else
 			{
-				thisDereference->operands[2].name.str = TempList_Get(temps, *m.tempNum);
+				// thisDereference->operands[2].name.str = TempList_Get(temps, *m.tempNum);
 
 				struct LinearizationMetadata expressionMetadata;
 				memcpy(&expressionMetadata, &m, sizeof(struct LinearizationMetadata));
@@ -202,7 +204,8 @@ int linearizeDereference(struct LinearizationMetadata m)
 				m.currentTACIndex = linearizeExpression(expressionMetadata);
 
 				struct TACLine *lastSubExpressionLine = m.currentBlock->TACList->tail->data;
-				thisDereference->operands[2].type = lastSubExpressionLine->operands[0].type;
+				memcpy(&thisDereference->operands[2], &lastSubExpressionLine->operands[0], sizeof(struct TACOperand));
+				// thisDereference->operands[2].type = lastSubExpressionLine->operands[0].type;
 			}
 			thisDereference->operands[2].permutation = vp_temp;
 		}
@@ -282,10 +285,9 @@ int linearizeArgumentPushes(struct LinearizationMetadata m)
 		m.currentTACIndex = linearizeDereference(dereferenceMetadata);
 		thisArgument = newTACLine(m.currentTACIndex++, tt_push, m.ast);
 		struct TACLine *recursiveDereference = m.currentBlock->TACList->tail->data;
-		thisArgument->operands[0].name.str = recursiveDereference->operands[0].name.str;
-		thisArgument->operands[0].type = recursiveDereference->operands[0].type;
-		thisArgument->operands[0].indirectionLevel = recursiveDereference->operands[0].indirectionLevel;
-		thisArgument->operands[0].permutation = recursiveDereference->operands[0].permutation;
+
+		// copy destination of dererence to source of argument push
+		memcpy(&thisArgument->operands[0], &recursiveDereference->operands[0], sizeof(struct TACOperand));
 	}
 	break;
 
@@ -300,10 +302,9 @@ int linearizeArgumentPushes(struct LinearizationMetadata m)
 		struct TACLine *recursiveExpression = m.currentBlock->TACList->tail->data;
 
 		thisArgument = newTACLine(m.currentTACIndex++, tt_push, m.ast);
-		thisArgument->operands[0].name.str = recursiveExpression->operands[0].name.str;
-		thisArgument->operands[0].type = recursiveExpression->operands[0].type;
-		thisArgument->operands[0].indirectionLevel = recursiveExpression->operands[0].indirectionLevel;
-		thisArgument->operands[0].permutation = recursiveExpression->operands[0].permutation;
+
+		// copy destination of expression to source of argument push
+		memcpy(&thisArgument->operands[0], &recursiveExpression->operands[0], sizeof(struct TACOperand));
 	}
 	break;
 
@@ -439,24 +440,29 @@ int linearizeExpression(struct LinearizationMetadata m)
 	// also set true TAC index at bottom of function, after child expression linearizations take place
 	struct TACLine *thisExpression = newTACLine(m.currentTACIndex, tt_assign, m.ast);
 
-	// since 'cmp' doesn't generate a result, it just sets flags, no need to consume a temp
+	// since 'cmp' doesn't generate a result, it just sets flags, no need to consume a temp for operations that become cmp's
 	switch (m.ast->type)
 	{
+	case t_bin_add:
+	case t_bin_sub:
+	case t_dereference:
+		thisExpression->operands[0].name.str = TempList_Get(temps, *m.tempNum);
+		thisExpression->operands[0].permutation = vp_temp;
+		// increment count of temp variables, the parse of this expression will be written to a temp
+		(*m.tempNum)++;
+		break;
+
 	case t_bin_lThan:
 	case t_bin_lThanE:
 	case t_bin_gThan:
 	case t_bin_gThanE:
 	case t_bin_equals:
 	case t_bin_notEquals:
-		thisExpression->operands[0].name.str = TempList_Get(temps, *m.tempNum);
-		thisExpression->operands[0].permutation = vp_temp;
-		// increment count of temp variables, the parse of this expression will be written to a temp
-		(*m.tempNum)++;
+		break;
 
 	default:
 		break;
 	}
-
 	// support dereference and reference operations separately
 	// since these have only one operand
 	if (m.ast->type == t_dereference)
@@ -656,15 +662,10 @@ int linearizeExpression(struct LinearizationMetadata m)
 				scaleMultiply->operands[0].indirectionLevel = thisExpression->operands[1].indirectionLevel;
 
 				// transfer the scaled operand out of the main expression
-				scaleMultiply->operands[1].name.str = thisExpression->operands[2].name.str;
-				scaleMultiply->operands[1].permutation = thisExpression->operands[2].permutation;
-				scaleMultiply->operands[1].type = thisExpression->operands[2].type;
+				memcpy(&scaleMultiply->operands[1], &thisExpression->operands[0], sizeof(struct TACOperand));
 
 				// transfer the temp into the main expression
-				thisExpression->operands[2].name.str = scaleMultiply->operands[0].name.str;
-				thisExpression->operands[2].type = scaleMultiply->operands[0].type;
-				thisExpression->operands[2].permutation = scaleMultiply->operands[0].permutation;
-				thisExpression->operands[2].indirectionLevel = scaleMultiply->operands[0].indirectionLevel;
+				memcpy(&thisExpression->operands[2], &scaleMultiply->operands[0], sizeof(struct TACOperand));
 
 				// TODO: auto scale by size of pointer and operand with types
 				// TODO: scaling memory leak
@@ -708,15 +709,10 @@ int linearizeExpression(struct LinearizationMetadata m)
 					scaleMultiply->operands[0].indirectionLevel = thisExpression->operands[2].indirectionLevel;
 
 					// transfer the scaled operand out of the main expression
-					scaleMultiply->operands[1].name.str = thisExpression->operands[1].name.str;
-					scaleMultiply->operands[1].permutation = thisExpression->operands[1].permutation;
-					scaleMultiply->operands[1].type = thisExpression->operands[1].type;
+					memcpy(&scaleMultiply->operands[1], &thisExpression->operands[1], sizeof(struct TACOperand));
 
 					// transfer the temp into the main expression
-					thisExpression->operands[1].name.str = scaleMultiply->operands[0].name.str;
-					thisExpression->operands[1].type = scaleMultiply->operands[0].type;
-					thisExpression->operands[1].permutation = scaleMultiply->operands[0].permutation;
-					thisExpression->operands[1].indirectionLevel = scaleMultiply->operands[0].indirectionLevel;
+					memcpy(&thisExpression->operands[1], &scaleMultiply->operands[0], sizeof(struct TACOperand));
 
 					// TODO: auto scale by size of pointer and operand with types
 					// TODO: scaling memory leak
@@ -849,10 +845,8 @@ int linearizeAssignment(struct LinearizationMetadata m)
 				finalAssignment->operands[0].name.str = dereferencedExpression->value;
 				finalAssignment->operands[0].type = Scope_lookupVar(m.scope, dereferencedExpression->value)->type;
 
-				finalAssignment->operands[1].name.str = RHS->operands[0].name.str;
-				finalAssignment->operands[1].permutation = RHS->operands[0].permutation;
-				finalAssignment->operands[1].indirectionLevel = RHS->operands[0].indirectionLevel;
-				finalAssignment->operands[1].type = RHS->operands[0].type;
+				// copy operand from RHS dest to final assignment operand
+				memcpy(&finalAssignment->operands[1], &RHS->operands[0], sizeof(struct TACOperand));
 			}
 			break;
 
@@ -864,17 +858,14 @@ int linearizeAssignment(struct LinearizationMetadata m)
 
 				m.currentTACIndex = linearizeDereference(dereferenceMetadata);
 
-				struct TACLine *thisDereference = m.currentBlock->TACList->tail->data;
+				struct TACLine *recursiveDereference = m.currentBlock->TACList->tail->data;
 				finalAssignment = newTACLine(m.currentTACIndex++, tt_memw_1, dereferencedExpression);
-				finalAssignment->operands[1].name.str = RHS->operands[0].name.str;
-				finalAssignment->operands[1].permutation = RHS->operands[0].permutation;
-				finalAssignment->operands[1].type = RHS->operands[0].type;
-				finalAssignment->operands[1].indirectionLevel = RHS->operands[0].indirectionLevel;
 
-				finalAssignment->operands[0].name.str = thisDereference->operands[0].name.str;
-				finalAssignment->operands[0].permutation = thisDereference->operands[0].permutation;
-				finalAssignment->operands[0].type = thisDereference->operands[0].type;
-				finalAssignment->operands[0].indirectionLevel = thisDereference->operands[0].indirectionLevel;
+				// transfer RHS dest to this expression operand
+				memcpy(&finalAssignment->operands[1], &RHS->operands[0], sizeof(struct TACOperand));
+
+				// transfer recursive dereference dest to final assignment operand
+				memcpy(&finalAssignment->operands[0], &recursiveDereference->operands[0], sizeof(struct TACOperand));
 			}
 			break;
 
@@ -919,11 +910,7 @@ int linearizeAssignment(struct LinearizationMetadata m)
 					struct TACLine *finalArithmeticLine = m.currentBlock->TACList->tail->data;
 					finalAssignment = newTACLine(m.currentTACIndex++, tt_memw_3, dereferencedRHS);
 
-					// struct VariableEntry *theVariable = Scope_lookupVar(scope, dereferencedRHS->value);
-					finalAssignment->operands[1].name.str = finalArithmeticLine->operands[0].name.str;
-					finalAssignment->operands[1].permutation = finalArithmeticLine->operands[0].permutation;
-					finalAssignment->operands[1].type = finalArithmeticLine->operands[0].type;
-					finalAssignment->operands[1].indirectionLevel = finalArithmeticLine->operands[0].indirectionLevel;
+					memcpy(&finalAssignment->operands[1], &finalArithmeticLine->operands[0], sizeof(struct TACOperand));
 				}
 				break;
 
@@ -964,10 +951,8 @@ int linearizeAssignment(struct LinearizationMetadata m)
 						finalAssignment->operands[1].name.val = finalAssignment->operands[1].name.val * -1;
 					}
 
-					finalAssignment->operands[2].name.str = RHS->operands[0].name.str;
-					finalAssignment->operands[2].permutation = RHS->operands[0].permutation;
-					finalAssignment->operands[2].type = RHS->operands[0].type;
-					finalAssignment->operands[2].indirectionLevel = RHS->operands[0].indirectionLevel;
+					// copy RHS dest to final assignment operand
+					memcpy(&finalAssignment->operands[2], &RHS->operands[0], sizeof(struct TACOperand));
 				}
 				break;
 
@@ -984,10 +969,8 @@ int linearizeAssignment(struct LinearizationMetadata m)
 						finalAssignment->operands[2].name.val = finalAssignment->operands[2].name.val * -1;
 					}
 
-					finalAssignment->operands[3].name.str = RHS->operands[0].name.str;
-					finalAssignment->operands[3].permutation = RHS->operands[0].permutation;
-					finalAssignment->operands[3].type = RHS->operands[0].type;
-					finalAssignment->operands[3].indirectionLevel = RHS->operands[0].indirectionLevel;
+					// copy RHS dest to final assignment source
+					memcpy(&finalAssignment->operands[3], &RHS->operands[0], sizeof(struct TACOperand));
 				}
 				break;
 

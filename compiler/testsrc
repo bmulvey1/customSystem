@@ -18,26 +18,28 @@ asm
 }
 ;
 
-fun mul(var a, var b)
+fun print(var value)
 {
-    var result = 0;
-    if (a > b)
-    {
-        while (b > 0)
-        {
-            result = result + a;
-            b = b - 1;
-        }
+    // store r0, pull the argument into a register, then output that register
+    asm {
+		mov %rr, (%bp+8)
+        int 5
     }
-    else
+    ;
+}
+
+fun printNum(var num)
+{
+    var outStr[16];
+    var digits = 1;
+
+    var i = 0;
+    while (i < digits)
     {
-        while (a > 0)
-        {
-            result = result + b;
-            a = a - 1;
-        }
+        print(outStr[digits - i]);
+        i = i + 1;
     }
-    return result;
+    print(10); // newline
 }
 
 

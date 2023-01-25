@@ -647,7 +647,7 @@ struct AST *parseStatement(struct Dictionary *dict)
 			statement = parseAssignment(name, dict);
 			break;
 
-		case t_lCurly:
+		case t_lParen:
 			statement = parseFunctionCall(name, dict);
 			break;
 
@@ -713,6 +713,7 @@ struct AST *parseExpression(struct Dictionary *dict)
 	struct AST *lSide = NULL;
 
 	enum token nextToken;
+
 	switch ((nextToken = lookahead()))
 	{
 	case t_name:
@@ -727,6 +728,7 @@ struct AST *parseExpression(struct Dictionary *dict)
 			lSide = name;
 		}
 	}
+	break;
 
 	case t_literal:
 		lSide = match(nextToken, dict);
@@ -736,6 +738,7 @@ struct AST *parseExpression(struct Dictionary *dict)
 		consume(t_lParen);
 		lSide = parseExpression(dict);
 		consume(t_rParen);
+		break;
 
 	case t_dereference:
 	case t_reference:
@@ -778,7 +781,7 @@ struct AST *parseExpression(struct Dictionary *dict)
 
 	default:
 		printf("\n[%c]\n", lookahead());
-		ParserError("expression", "expected unary operator or terminator");
+		ParserError("expression", "expected binary operator or terminator");
 	}
 
 	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
