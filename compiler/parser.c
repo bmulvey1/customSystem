@@ -16,9 +16,14 @@ char *token_names[] = {
 	"do",
 	"name",
 	"literal",
-	"unary operator",
-	"binary operator",
-	"comparison operator",
+	"binary add",
+	"binary sub",
+	"binary less than",
+	"binary greater than",
+	"binary less than or equal",
+	"binary greater than or equal",
+	"binary equals",
+	"binary not equals",
 	"reference operator",
 	"dereference operator",
 	"assignment",
@@ -30,21 +35,22 @@ char *token_names[] = {
 	"r curly",
 	"l bracket",
 	"r bracket",
+	"array",
 	"call",
 	"scope",
 	"EOF"};
 
-void ParserError(char *production, char *info)
-{
-	printf("Error while parsing %s\n", production);
-	printf("Error at line %d, col %d\n", curLine, curCol);
-	printf("%s\n", info);
-	ErrorAndExit(ERROR_CODE, "Parse buffer when error occurred: [%s]\n", buffer);
-}
+#define ParserError(production, info)                                                 \
+	{                                                                                 \
+		printf("Error while parsing %s\n", production);                               \
+		printf("Error at line %d, col %d\n", curLine, curCol);                        \
+		printf("%s\n", info);                                                         \
+		ErrorAndExit(ERROR_CODE, "Parse buffer when error occurred: [%s]\n", buffer); \
+	}
 
 // return the char 'count' characters ahead
 // count must be >0, returns null char otherwise
-char lookahead_dumb(int count)
+char lookahead_char_dumb(int count)
 {
 	long offset = ftell(inFile);
 	char returnChar = '\0';
@@ -61,7 +67,7 @@ void trimWhitespace(char trackPos)
 	int trimming = 1;
 	while (trimming)
 	{
-		switch (lookahead_dumb(1))
+		switch (lookahead_char_dumb(1))
 		{
 		case '\n':
 			if (trackPos)
@@ -83,7 +89,7 @@ void trimWhitespace(char trackPos)
 			break;
 
 		case '/':
-			switch (lookahead_dumb(2))
+			switch (lookahead_char_dumb(2))
 			{
 				// single line comment
 			case '/':
@@ -109,14 +115,14 @@ void trimWhitespace(char trackPos)
 					{
 						// look ahead if we see something that could be related to a block comment
 					case '*':
-						if (lookahead_dumb(1) == '/')
+						if (lookahead_char_dumb(1) == '/')
 							inBlockComment = 0;
 
 						break;
 
 						// disallow nesting of block comments
 					case '/':
-						if (lookahead_dumb(1) == '*')
+						if (lookahead_char_dumb(1) == '*')
 							ParserError("comment", "Error - nested block comments not allowed");
 
 						break;
@@ -152,14 +158,14 @@ void trimWhitespace(char trackPos)
 	}
 }
 
-char lookahead()
+char lookahead_char()
 {
 	trimWhitespace(1);
-	char r = lookahead_dumb(1);
+	char r = lookahead_char_dumb(1);
 	return r;
 }
 
-#define RESERVED_COUNT 26
+#define RESERVED_COUNT 27
 
 char *reserved[RESERVED_COUNT] = {
 	"asm",
@@ -187,6 +193,7 @@ char *reserved[RESERVED_COUNT] = {
 	">=",
 	"<=",
 	"==",
+	"!=",
 	"$$"};
 
 enum token reserved_t[RESERVED_COUNT] = {
@@ -206,15 +213,16 @@ enum token reserved_t[RESERVED_COUNT] = {
 	t_rBracket,
 	t_semicolon,
 	t_assign,
-	t_un_add,
-	t_un_sub,
+	t_bin_add,
+	t_bin_sub,
 	t_dereference,
 	t_reference,
-	t_compOp,
-	t_compOp,
-	t_compOp,
-	t_compOp,
-	t_compOp,
+	t_bin_gThan,
+	t_bin_lThan,
+	t_bin_gThanE,
+	t_bin_lThanE,
+	t_bin_equals,
+	t_bin_notEquals,
 	t_EOF};
 
 enum token scan(char trackPos)
@@ -272,7 +280,7 @@ enum token scan(char trackPos)
 		}
 
 		// if the next input char is whitespace or a single-character token, we're done with this token
-		switch (lookahead_dumb(1))
+		switch (lookahead_char_dumb(1))
 		{
 		case ' ':
 		case ',':
@@ -297,7 +305,7 @@ enum token scan(char trackPos)
 }
 
 // return the next token that would be scanned without consuming
-enum token lookaheadToken()
+enum token lookahead()
 {
 	long offset = ftell(inFile);
 	enum token retToken = scan(0);
@@ -320,6 +328,7 @@ struct AST *match(enum token t, struct Dictionary *dict)
 	struct AST *matched = AST_New(result, Dictionary_LookupOrInsert(dict, buffer));
 	matched->sourceLine = line;
 	matched->sourceCol = col;
+	printf("Matched [%s]\n", buffer);
 	return matched;
 }
 
@@ -332,6 +341,7 @@ void consume(enum token t)
 		printf("Expected token %s, got %s\n", token_names[t], token_names[result]);
 		ParserError("consume", "Error consuming a token!");
 	}
+	printf("Consumed token %s\n", token_names[result]);
 }
 
 char *getTokenName(enum token t)
@@ -354,7 +364,7 @@ struct AST *parseTLDList(struct Dictionary *dict)
 	struct AST *TLDList = parseTLD(dict);
 	while (1)
 	{
-		if (lookaheadToken() == t_EOF)
+		if (lookahead() == t_EOF)
 			break;
 
 		AST_InsertSibling(TLDList, parseTLD(dict));
@@ -366,7 +376,7 @@ struct AST *parseTLDList(struct Dictionary *dict)
 struct AST *parseTLD(struct Dictionary *dict)
 {
 	struct AST *TLD;
-	switch (lookaheadToken())
+	switch (lookahead())
 	{
 	case t_asm:
 		TLD = parseASM(dict);
@@ -391,7 +401,7 @@ struct AST *parseTLD(struct Dictionary *dict)
 	{
 		TLD = match(t_var, dict);
 		struct AST *name = parseDeclaration(dict);
-		if (lookahead() == '=')
+		if (lookahead() == t_assign)
 		{
 			struct AST *assignment = match(t_assign, dict);
 			AST_InsertChild(assignment, name);
@@ -430,7 +440,7 @@ struct AST *parseScope(struct Dictionary *dict)
 	// parse statements until we see the end of this scope
 	while (lookahead() != '}')
 	{
-		if (lookahead() == '{')
+		if (lookahead() == t_lCurly)
 		{
 			AST_InsertChild(scope, parseScope(dict));
 		}
@@ -448,12 +458,12 @@ struct AST *parseScope(struct Dictionary *dict)
 struct AST *parseName(struct Dictionary *dict)
 {
 	struct AST *name = match(t_name, dict);
-	if (lookahead() == '[')
+	if (lookahead() == t_lBracket)
 	{
-		struct AST *bracketOp = AST_New(t_un_add, "+");
+		struct AST *bracketOp = AST_New(t_bin_add, "+");
 		AST_InsertChild(bracketOp, name);
 		consume(t_lBracket);
-		switch (lookaheadToken())
+		switch (lookahead())
 		{
 		case t_name:
 		case t_literal:
@@ -477,7 +487,7 @@ struct AST *parseDeclaration(struct Dictionary *dict)
 {
 	struct AST *declared = NULL;
 	struct AST *declaredRunner = NULL;
-	enum token upcomingToken = lookaheadToken();
+	enum token upcomingToken = lookahead();
 	while (upcomingToken == t_dereference)
 	{
 		if (declaredRunner == NULL)
@@ -490,12 +500,12 @@ struct AST *parseDeclaration(struct Dictionary *dict)
 			AST_InsertChild(declaredRunner, match(t_dereference, dict));
 			declaredRunner = declaredRunner->child;
 		}
-		upcomingToken = lookaheadToken();
+		upcomingToken = lookahead();
 	}
 
 	struct AST *identifier = match(t_name, dict);
 
-	if (lookahead() == '[')
+	if (lookahead() == t_lBracket)
 	{
 		consume(t_lBracket);
 		struct AST *arrayDecl = AST_New(t_array, "[]");
@@ -528,7 +538,7 @@ struct AST *parseDeclaration(struct Dictionary *dict)
 struct AST *parseStatement(struct Dictionary *dict)
 {
 	struct AST *statement = NULL;
-	enum token upcomingToken = lookaheadToken();
+	enum token upcomingToken = lookahead();
 	switch (upcomingToken)
 	{
 
@@ -547,15 +557,9 @@ struct AST *parseStatement(struct Dictionary *dict)
 		// declared type (including any '*'s)
 		struct AST *declaredType = parseDeclaration(dict);
 
-		/*
-		if (lookahead() == '[')
-		{
-		}
-		*/
-
 		AST_InsertChild(type, declaredType);
 
-		if (lookaheadToken() == t_assign)
+		if (lookahead() == t_assign)
 		{
 			struct AST *assignedName = malloc(sizeof(struct AST));
 			struct AST *declaredName = declaredType;
@@ -581,17 +585,17 @@ struct AST *parseStatement(struct Dictionary *dict)
 
 		switch (lookahead())
 		{
-		case '=':
+		case t_assign:
 			// printf("assignment\n");
 			statement = parseAssignment(name, dict);
 			break;
 
-		case '(':
+		case t_lCurly:
 			// printf("function call\n");
 			statement = parseFunctionCall(name, dict);
 			break;
 
-		default:
+			default:
 			ParserError("statement", "expected '(' or '=' after name");
 		}
 		consume(t_semicolon);
@@ -603,8 +607,8 @@ struct AST *parseStatement(struct Dictionary *dict)
 		struct AST *deref = match(t_dereference, dict);
 		switch (lookahead())
 		{
-		case '*':
-		case '(':
+		case t_dereference:
+		case t_lParen:
 			AST_InsertChild(deref, parseExpression(dict));
 			break;
 
@@ -651,7 +655,7 @@ struct AST *parseExpression(struct Dictionary *dict)
 	if (isalpha(lookahead()))
 	{
 		struct AST *name = parseName(dict);
-		if (lookahead() == '(')
+		if (lookahead() == t_lParen)
 		{
 			lSide = parseFunctionCall(name, dict);
 		}
@@ -662,15 +666,15 @@ struct AST *parseExpression(struct Dictionary *dict)
 	}
 	else if (isdigit(lookahead()))
 		lSide = match(t_literal, dict);
-	else if (lookahead() == '(')
+	else if (lookahead() == t_lParen)
 	{
 		consume(t_lParen);
 		lSide = parseExpression(dict);
 		consume(t_rParen);
 	}
-	else if (lookahead() == '*' || lookahead() == '&')
+	else if (lookahead() == t_dereference || lookahead() == t_reference)
 	{
-		lSide = match(lookaheadToken(), dict);
+		lSide = match(lookahead(), dict);
 
 		/* need to explicitly handle parens so that reference/dereference operators bind properly
 		 * if handled by simply letting the recursive call to parseExpression() deal with the parens
@@ -678,8 +682,8 @@ struct AST *parseExpression(struct Dictionary *dict)
 		 */
 		switch (lookahead())
 		{
-		case '(':
-		case '*':
+		case t_lParen:
+		case t_dereference:
 			consume(t_lParen);
 			AST_InsertChild(lSide, parseExpression(dict));
 			consume(t_rParen);
@@ -695,40 +699,32 @@ struct AST *parseExpression(struct Dictionary *dict)
 	}
 
 	// now, figure out whether there is a right side
-	switch (lookahead())
+	enum token nextToken;
+	switch ((nextToken = lookahead()))
 	{
 	// [left side][operator][right side]
-	case '+':
-		expression = match(t_un_add, dict);
+	case t_bin_add:
+	case t_bin_sub:
+	case t_bin_lThan:
+	case t_bin_lThanE:
+	case t_bin_gThan:
+	case t_bin_gThanE:
+	case t_bin_equals:
+	case t_bin_notEquals:
+		expression = match(nextToken, dict);
 		AST_InsertChild(expression, lSide);
 		AST_InsertChild(expression, parseExpression(dict));
 		break;
 
-	case '-':
-		expression = match(t_un_sub, dict);
-		AST_InsertChild(expression, lSide);
-		AST_InsertChild(expression, parseExpression(dict));
-		break;
-
-	case '=':
-		// only continue to match comparison operator if we have '=='
-		if (lookaheadToken() == t_assign)
-		{
-			expression = lSide;
-			break;
-		}
-	case '<':
-	case '>':
-		expression = match(t_compOp, dict);
-		AST_InsertChild(expression, lSide);
-		AST_InsertChild(expression, parseExpression(dict));
+	case t_assign:
+		expression = lSide;
 		break;
 
 	// end of line or end of expression, there isn't anything more than the left side
-	case ';':
-	case ',':
-	case ')':
-	case ']':
+	case t_semicolon:
+	case t_comma:
+	case t_rParen:
+	case t_rBracket:
 		expression = lSide;
 		break;
 
@@ -748,14 +744,14 @@ struct AST *parseArgDefinitions(struct Dictionary *dict)
 	int parsing = 1;
 	while (parsing)
 	{
-		enum token next = lookaheadToken();
+		enum token next = lookahead();
 		switch (next)
 		{
 		case t_var:
 		{
 			struct AST *argument = match(next, dict);
 			struct AST *declaration = argument;
-			while (lookaheadToken() == t_dereference)
+			while (lookahead() == t_dereference)
 			{
 				AST_InsertChild(argument, match(t_dereference, dict));
 				declaration = declaration->child;
@@ -787,7 +783,7 @@ struct AST *parseArgList(struct Dictionary *dict)
 	int parsing = 1;
 	while (parsing)
 	{
-		switch (lookaheadToken())
+		switch (lookahead())
 		{
 		case t_rParen:
 			parsing = 0;
@@ -834,7 +830,7 @@ struct AST *parseIfStatement(struct Dictionary *dict)
 	struct AST *doBlock = AST_New(t_do, "do");
 	AST_InsertChild(ifStatement, doBlock);
 
-	if (lookahead() == '{')
+	if (lookahead() == t_lCurly)
 	{
 		AST_InsertChild(doBlock, parseScope(dict));
 	}
@@ -845,7 +841,7 @@ struct AST *parseIfStatement(struct Dictionary *dict)
 		AST_InsertChild(doBlock, ifScope);
 	}
 
-	if (lookaheadToken() == t_else)
+	if (lookahead() == t_else)
 	{
 		AST_InsertChild(ifStatement, parseElseStatement(dict));
 	}
@@ -860,7 +856,7 @@ struct AST *parseElseStatement(struct Dictionary *dict)
 	struct AST *elseStatement = match(t_else, dict);
 	struct AST *doBlock = AST_New(t_do, "do");
 	AST_InsertChild(elseStatement, doBlock);
-	if (lookahead() == '{')
+	if (lookahead() == t_lCurly)
 	{
 		AST_InsertChild(doBlock, parseScope(dict));
 	}
@@ -882,7 +878,7 @@ struct AST *parseWhileLoop(struct Dictionary *dict)
 	consume(t_rParen);
 	struct AST *doBlock = AST_New(t_do, "do");
 	AST_InsertChild(whileLoop, doBlock);
-	if (lookahead() == '{')
+	if (lookahead() == t_lCurly)
 	{
 		AST_InsertChild(doBlock, parseScope(dict));
 	}
@@ -909,7 +905,7 @@ struct AST *parseASM(struct Dictionary *dict)
 	char asmLine[32];
 	while (inASMblock)
 	{
-		switch (lookahead_dumb(1))
+		switch (lookahead_char_dumb(1))
 		{
 		case '}':
 			if (lineLen > 0)

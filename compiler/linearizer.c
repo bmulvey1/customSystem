@@ -55,8 +55,8 @@ int linearizeDereference(struct LinearizationMetadata m)
 	break;
 
 		// handle pointer arithmetic to evalute the correct adddress to dereference
-	case t_un_add:
-	case t_un_sub:
+	case t_bin_add:
+	case t_bin_sub:
 	{
 		thisDereference->operands[1].name.str = m.ast->child->value; // base
 		int LHSSize;
@@ -108,7 +108,7 @@ int linearizeDereference(struct LinearizationMetadata m)
 		{
 		case t_name:
 		{
-			if (m.ast->type == t_un_sub)
+			if (m.ast->type == t_bin_sub)
 			{
 				struct TACLine *subtractInvert = newTACLine(m.currentTACIndex++, tt_mul, m.ast);
 				subtractInvert->operands[0].name.str = TempList_Get(temps, *m.tempNum);
@@ -152,17 +152,17 @@ int linearizeDereference(struct LinearizationMetadata m)
 
 			int offset = atoi(m.ast->child->sibling->value);
 			// multiply offset by 4 for word size
-			thisDereference->operands[2].name.val = (offset * 4) * ((m.ast->type == t_un_sub) ? -1 : 1);
+			thisDereference->operands[2].name.val = (offset * 4) * ((m.ast->type == t_bin_sub) ? -1 : 1);
 			thisDereference->operands[2].type = vt_var;
 			thisDereference->operands[2].permutation = vp_literal;
 		}
 		break;
 
-		case t_un_add:
-		case t_un_sub:
+		case t_bin_add:
+		case t_bin_sub:
 		{
 			// parent expression type requiers inversion of entire (right) child expression if subtracting
-			if (m.ast->type == t_un_sub)
+			if (m.ast->type == t_bin_sub)
 			{
 				struct TACLine *subtractInvert = newTACLine(m.currentTACIndex++, tt_mul, m.ast);
 				subtractInvert->operands[0].name.str = TempList_Get(temps, *m.tempNum);
@@ -289,8 +289,8 @@ int linearizeArgumentPushes(struct LinearizationMetadata m)
 	}
 	break;
 
-	case t_un_add:
-	case t_un_sub:
+	case t_bin_add:
+	case t_bin_sub:
 	{
 		struct LinearizationMetadata expressionMetadata;
 		memcpy(&expressionMetadata, &m, sizeof(struct LinearizationMetadata));
@@ -391,9 +391,14 @@ int linearizeSubExpression(struct LinearizationMetadata m,
 	}
 	break;
 
-	case t_compOp:
-	case t_un_add:
-	case t_un_sub:
+	case t_bin_add:
+	case t_bin_sub:
+	case t_bin_lThan:
+	case t_bin_lThanE:
+	case t_bin_gThan:
+	case t_bin_gThanE:
+	case t_bin_equals:
+	case t_bin_notEquals:
 	{
 		struct LinearizationMetadata expressionMetadata;
 		memcpy(&expressionMetadata, &m, sizeof(struct LinearizationMetadata));
@@ -435,12 +440,21 @@ int linearizeExpression(struct LinearizationMetadata m)
 	struct TACLine *thisExpression = newTACLine(m.currentTACIndex, tt_assign, m.ast);
 
 	// since 'cmp' doesn't generate a result, it just sets flags, no need to consume a temp
-	if (m.ast->type != t_compOp)
+	switch (m.ast->type)
 	{
+	case t_bin_lThan:
+	case t_bin_lThanE:
+	case t_bin_gThan:
+	case t_bin_gThanE:
+	case t_bin_equals:
+	case t_bin_notEquals:
 		thisExpression->operands[0].name.str = TempList_Get(temps, *m.tempNum);
 		thisExpression->operands[0].permutation = vp_temp;
 		// increment count of temp variables, the parse of this expression will be written to a temp
 		(*m.tempNum)++;
+
+	default:
+		break;
 	}
 
 	// support dereference and reference operations separately
@@ -476,14 +490,19 @@ int linearizeExpression(struct LinearizationMetadata m)
 		return m.currentTACIndex;
 	}
 
-	// if we fall through to here, the expression is some sort of unary operation
+	// if we fall through to here, the expression contains a subexpression
 	// handle the LHS of the operation
 	switch (m.ast->child->type)
 	{
 	case t_call:
-	case t_compOp:
-	case t_un_add:
-	case t_un_sub:
+	case t_bin_add:
+	case t_bin_sub:
+	case t_bin_lThan:
+	case t_bin_lThanE:
+	case t_bin_gThan:
+	case t_bin_gThanE:
+	case t_bin_equals:
+	case t_bin_notEquals:
 	case t_dereference:
 	{
 		struct LinearizationMetadata subexpressionMetadata;
@@ -517,25 +536,27 @@ int linearizeExpression(struct LinearizationMetadata m)
 	}
 
 	// assign the TAC operation based on the operator at hand
-	switch (m.ast->value[0])
+	switch (m.ast->type)
 	{
-	case '+':
+	case t_bin_add:
 	{
 		thisExpression->reorderable = 1;
 		thisExpression->operation = tt_add;
 	}
 	break;
 
-	case '-':
+	case t_bin_sub:
 	{
 		thisExpression->operation = tt_subtract;
 	}
 	break;
 
-	case '>':
-	case '<':
-	case '!':
-	case '=':
+	case t_bin_lThan:
+	case t_bin_lThanE:
+	case t_bin_gThan:
+	case t_bin_gThanE:
+	case t_bin_equals:
+	case t_bin_notEquals:
 	{
 		thisExpression->operation = tt_cmp;
 	}
@@ -552,9 +573,14 @@ int linearizeExpression(struct LinearizationMetadata m)
 	switch (m.ast->child->sibling->type)
 	{
 	case t_call:
-	case t_compOp:
-	case t_un_add:
-	case t_un_sub:
+	case t_bin_add:
+	case t_bin_sub:
+	case t_bin_lThan:
+	case t_bin_lThanE:
+	case t_bin_gThan:
+	case t_bin_gThanE:
+	case t_bin_equals:
+	case t_bin_notEquals:
 	case t_dereference:
 	{
 
@@ -766,8 +792,8 @@ int linearizeAssignment(struct LinearizationMetadata m)
 		}
 		break;
 
-		case t_un_add:
-		case t_un_sub:
+		case t_bin_add:
+		case t_bin_sub:
 		{
 			struct LinearizationMetadata expressionMetadata;
 			memcpy(&expressionMetadata, &m, sizeof(struct LinearizationMetadata));
@@ -852,8 +878,8 @@ int linearizeAssignment(struct LinearizationMetadata m)
 			}
 			break;
 
-			case t_un_add:
-			case t_un_sub:
+			case t_bin_add:
+			case t_bin_sub:
 			{
 
 				// linearize the RHS of the dereferenced arithmetic
@@ -881,8 +907,8 @@ int linearizeAssignment(struct LinearizationMetadata m)
 				break;
 
 				// all other arithmetic goes here
-				case t_un_add:
-				case t_un_sub:
+				case t_bin_add:
+				case t_bin_sub:
 				{
 					struct LinearizationMetadata expressionMetadata;
 					memcpy(&expressionMetadata, &m, sizeof(struct LinearizationMetadata));
@@ -933,7 +959,7 @@ int linearizeAssignment(struct LinearizationMetadata m)
 					// finalAssignment->operands[1].indirectionLevel = 0; // extraneous
 
 					// make offset value negative if subtracting
-					if (dereferencedExpression->type == t_un_sub)
+					if (dereferencedExpression->type == t_bin_sub)
 					{
 						finalAssignment->operands[1].name.val = finalAssignment->operands[1].name.val * -1;
 					}
@@ -953,7 +979,7 @@ int linearizeAssignment(struct LinearizationMetadata m)
 					finalAssignment->operands[2].indirectionLevel = 0;
 
 					// make scale value negative if subtracting
-					if (dereferencedExpression->type == t_un_sub)
+					if (dereferencedExpression->type == t_bin_sub)
 					{
 						finalAssignment->operands[2].name.val = finalAssignment->operands[2].name.val * -1;
 					}
@@ -1357,8 +1383,8 @@ struct LinearizationResult *linearizeScope(struct LinearizationMetadata m,
 			}
 			break;
 
-			case t_un_add:
-			case t_un_sub:
+			case t_bin_add:
+			case t_bin_sub:
 			{
 				returned = TempList_Get(temps, *m.tempNum);
 				returnedPermutation = vp_temp;
@@ -1688,7 +1714,7 @@ void linearizeProgram(struct AST *it, struct Scope *globalScope, struct Dictiona
 				currentTACIndex = linearizeAssignment(assignmentMetadata);
 			}
 		}
-			break;
+		break;
 
 		case t_assign:
 		{

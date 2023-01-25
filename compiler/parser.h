@@ -9,13 +9,15 @@
 
 void ParserError();
 
-char lookahead_dumb();
+char lookahead_char_dumb();
 
 void trimWhitespace(char trackPos);
 
-char lookahead();
+char lookahead_char();
 
 enum token scan(char trackPos);
+
+enum token lookahead();
 
 struct AST *match(enum token t, struct Dictionary *dict);
 
