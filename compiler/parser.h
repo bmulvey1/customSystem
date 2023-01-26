@@ -49,6 +49,8 @@ struct AST *parseArgList(struct Dictionary *dict);
 
 struct AST *parseFunctionCall(struct AST *name, struct Dictionary *dict);
 
+struct AST *parseConditionCheck(struct Dictionary *dict);
+
 struct AST *parseIfStatement(struct Dictionary *dict);
 
 struct AST *parseElseStatement(struct Dictionary *dict);

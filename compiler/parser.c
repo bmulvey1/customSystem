@@ -191,7 +191,7 @@ char lookahead_char()
 	return r;
 }
 
-#define RESERVED_COUNT 27
+#define RESERVED_COUNT 31
 
 char *reserved[RESERVED_COUNT] = {
 	"asm",
@@ -220,6 +220,10 @@ char *reserved[RESERVED_COUNT] = {
 	"<=",
 	"==",
 	"!=",
+	"&&",
+	"||",
+	"^",
+	"!",
 	"$$"};
 
 enum token reserved_t[RESERVED_COUNT] = {
@@ -249,6 +253,10 @@ enum token reserved_t[RESERVED_COUNT] = {
 	t_bin_lThanE,
 	t_bin_equals,
 	t_bin_notEquals,
+	t_bin_log_and,
+	t_bin_log_or,
+	t_bin_log_xor,
+	t_un_log_not,
 	t_EOF};
 
 enum token scan(char trackPos)
@@ -756,12 +764,6 @@ struct AST *parseExpression(struct Dictionary *dict)
 	// [left side][operator][right side]
 	case t_bin_add:
 	case t_bin_sub:
-	case t_bin_lThan:
-	case t_bin_lThanE:
-	case t_bin_gThan:
-	case t_bin_gThanE:
-	case t_bin_equals:
-	case t_bin_notEquals:
 		expression = match(nextToken, dict);
 		AST_InsertChild(expression, lSide);
 		AST_InsertChild(expression, parseExpression(dict));
@@ -771,7 +773,16 @@ struct AST *parseExpression(struct Dictionary *dict)
 		expression = lSide;
 		break;
 
-	// end of line or end of expression, there isn't anything more than the left side
+	// end of line or end of expression, or condition check - there isn't anything more than the left side
+	case t_bin_lThan:
+	case t_bin_lThanE:
+	case t_bin_gThan:
+	case t_bin_gThanE:
+	case t_bin_equals:
+	case t_bin_notEquals:
+	case t_bin_log_and:
+	case t_bin_log_or:
+	case t_bin_log_xor:
 	case t_semicolon:
 	case t_comma:
 	case t_rParen:
@@ -887,13 +898,84 @@ struct AST *parseFunctionCall(struct AST *name, struct Dictionary *dict)
 	return callNode;
 }
 
+struct AST *parseConditionCheck(struct Dictionary *dict)
+{
+	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseConditionCheck\n");
+
+	struct AST *conditionCheck = NULL;
+
+	struct AST *LHS = NULL;
+
+	switch (lookahead())
+	{
+	case t_name:
+	case t_literal:
+	case t_dereference:
+	case t_reference:
+		LHS = parseExpression(dict);
+		break;
+
+	case t_lParen:
+		consume(t_lParen);
+		LHS = parseConditionCheck(dict);
+		consume(t_rParen);
+		break;
+
+	default:
+		ParserError("condition check", "expected expression or unary operator!");
+	}
+
+	enum token nextToken;
+	switch (nextToken = lookahead())
+	{
+	case t_bin_lThan:
+	case t_bin_lThanE:
+	case t_bin_gThan:
+	case t_bin_gThanE:
+	case t_bin_equals:
+	case t_bin_notEquals:
+		conditionCheck = match(nextToken, dict);
+		AST_InsertChild(conditionCheck, LHS);
+		break;
+
+	default:
+		ParserError("condition check (LHS)", "expected comparison operator!");
+	}
+
+	switch (lookahead())
+	{
+	case t_name:
+	case t_literal:
+	case t_dereference:
+	case t_reference:
+		AST_InsertChild(conditionCheck, parseExpression(dict));
+		break;
+
+	case t_lParen:
+		consume(t_lParen);
+		AST_InsertChild(conditionCheck, parseConditionCheck(dict));
+		consume(t_rParen);
+		break;
+
+	default:
+		ParserError("condition check (RHS)", "expected expression or unary operator!");
+	}
+
+	/*
+
+	*/
+
+	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();
+	return conditionCheck;
+}
+
 struct AST *parseIfStatement(struct Dictionary *dict)
 {
 	PRINT_PARSE_FUNCTION_ENTER_IF_VERBOSE("ParseIfStatement\n");
 
 	struct AST *ifStatement = match(t_if, dict);
 	consume(t_lParen);
-	AST_InsertChild(ifStatement, parseExpression(dict));
+	AST_InsertChild(ifStatement, parseConditionCheck(dict));
 	consume(t_rParen);
 	struct AST *doBlock = AST_New(t_do, "do");
 	AST_InsertChild(ifStatement, doBlock);
@@ -948,7 +1030,7 @@ struct AST *parseWhileLoop(struct Dictionary *dict)
 
 	struct AST *whileLoop = match(t_while, dict);
 	consume(t_lParen);
-	AST_InsertChild(whileLoop, parseExpression(dict));
+	AST_InsertChild(whileLoop, parseConditionCheck(dict));
 	consume(t_rParen);
 	struct AST *doBlock = AST_New(t_do, "do");
 	AST_InsertChild(whileLoop, doBlock);
