@@ -24,6 +24,10 @@ char *token_names[] = {
 	"binary greater than or equal",
 	"binary equals",
 	"binary not equals",
+	"binary logical and",
+	"binary logical or",
+	"binary logical xor",
+	"unary logical not",
 	"reference operator",
 	"dereference operator",
 	"assignment",
@@ -292,8 +296,17 @@ enum token scan(char trackPos)
 					if (lookahead_char() != '=')
 						return reserved_t[i];
 				}
+				else if ((buffer[0] == '&') && (buflen == 1))
+				{
+					if (lookahead_char() == '&')
+					{
+						continue;
+					}
+				}
 				else
+				{
 					return reserved_t[i]; // return its token
+				}
 			}
 		}
 
@@ -330,7 +343,6 @@ enum token scan(char trackPos)
 		case '+':
 		case '-':
 		case '*':
-		case '&':
 		case '/':
 			return currentToken;
 			break;
@@ -934,14 +946,23 @@ struct AST *parseConditionCheck(struct Dictionary *dict)
 	case t_bin_gThanE:
 	case t_bin_equals:
 	case t_bin_notEquals:
+	case t_bin_log_and:
+	case t_bin_log_or:
+	case t_bin_log_xor:
 		conditionCheck = match(nextToken, dict);
 		AST_InsertChild(conditionCheck, LHS);
+		AST_InsertChild(conditionCheck, parseConditionCheck(dict));
+		break;
+
+	case t_rParen:
+		conditionCheck = LHS;
 		break;
 
 	default:
-		ParserError("condition check (LHS)", "expected comparison operator!");
+		ParserError("condition check", "expected comparison operator!");
 	}
 
+	/*
 	switch (lookahead())
 	{
 	case t_name:
@@ -960,9 +981,6 @@ struct AST *parseConditionCheck(struct Dictionary *dict)
 	default:
 		ParserError("condition check (RHS)", "expected expression or unary operator!");
 	}
-
-	/*
-
 	*/
 
 	PRINT_PARSE_FUNCTION_DONE_IF_VERBOSE();

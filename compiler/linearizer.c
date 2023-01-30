@@ -1091,6 +1091,52 @@ int linearizeDeclaration(struct LinearizationMetadata m)
 	return m.currentTACIndex;
 }
 
+int linearizeConditionCheck(struct LinearizationMetadata m,
+							struct BasicBlock *ifFalse)
+{
+	switch (m.ast->type)
+	{
+	case t_bin_log_and:
+	{
+		struct LinearizationMetadata LHS;
+		memcpy(&LHS, &m, sizeof(struct LinearizationMetadata));
+		LHS.ast = m.ast->child;
+		m.currentTACIndex = linearizeConditionCheck(LHS, ifFalse);
+
+		struct LinearizationMetadata RHS;
+		memcpy(&RHS, &m, sizeof(struct LinearizationMetadata));
+		RHS.ast = m.ast->child;
+		m.currentTACIndex = linearizeConditionCheck(RHS, ifFalse);
+
+		// generate a label and figure out condition to jump when the if statement isn't executed
+		struct TACLine *ifFalseJump = linearizeConditionalJump(m.currentTACIndex++, m.ast->value, m.ast->child);
+		ifFalseJump->operands[0].name.val = ifFalse->labelNum;
+		BasicBlock_append(m.currentBlock, ifFalseJump);
+	}
+	break;
+
+	case t_bin_lThan:
+	case t_bin_gThan:
+	case t_bin_lThanE:
+	case t_bin_gThanE:
+	case t_bin_equals:
+	case t_bin_notEquals:
+	{
+		m.currentTACIndex = linearizeExpression(m);
+
+		// generate a label and figure out condition to jump when the if statement isn't executed
+		struct TACLine *ifFalseJump = linearizeConditionalJump(m.currentTACIndex++, m.ast->value, m.ast);
+		ifFalseJump->operands[0].name.val = ifFalse->labelNum;
+		BasicBlock_append(m.currentBlock, ifFalseJump);
+	}
+	break;
+
+	default:
+		ErrorAndExit(ERROR_INTERNAL, "Error linearizing statement - malformed parse tree: expected comparison or logical operator!\n");
+	}
+	return m.currentTACIndex;
+}
+
 struct Stack *linearizeIfStatement(struct LinearizationMetadata m,
 								   struct BasicBlock *afterIfBlock,
 								   int *labelCount,
@@ -1100,16 +1146,22 @@ struct Stack *linearizeIfStatement(struct LinearizationMetadata m,
 	struct Stack *results = Stack_New();
 
 	// linearize the expression we will test
-	struct LinearizationMetadata expressionMetadata;
-	memcpy(&expressionMetadata, &m, sizeof(struct LinearizationMetadata));
-	expressionMetadata.ast = m.ast->child;
+	struct LinearizationMetadata conditionCheckMetadata;
+	memcpy(&conditionCheckMetadata, &m, sizeof(struct LinearizationMetadata));
+	conditionCheckMetadata.ast = m.ast->child;
 
-	m.currentTACIndex = linearizeExpression(expressionMetadata);
-
-	// generate a label and figure out condition to jump when the if statement isn't executed
-	struct TACLine *noifJump = linearizeConditionalJump(m.currentTACIndex++, m.ast->child->value, m.ast->child);
-
-	BasicBlock_append(m.currentBlock, noifJump);
+	// if we need to generate an else statement, jump there on false
+	// otherwise jump to afterIfBlock on false
+	struct BasicBlock *elseBlock = NULL;
+	if (m.ast->child->sibling->sibling != NULL)
+	{
+		elseBlock = BasicBlock_new(++(*labelCount));
+		m.currentTACIndex = linearizeConditionCheck(conditionCheckMetadata, elseBlock);
+	}
+	else
+	{
+		m.currentTACIndex = linearizeConditionCheck(conditionCheckMetadata, afterIfBlock);
+	}
 
 	struct LinearizationMetadata ifMetadata;
 	memcpy(&ifMetadata, &m, sizeof(struct LinearizationMetadata));
@@ -1118,15 +1170,12 @@ struct Stack *linearizeIfStatement(struct LinearizationMetadata m,
 	struct LinearizationResult *r = linearizeScope(ifMetadata, afterIfBlock, labelCount, scopenesting);
 	Stack_Push(results, r);
 
-	// if there is an else statement to the if
-	if (m.ast->child->sibling->sibling != NULL)
+	// we need to generate an else statement, do so now
+	if (elseBlock != NULL)
 	{
-		// create a basicblock for the else statement
-		struct BasicBlock *elseBlock = BasicBlock_new(++(*labelCount));
+		// add the else block to the scope and function table
 		Scope_addBasicBlock(m.scope, elseBlock);
 		Function_addBasicBlock(m.scope->parentFunction, elseBlock);
-
-		noifJump->operands[0].name.val = elseBlock->labelNum;
 
 		// linearize the else block, it returns to the same afterIfBlock as the ifBlock does
 		struct LinearizationMetadata elseMetadata;
@@ -1136,10 +1185,6 @@ struct Stack *linearizeIfStatement(struct LinearizationMetadata m,
 
 		r = linearizeScope(elseMetadata, afterIfBlock, labelCount, scopenesting);
 		Stack_Push(results, r);
-	}
-	else
-	{
-		noifJump->operands[0].name.val = afterIfBlock->labelNum;
 	}
 
 	return results;

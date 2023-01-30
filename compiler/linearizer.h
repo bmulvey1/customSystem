@@ -28,7 +28,7 @@ int linearizeFunctionCall(struct LinearizationMetadata m);
 int linearizeSubExpression(struct LinearizationMetadata m,
 						   struct TACLine *parentExpression,
 						   int operandIndex);
-						   
+
 int linearizeExpression(struct LinearizationMetadata m);
 
 int linearizeAssignment(struct LinearizationMetadata m);
@@ -36,6 +36,9 @@ int linearizeAssignment(struct LinearizationMetadata m);
 struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp, struct AST *correspondingTree);
 
 int linearizeDeclaration(struct LinearizationMetadata m);
+
+int linearizeConditionCheck(struct LinearizationMetadata m,
+							struct BasicBlock *ifFalse);
 
 struct Stack *linearizeIfStatement(struct LinearizationMetadata m,
 								   struct BasicBlock *afterIfBlock,
