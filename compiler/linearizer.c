@@ -1047,6 +1047,10 @@ struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp, struc
 		notMetJump = newTACLine(currentTACIndex, tt_jne, correspondingTree);
 	}
 	break;
+
+	default:
+		ErrorAndExit(ERROR_INTERNAL, "Error linearizing conditional jump - malformed parse tree: expected comparison operator, got [%s] instead!\n", cmpOp);
+
 	}
 	return notMetJump;
 }
@@ -1094,6 +1098,7 @@ int linearizeDeclaration(struct LinearizationMetadata m)
 int linearizeConditionCheck(struct LinearizationMetadata m,
 							struct BasicBlock *ifFalse)
 {
+	printf("LinearizeConditionCheck %s\n", getTokenName(m.ast->type));
 	switch (m.ast->type)
 	{
 	case t_bin_log_and:
@@ -1105,13 +1110,10 @@ int linearizeConditionCheck(struct LinearizationMetadata m,
 
 		struct LinearizationMetadata RHS;
 		memcpy(&RHS, &m, sizeof(struct LinearizationMetadata));
-		RHS.ast = m.ast->child;
+		RHS.ast = m.ast->child->sibling;
 		m.currentTACIndex = linearizeConditionCheck(RHS, ifFalse);
 
-		// generate a label and figure out condition to jump when the if statement isn't executed
-		struct TACLine *ifFalseJump = linearizeConditionalJump(m.currentTACIndex++, m.ast->value, m.ast->child);
-		ifFalseJump->operands[0].name.val = ifFalse->labelNum;
-		BasicBlock_append(m.currentBlock, ifFalseJump);
+		// no need for extra logic - if either condition is false the whole condition is false
 	}
 	break;
 
@@ -1209,15 +1211,11 @@ struct LinearizationResult *linearizeWhileLoop(struct LinearizationMetadata m,
 	BasicBlock_append(m.currentBlock, whileDo);
 
 	// linearize the expression we will test
-	struct LinearizationMetadata conditionExpressionMetadata;
-	memcpy(&conditionExpressionMetadata, &m, sizeof(struct LinearizationMetadata));
-	conditionExpressionMetadata.ast = m.ast->child;
+	struct LinearizationMetadata conditionCheckMetadata;
+	memcpy(&conditionCheckMetadata, &m, sizeof(struct LinearizationMetadata));
+	conditionCheckMetadata.ast = m.ast->child;
 
-	m.currentTACIndex = linearizeExpression(conditionExpressionMetadata);
-
-	struct TACLine *noWhileJump = linearizeConditionalJump(m.currentTACIndex++, m.ast->child->value, m.ast->child);
-	noWhileJump->operands[0].name.val = afterWhileBlock->labelNum;
-	BasicBlock_append(m.currentBlock, noWhileJump);
+	m.currentTACIndex = linearizeConditionCheck(conditionCheckMetadata, afterWhileBlock);
 
 	// create the scope for the while loop
 	struct LinearizationMetadata whileBodyScopeMetadata;
