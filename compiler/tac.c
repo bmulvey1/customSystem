@@ -91,17 +91,6 @@ char *getAsmOp(enum TACType t)
 	case tt_jmp:
 		return "jmp";
 
-	case tt_pushstate:
-		return "PUSHSTATE";
-
-	case tt_restorestate:
-		return "RESTORESTATE";
-
-	case tt_resetstate:
-		return "RESETSTATE";
-
-	case tt_popstate:
-		return "POPSTATE";
 	}
 	return "";
 }
@@ -232,6 +221,10 @@ void printTACLine(struct TACLine *it)
 
 	case tt_declare:
 		width += printf("declare %s", it->operands[0]);
+		if(it->operands[1] != NULL)
+		{
+			width += printf("[%s]", it->operands[1]);
+		}
 		break;
 
 	case tt_push:
@@ -262,21 +255,6 @@ void printTACLine(struct TACLine *it)
 		width += printf("end do");
 		break;
 
-	case tt_pushstate:
-		width += printf("PUSHSTATE");
-		break;
-
-	case tt_restorestate:
-		width += printf("RESTORESTATE (interval %2lx)", (long int)it->operands[0]);
-		break;
-
-	case tt_resetstate:
-		width += printf("RESETSTATE");
-		break;
-
-	case tt_popstate:
-		width += printf("POPSTATE");
-		break;
 	}
 	while (width++ < 24)
 	{
@@ -285,8 +263,11 @@ void printTACLine(struct TACLine *it)
 	printf("\t");
 	for (int i = 0; i < 4; i++)
 	{
-		printf("[%d", it->operandTypes[i]);
-		switch(it->operandPermutations[i]){
+		if (it->operandTypes[i] != vt_null)
+		{
+			printf("[%d", it->operandTypes[i]);
+			switch (it->operandPermutations[i])
+			{
 			case vp_standard:
 				printf("S");
 				break;
@@ -298,8 +279,13 @@ void printTACLine(struct TACLine *it)
 			case vp_literal:
 				printf("L");
 				break;
+			}
+			printf(" %d*]", it->indirectionLevels[i]);
 		}
-		printf(" %d*]", it->indirectionLevels[i]);
+		else
+		{
+			printf("[     ]");
+		}
 	}
 	// printf("\t%d %d %d %d", it->operandTypes[0], it->operandTypes[1], it->operandTypes[2], it->operandTypes[3]);
 	// printf("\t%d %d %d", it->indirectionLevels[0], it->indirectionLevels[1], it->indirectionLevels[2]);
@@ -334,7 +320,6 @@ char *sPrintTACLine(struct TACLine *it)
 	case tt_div:
 		if (!fallingThrough)
 			operationStr = "/";
-		fallingThrough = 1;
 
 		width += sprintf(tacString, "%s = %s %s %s", it->operands[0], it->operands[1], operationStr, it->operands[2]);
 		break;
@@ -354,7 +339,7 @@ char *sPrintTACLine(struct TACLine *it)
 
 	case tt_memw_2:
 		// operands: base offset source
-		width += sprintf(tacString, "%s + %d = %s", it->operands[0], (int)(long int)it->operands[1], it->operands[2]);
+		width += sprintf(tacString, "(%s + %d) = %s", it->operands[0], (int)(long int)it->operands[1], it->operands[2]);
 		break;
 
 	case tt_memw_3:
@@ -427,21 +412,6 @@ char *sPrintTACLine(struct TACLine *it)
 		width += sprintf(tacString, "end do");
 		break;
 
-	case tt_pushstate:
-		width += sprintf(tacString, "PUSHSTATE");
-		break;
-
-	case tt_restorestate:
-		width += sprintf(tacString, "RESTORESTATE (interval %2lx)", (long int)it->operands[0]);
-		break;
-
-	case tt_resetstate:
-		width += sprintf(tacString, "RESETSTATE");
-		break;
-
-	case tt_popstate:
-		width += sprintf(tacString, "POPSTATE");
-		break;
 	}
 
 	char *trimmedString = malloc(width + 1);
@@ -452,6 +422,7 @@ char *sPrintTACLine(struct TACLine *it)
 
 void freeTAC(struct TACLine *it)
 {
+	printTACLine(it);
 	free(it);
 }
 
@@ -459,10 +430,6 @@ char TACLine_isEffective(struct TACLine *it)
 {
 	switch (it->operation)
 	{
-	case tt_pushstate:
-	case tt_popstate:
-	case tt_restorestate:
-	case tt_resetstate:
 	case tt_do:
 	case tt_enddo:
 		return 0;
@@ -477,14 +444,13 @@ struct BasicBlock *BasicBlock_new(int labelNum)
 	struct BasicBlock *wip = malloc(sizeof(struct BasicBlock));
 	wip->TACList = LinkedList_new();
 	wip->labelNum = labelNum;
-	wip->hintLabel = NULL;
 	wip->containsEffectiveCode = 0;
 	return wip;
 }
 
 void BasicBlock_free(struct BasicBlock *b)
 {
-	LinkedList_free(b->TACList, &freeTAC);
+	LinkedList_free(b->TACList, free);
 	free(b);
 }
 
@@ -516,7 +482,11 @@ struct TACLine *findLastEffectiveTAC(struct BasicBlock *b)
 
 void printBasicBlock(struct BasicBlock *b, int indentLevel)
 {
-	printf("BASIC BLOCK %d (%s)\n", b->labelNum, b->hintLabel);
+	for (int i = 0; i < indentLevel; i++)
+	{
+		printf("\t");
+	}
+	printf("BASIC BLOCK %d\n", b->labelNum);
 	for (struct LinkedListNode *runner = b->TACList->head; runner != NULL; runner = runner->next)
 	{
 		struct TACLine *this = runner->data;

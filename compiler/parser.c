@@ -28,24 +28,26 @@ char *token_names[] = {
 	"r paren",
 	"l curly",
 	"r curly",
+	"l bracket",
+	"r bracket",
 	"call",
+	"scope",
 	"EOF"};
 
-void error(char *production, char *info)
+void ParserError(char *production, char *info)
 {
 	printf("Error while parsing %s\n", production);
 	printf("Error at line %d, col %d\n", curLine, curCol);
 	printf("%s\n", info);
-	printf("Parse buffer when error occurred: [%s]\n", buffer);
-
-	exit(1);
+	ErrorAndExit(ERROR_CODE, "Parse buffer when error occurred: [%s]\n", buffer);
 }
 
-// return 'count' characters ahead
+// return the char 'count' characters ahead
+// count must be >0, returns null char otherwise
 char lookahead_dumb(int count)
 {
 	long offset = ftell(inFile);
-	char returnChar;
+	char returnChar = '\0';
 	for (int i = 0; i < count; i++)
 	{
 		returnChar = fgetc(inFile);
@@ -115,7 +117,7 @@ void trimWhitespace(char trackPos)
 						// disallow nesting of block comments
 					case '/':
 						if (lookahead_dumb(1) == '*')
-							error("comment", "Error - nested block comments not allowed");
+							ParserError("comment", "Error - nested block comments not allowed");
 
 						break;
 
@@ -152,12 +154,12 @@ void trimWhitespace(char trackPos)
 
 char lookahead()
 {
-	trimWhitespace(0);
+	trimWhitespace(1);
 	char r = lookahead_dumb(1);
 	return r;
 }
 
-#define RESERVED_COUNT 24
+#define RESERVED_COUNT 26
 
 char *reserved[RESERVED_COUNT] = {
 	"asm",
@@ -172,6 +174,8 @@ char *reserved[RESERVED_COUNT] = {
 	")",
 	"{",
 	"}",
+	"[",
+	"]",
 	";",
 	"=",
 	"+",
@@ -198,6 +202,8 @@ enum token reserved_t[RESERVED_COUNT] = {
 	t_rParen,
 	t_lCurly,
 	t_rCurly,
+	t_lBracket,
+	t_rBracket,
 	t_semicolon,
 	t_assign,
 	t_un_add,
@@ -262,7 +268,7 @@ enum token scan(char trackPos)
 		{
 			// simple error checking for letters in literals
 			if (currentToken == t_literal && isalpha(inChar))
-				error("literal", "Error - alphabetical character in literal!");
+				ParserError("literal", "Error - alphabetical character in literal!");
 		}
 
 		// if the next input char is whitespace or a single-character token, we're done with this token
@@ -274,6 +280,8 @@ enum token scan(char trackPos)
 		case ')':
 		case '{':
 		case '}':
+		case '[':
+		case ']':
 		case ';':
 		case '\n':
 		case '\t':
@@ -306,7 +314,7 @@ struct ASTNode *match(enum token t, struct Dictionary *dict)
 	if (result != t)
 	{
 		printf("Expected token %s, got %s\n", token_names[t], token_names[result]);
-		error("match", "Error matching a token!");
+		ParserError("match", "Error matching a token!");
 	}
 
 	struct ASTNode *matched = ASTNode_new(result, DictionaryLookupOrInsert(dict, buffer));
@@ -322,7 +330,7 @@ void consume(enum token t)
 	if (result != t)
 	{
 		printf("Expected token %s, got %s\n", token_names[t], token_names[result]);
-		error("consume", "Error consuming a token!");
+		ParserError("consume", "Error consuming a token!");
 	}
 }
 
@@ -373,9 +381,8 @@ struct ASTNode *parseTLD(struct Dictionary *dict)
 		ASTNode_insertChild(functionname, argList);
 		ASTNode_insertChild(TLD, functionname);
 		consume(t_rParen);
-		consume(t_lCurly);
-		ASTNode_insertChild(TLD, parseStatementList(dict));
-		consume(t_rCurly);
+
+		ASTNode_insertChild(TLD, parseScope(dict));
 		break;
 
 	// var [variable name];
@@ -383,7 +390,7 @@ struct ASTNode *parseTLD(struct Dictionary *dict)
 	case t_var:
 	{
 		TLD = match(t_var, dict);
-		struct ASTNode *name = match(t_name, dict);
+		struct ASTNode *name = parseDeclaration(dict);
 		if (lookahead() == '=')
 		{
 			struct ASTNode *assignment = match(t_assign, dict);
@@ -392,13 +399,15 @@ struct ASTNode *parseTLD(struct Dictionary *dict)
 			ASTNode_insertChild(TLD, assignment);
 		}
 		else
+		{
 			ASTNode_insertChild(TLD, name);
+		}
 
 		consume(t_semicolon);
 	}
 	break;
 	default:
-		error("top level declaration", "Expected function or variable");
+		ParserError("Top level declaration", "Expected function or variable");
 		exit(1);
 	}
 	return TLD;
@@ -414,48 +423,108 @@ struct ASTNode *parseAssignment(struct ASTNode *name, struct Dictionary *dict)
 	return assign;
 }
 
-struct ASTNode *parseStatementList(struct Dictionary *dict)
+struct ASTNode *parseScope(struct Dictionary *dict)
 {
-	struct ASTNode *stmtList = NULL;
-	// loop until we see something that's not a statement
-	int parsing = 1;
-	while (parsing)
+	struct ASTNode *scope = ASTNode_new(t_scope, "scope");
+	consume(t_lCurly);
+	// parse statements until we see the end of this scope
+	while (lookahead() != '}')
 	{
-		struct ASTNode *stmt = NULL;
-		enum token nextToken = lookaheadToken();
-		switch (nextToken)
+		if (lookahead() == '{')
 		{
+			ASTNode_insertChild(scope, parseScope(dict));
+		}
+		else
+		{
+			ASTNode_insertChild(scope, parseStatement(dict));
+		}
+	}
+	consume(t_rCurly);
 
-		// v [variable name];
-		// v [variable name] = [expression];
-		// [variable name] = [expression];
-		// return [expression];
-		case t_asm:
-		case t_var:
+	// printf("done parsing statement list");
+	return scope;
+}
+
+struct ASTNode *parseName(struct Dictionary *dict)
+{
+	struct ASTNode *name = match(t_name, dict);
+	if (lookahead() == '[')
+	{
+		struct ASTNode *bracketOp = ASTNode_new(t_un_add, "+");
+		ASTNode_insertChild(bracketOp, name);
+		consume(t_lBracket);
+		switch (lookaheadToken())
+		{
 		case t_name:
-		case t_return:
-		case t_if:
-		case t_while:
-		case t_dereference:
-			stmt = parseStatement(dict);
-			if (stmtList == NULL)
-				stmtList = stmt;
-			else
-				ASTNode_insertSibling(stmtList, stmt);
-			break;
-
-		// currently this is the only token that can terminate a list
-		case t_rCurly:
-			parsing = 0;
+		case t_literal:
+			ASTNode_insertChild(bracketOp, parseExpression(dict));
 			break;
 
 		default:
-			error("statement", "expected 'var', 'if', 'while', '}', or name");
+			ParserError("statement", "Expected name or literal in square brackets after identifier");
 		}
+
+
+		consume(t_rBracket);
+
+		name = ASTNode_new(t_dereference, "*");
+		ASTNode_insertChild(name, bracketOp);
+		// name = newName;
+	}
+	return name;
+}
+
+struct ASTNode *parseDeclaration(struct Dictionary *dict)
+{
+	struct ASTNode *declared = NULL;
+	struct ASTNode *declaredRunner = NULL;
+	enum token upcomingToken = lookaheadToken();
+	while (upcomingToken == t_dereference)
+	{
+		if (declaredRunner == NULL)
+		{
+			declared = match(t_dereference, dict);
+			declaredRunner = declared;
+		}
+		else
+		{
+			ASTNode_insertChild(declaredRunner, match(t_dereference, dict));
+			declaredRunner = declaredRunner->child;
+		}
+		upcomingToken = lookaheadToken();
 	}
 
-	// printf("done parsing statement list");
-	return stmtList;
+	struct ASTNode *identifier = match(t_name, dict);
+
+	if (lookahead() == '[')
+	{
+		consume(t_lBracket);
+		struct ASTNode *arrayDecl = ASTNode_new(t_array, "[]");
+		ASTNode_insertChild(arrayDecl, identifier);
+		ASTNode_insertChild(arrayDecl, match(t_literal, dict));
+		if(declaredRunner != NULL)
+		{
+			ASTNode_insertChild(declaredRunner, arrayDecl);
+
+		}
+		else
+		{
+			declared = arrayDecl;
+		}
+		consume(t_rBracket);
+	}
+	else
+	{
+		if(declaredRunner != NULL)
+		{
+			ASTNode_insertChild(declaredRunner, identifier);
+		}
+		else
+		{
+			declared = identifier;
+		}
+	}
+	return declared;
 }
 
 struct ASTNode *parseStatement(struct Dictionary *dict)
@@ -475,22 +544,29 @@ struct ASTNode *parseStatement(struct Dictionary *dict)
 	{
 		struct ASTNode *type = match(upcomingToken, dict);
 		statement = type;
-		upcomingToken = lookaheadToken();
-		while (upcomingToken == t_dereference)
+		// 'var' will obviously be a declaration
+
+		// declared type (including any '*'s)
+		struct ASTNode *declaredType = parseDeclaration(dict);
+		
+		/*
+		if (lookahead() == '[')
 		{
-			ASTNode_insertChild(type, match(upcomingToken, dict));
-			type = type->child;
-			upcomingToken = lookaheadToken();
 		}
-		struct ASTNode *name = match(t_name, dict);
+		*/
 
-			ASTNode_insertChild(type, name);
+		ASTNode_insertChild(type, declaredType);
 
-		// check whether or not whether this is an assignment or just a declaration
 		if (lookaheadToken() == t_assign)
 		{
-			struct ASTNode *assignedName = malloc(sizeof (struct ASTNode));
-			memcpy(assignedName, name, sizeof(struct ASTNode));
+			struct ASTNode *assignedName = malloc(sizeof(struct ASTNode));
+			struct ASTNode *declaredName = declaredType;
+			while(declaredName->type == t_dereference)
+			{
+				declaredName = declaredName->child;
+			}
+			printf("Declared name is %s\n", declaredType->value);
+			memcpy(assignedName, declaredName, sizeof(struct ASTNode));
 			ASTNode_insertSibling(statement, parseAssignment(assignedName, dict));
 		}
 
@@ -503,7 +579,8 @@ struct ASTNode *parseStatement(struct Dictionary *dict)
 	// [variable name] = [expression];
 	case t_name:
 	{
-		struct ASTNode *name = match(t_name, dict);
+		struct ASTNode *name = parseName(dict);
+
 		switch (lookahead())
 		{
 		case '=':
@@ -517,7 +594,7 @@ struct ASTNode *parseStatement(struct Dictionary *dict)
 			break;
 
 		default:
-			error("statement", "expected '(' or '=' after name");
+			ParserError("statement", "expected '(' or '=' after name");
 		}
 		consume(t_semicolon);
 	}
@@ -533,7 +610,7 @@ struct ASTNode *parseStatement(struct Dictionary *dict)
 			break;
 
 		default:
-			ASTNode_insertChild(deref, match(t_name, dict));
+			ASTNode_insertChild(deref, parseName(dict));
 			break;
 		}
 		statement = parseAssignment(deref, dict);
@@ -558,7 +635,7 @@ struct ASTNode *parseStatement(struct Dictionary *dict)
 		break;
 
 	default:
-		error("statement", "expected 'var', 'if', 'while', '}', or name");
+		ParserError("statement", "expected 'var', 'if', 'while', '}', or name");
 	}
 	// printf("Done parsing statement- heres what we got\n");
 	// printAST(statement, 0);
@@ -574,7 +651,7 @@ struct ASTNode *parseExpression(struct Dictionary *dict)
 	struct ASTNode *lSide = NULL;
 	if (isalpha(lookahead()))
 	{
-		struct ASTNode *name = match(t_name, dict);
+		struct ASTNode *name = parseName(dict);
 		if (lookahead() == '(')
 		{
 			lSide = parseFunctionCall(name, dict);
@@ -610,13 +687,12 @@ struct ASTNode *parseExpression(struct Dictionary *dict)
 			break;
 
 		default:
-			ASTNode_insertChild(lSide, match(t_name, dict));
+			ASTNode_insertChild(lSide, parseName(dict));
 		}
 	}
 	else
 	{
-		error("expression", "expected literal or name");
-		exit(1);
+		ParserError("expression", "expected literal or name");
 	}
 
 	// now, figure out whether there is a right side
@@ -653,12 +729,13 @@ struct ASTNode *parseExpression(struct Dictionary *dict)
 	case ';':
 	case ',':
 	case ')':
+	case ']':
 		expression = lSide;
 		break;
 
 	default:
 		printf("\n[%c]\n", lookahead());
-		error("expression", "expected unary operator or terminator");
+		ParserError("expression", "expected unary operator or terminator");
 	}
 
 	// printf("done parsing expression - here's what we got:\n");
@@ -760,13 +837,13 @@ struct ASTNode *parseIfStatement(struct Dictionary *dict)
 
 	if (lookahead() == '{')
 	{
-		consume(t_lCurly);
-		ASTNode_insertChild(doBlock, parseStatementList(dict));
-		consume(t_rCurly);
+		ASTNode_insertChild(doBlock, parseScope(dict));
 	}
 	else
 	{
-		ASTNode_insertChild(doBlock, parseStatement(dict));
+		struct ASTNode *ifScope = ASTNode_new(t_scope, "scope");
+		ASTNode_insertChild(ifScope, parseStatement(dict));
+		ASTNode_insertChild(doBlock, ifScope);
 	}
 
 	if (lookaheadToken() == t_else)
@@ -786,13 +863,13 @@ struct ASTNode *parseElseStatement(struct Dictionary *dict)
 	ASTNode_insertChild(elseStatement, doBlock);
 	if (lookahead() == '{')
 	{
-		consume(t_lCurly);
-		ASTNode_insertChild(doBlock, parseStatementList(dict));
-		consume(t_rCurly);
+		ASTNode_insertChild(doBlock, parseScope(dict));
 	}
 	else
 	{
-		ASTNode_insertChild(doBlock, parseStatement(dict));
+		struct ASTNode *elseScope = ASTNode_new(t_scope, "scope");
+		ASTNode_insertChild(elseScope, parseStatement(dict));
+		ASTNode_insertChild(doBlock, elseScope);
 	}
 
 	return elseStatement;
@@ -808,12 +885,15 @@ struct ASTNode *parseWhileLoop(struct Dictionary *dict)
 	ASTNode_insertChild(whileLoop, doBlock);
 	if (lookahead() == '{')
 	{
-		consume(t_lCurly);
-		ASTNode_insertChild(doBlock, parseStatementList(dict));
-		consume(t_rCurly);
+		ASTNode_insertChild(doBlock, parseScope(dict));
 	}
 	else
-		error("while loop", "Expected '{' after 'while([condition])'");
+	{
+		struct ASTNode *whileScope = ASTNode_new(t_scope, "scope");
+		ASTNode_insertChild(whileScope, parseStatement(dict));
+		ASTNode_insertChild(doBlock, whileScope);
+	}
+	// ParserError("while loop", "Expected '{' after 'while([condition])'");
 
 	// printf("done parsing if statement - here's what we got!\n");
 	// printAST(ifStatement, 0);

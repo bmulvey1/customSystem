@@ -1,36 +1,36 @@
-/*
-Pointer optimization:
-Before - 8706 instructions
-Mild pointer optimizations - use of offset(base, scale): 7483
-
-*/
-
 asm{
-	#include "CPU.asm"
 	entry code
-	data@ data
+	;data@ data
 code:
-	push $4664
-	;call mm_init
-	;call doublePointer
-	;push $4660
-	;call test
-	call ptest
+    call arrDeclare
 	hlt
 };
 
-fun print(var n){
+fun print(var value)
+{
+	// store r0, pull the argument into a register, then output that register
 	asm{
-		out %r1
+		push %r0
+		mov %r0, (%bp+8)
+		out %r0
+		pop %r0
 	};
 }
 
+fun arrDeclare()
+{
+	var array[10];
+	//array[0] = 0;
+	//array[1] = 1;
 
-fun ptest(){
-	var *i = 512;
-	while(i < 524){
-		*i = 4660;
+	var i = 0;
+	while(i < 10)
+	{
+		//print(i);
+		array[i] = i + 42;
 		i = i + 1;
 	}
+    print(array[4]);
 }
+
 $$
