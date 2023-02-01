@@ -50,7 +50,7 @@ begin
         if carry_in = '1' then
             carry_out <= '1';
         elsif shift_type = "00" then
-            carry_out <= data_in(31);
+            carry_out <= data_in(data_size-1);
         else
             carry_out <= '0';
         end if;
