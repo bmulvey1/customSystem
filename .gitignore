@@ -16,6 +16,8 @@ emu/emu
 *.cppcheck
 cppcheck/*
 
+astdump
+
 
 
 

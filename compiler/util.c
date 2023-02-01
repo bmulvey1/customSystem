@@ -16,21 +16,21 @@ unsigned int hash(char *str)
 	return hash;
 }
 
-struct Dictionary *newDictionary(int nBuckets)
+struct Dictionary *Dictionary_New(int nBuckets)
 {
 	struct Dictionary *wip = malloc(sizeof(struct Dictionary));
 	wip->nBuckets = nBuckets;
-	wip->buckets = malloc(nBuckets * sizeof(struct DictionaryNode *));
+	wip->buckets = malloc(nBuckets * sizeof(struct LinkedList *));
 
 	for (int i = 0; i < nBuckets; i++)
 	{
-		wip->buckets[i] = NULL;
+		wip->buckets[i] = LinkedList_New();
 	}
 
 	return wip;
 }
 
-char *DictionaryInsert(struct Dictionary *dict, char *value)
+char *Dictionary_Insert(struct Dictionary *dict, char *value)
 {
 
 	char *string = malloc(strlen(value) + 1);
@@ -39,37 +39,23 @@ char *DictionaryInsert(struct Dictionary *dict, char *value)
 	unsigned int strHash = hash(value);
 	strHash = strHash % dict->nBuckets;
 
-	struct DictionaryEntry *newEntry = malloc(sizeof(struct DictionaryEntry));
-	newEntry->data = string;
-	newEntry->next = NULL;
-
-	struct DictionaryEntry *runner = dict->buckets[strHash];
-	if (runner != NULL)
-	{
-		while (runner->next != NULL)
-		{
-			runner = runner->next;
-		}
-		runner->next = newEntry;
-	}
-	else
-	{
-		dict->buckets[strHash] = newEntry;
-	}
+	LinkedList_Append(dict->buckets[strHash], string);
 
 	return string;
 }
 
-char *DictionaryLookup(struct Dictionary *dict, char *value)
+char *Dictionary_Lookup(struct Dictionary *dict, char *value)
 {
 	unsigned int strHash = hash(value);
 	strHash = strHash % dict->nBuckets;
 
-	struct DictionaryEntry *runner = dict->buckets[strHash];
-	if (runner == NULL)
+	struct LinkedList *bucket = dict->buckets[strHash];
+	if (bucket->size == 0)
 	{
 		return NULL;
 	}
+
+	struct LinkedListNode *runner = bucket->head;
 
 	while (runner != NULL)
 	{
@@ -83,32 +69,25 @@ char *DictionaryLookup(struct Dictionary *dict, char *value)
 	return NULL;
 }
 
-char *DictionaryLookupOrInsert(struct Dictionary *dict, char *value)
+char *Dictionary_LookupOrInsert(struct Dictionary *dict, char *value)
 {
-	char *lookupResult = DictionaryLookup(dict, value);
+	char *lookupResult = Dictionary_Lookup(dict, value);
 	if (lookupResult != NULL)
 	{
 		return lookupResult;
 	}
 	else
 	{
-		char *pointer = DictionaryInsert(dict, value);
+		char *pointer = Dictionary_Insert(dict, value);
 		return pointer;
 	}
 }
 
-void freeDictionary(struct Dictionary *dict)
+void Dictionary_Free(struct Dictionary *dict)
 {
 	for (int i = 0; i < dict->nBuckets; i++)
 	{
-		struct DictionaryEntry *runner = dict->buckets[i];
-		while (runner != NULL)
-		{
-			struct DictionaryEntry *old = runner;
-			free(runner->data);
-			runner = runner->next;
-			free(old);
-		}
+		LinkedList_Free(dict->buckets[i], free);
 	}
 	free(dict->buckets);
 	free(dict);
@@ -119,7 +98,7 @@ void freeDictionary(struct Dictionary *dict)
  *
  */
 
-struct Stack *Stack_new()
+struct Stack *Stack_New()
 {
 	struct Stack *wip = malloc(sizeof(struct Stack));
 	wip->data = malloc(20 * sizeof(void *));
@@ -128,13 +107,13 @@ struct Stack *Stack_new()
 	return wip;
 }
 
-void Stack_free(struct Stack *s)
+void Stack_Free(struct Stack *s)
 {
 	free(s->data);
 	free(s);
 }
 
-void Stack_push(struct Stack *s, void *data)
+void Stack_Push(struct Stack *s, void *data)
 {
 	if (s->size >= s->allocated)
 	{
@@ -148,7 +127,7 @@ void Stack_push(struct Stack *s, void *data)
 	s->data[s->size++] = data;
 }
 
-void *Stack_pop(struct Stack *s)
+void *Stack_Pop(struct Stack *s)
 {
 	if (s->size > 0)
 	{
@@ -161,7 +140,7 @@ void *Stack_pop(struct Stack *s)
 	}
 }
 
-void *Stack_peek(struct Stack *s)
+void *Stack_Peek(struct Stack *s)
 {
 	if (s->size > 0)
 	{
@@ -179,7 +158,7 @@ void *Stack_peek(struct Stack *s)
  *
  */
 
-struct LinkedList *LinkedList_new()
+struct LinkedList *LinkedList_New()
 {
 	struct LinkedList *wip = malloc(sizeof(struct LinkedList));
 	wip->head = NULL;
@@ -188,7 +167,7 @@ struct LinkedList *LinkedList_new()
 	return wip;
 }
 
-void LinkedList_free(struct LinkedList *l, void (*dataFreeFunction)())
+void LinkedList_Free(struct LinkedList *l, void (*dataFreeFunction)())
 {
 	struct LinkedListNode *runner = l->head;
 	while (runner != NULL)
@@ -204,7 +183,7 @@ void LinkedList_free(struct LinkedList *l, void (*dataFreeFunction)())
 	free(l);
 }
 
-void LinkedList_append(struct LinkedList *l, void *element)
+void LinkedList_Append(struct LinkedList *l, void *element)
 {
 	if (element == NULL)
 	{
@@ -231,7 +210,7 @@ void LinkedList_append(struct LinkedList *l, void *element)
 	l->size++;
 }
 
-void LinkedList_prepend(struct LinkedList *l, void *element)
+void LinkedList_Prepend(struct LinkedList *l, void *element)
 {
 	if (element == NULL)
 	{
@@ -257,7 +236,7 @@ void LinkedList_prepend(struct LinkedList *l, void *element)
 	l->size++;
 }
 
-void *LinkedList_delete(struct LinkedList *l, char (*compareFunction)(), void *element)
+void *LinkedList_Delete(struct LinkedList *l, char (*compareFunction)(), void *element)
 {
 	for (struct LinkedListNode *runner = l->head; runner != NULL; runner = runner->next)
 	{
@@ -298,7 +277,7 @@ void *LinkedList_delete(struct LinkedList *l, char (*compareFunction)(), void *e
 	ErrorAndExit(ERROR_INTERNAL, "Couldn't delete element from linked list!\n");
 }
 
-void *LinkedList_find(struct LinkedList *l, char (*compareFunction)(), void *element)
+void *LinkedList_Find(struct LinkedList *l, char (*compareFunction)(), void *element)
 {
 	for (struct LinkedListNode *runner = l->head; runner != NULL; runner = runner->next)
 	{
@@ -328,32 +307,32 @@ char *strTrim(char *s, int l)
  *
  */
 
-char *TempList_getString(struct TempList *tempList, int tempNum)
+char *TempList_Get(struct TempList *tempList, int tempNum)
 {
 	int sizeDiff = tempNum - tempList->temps->size;
 	while (sizeDiff-- >= 0)
 	{
 		char *thisTemp = malloc(6 * sizeof(char));
 		sprintf(thisTemp, ".t%d", tempList->temps->size);
-		Stack_push(tempList->temps, thisTemp);
+		Stack_Push(tempList->temps, thisTemp);
 	}
 	return tempList->temps->data[tempNum];
 }
 
-struct TempList *TempList_new()
+struct TempList *TempList_New()
 {
 	struct TempList *wip = malloc(sizeof(struct TempList));
-	wip->temps = Stack_new();
-	TempList_getString(wip, 10);
+	wip->temps = Stack_New();
+	TempList_Get(wip, 10);
 	return wip;
 }
 
-void TempList_free(struct TempList *it)
+void TempList_Free(struct TempList *it)
 {
 	for (int i = 0; i < it->temps->size; i++)
 	{
 		free(it->temps->data[i]);
 	}
-	Stack_free(it->temps);
+	Stack_Free(it->temps);
 	free(it);
 }

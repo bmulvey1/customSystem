@@ -9,48 +9,52 @@
 
 void ParserError();
 
-char lookahead_dumb();
+char lookahead_char_dumb();
 
 void trimWhitespace(char trackPos);
 
-char lookahead();
+char lookahead_char();
 
 enum token scan(char trackPos);
 
-struct ASTNode *match(enum token t, struct Dictionary *dict);
+enum token lookahead();
+
+struct AST *match(enum token t, struct Dictionary *dict);
 
 void consume(enum token t);
 
 char *getTokenName(enum token t);
 
-struct ASTNode *parseProgram(char *inFileName, struct Dictionary *dict);
+struct AST *ParseProgram(char *inFileName, struct Dictionary *dict);
 
-struct ASTNode *parseTLDList(struct Dictionary *dict);
+struct AST *parseTLDList(struct Dictionary *dict);
 
-struct ASTNode *parseTLD(struct Dictionary *dict);
+struct AST *parseTLD(struct Dictionary *dict);
 
-struct ASTNode *parseAssignment(struct ASTNode *name, struct Dictionary *dict);
+struct AST *parseAssignment(struct AST *name, struct Dictionary *dict);
 
-struct ASTNode *parseScope(struct Dictionary *dict);
+struct AST *parseScope(struct Dictionary *dict);
 
-struct ASTNode *parseName(struct Dictionary *dict);
+struct AST *parseName(struct Dictionary *dict);
 
-struct ASTNode *parseDeclaration(struct Dictionary *dict);
+struct AST *parseDeclaration(struct Dictionary *dict);
 
-struct ASTNode *parseStatement(struct Dictionary *dict);
+struct AST *parseStatement(struct Dictionary *dict);
 
-struct ASTNode *parseExpression(struct Dictionary *dict);
+struct AST *parseExpression(struct Dictionary *dict);
 
-struct ASTNode *parseArgDefinitions(struct Dictionary *dict);
+struct AST *parseArgDefinitions(struct Dictionary *dict);
 
-struct ASTNode *parseArgList(struct Dictionary *dict);
+struct AST *parseArgList(struct Dictionary *dict);
 
-struct ASTNode *parseFunctionCall(struct ASTNode *name, struct Dictionary *dict);
+struct AST *parseFunctionCall(struct AST *name, struct Dictionary *dict);
 
-struct ASTNode *parseIfStatement(struct Dictionary *dict);
+struct AST *parseConditionCheck(struct Dictionary *dict);
 
-struct ASTNode *parseElseStatement(struct Dictionary *dict);
+struct AST *parseIfStatement(struct Dictionary *dict);
 
-struct ASTNode* parseWhileLoop(struct Dictionary *dict);
+struct AST *parseElseStatement(struct Dictionary *dict);
 
-struct ASTNode* parseASM(struct Dictionary *dict);
+struct AST* parseWhileLoop(struct Dictionary *dict);
+
+struct AST* parseASM(struct Dictionary *dict);

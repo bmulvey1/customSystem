@@ -5,76 +5,56 @@
 
 #pragma once
 
-int linearizeASMBlock(int currentTACIndex,
-					  struct BasicBlock *currentBlock,
-					  struct ASTNode *it);
+struct LinearizationMetadata
+{
+	int currentTACIndex;
+	struct BasicBlock *currentBlock;
+	struct AST *ast;
+	int *tempNum;
+	struct Scope *scope;
+};
 
-int linearizeDereference(struct Scope *scope,
-						 int currentTACIndex,
-						 struct BasicBlock *currentBlock,
-						 struct ASTNode *it,
-						 int *tempNum);
+int linearizeASMBlock(struct LinearizationMetadata m);
 
-int linearizePointerArithmetic(struct Scope *scope,
-							   int currentTACIndex,
-							   struct BasicBlock *currentBlock,
-							   struct ASTNode *it,
-							   int *tempNum,
+int linearizeDereference(struct LinearizationMetadata m);
+
+int linearizeArgumentPushes(struct LinearizationMetadata m);
+
+int linearizePointerArithmetic(struct LinearizationMetadata m,
 							   int depth);
 
-int linearizeFunctionCall(struct Scope *scope,
-						  int currentTACIndex,
-						  struct BasicBlock *currentBlock,
-						  struct ASTNode *it,
-						  int *tempNum);
+int linearizeFunctionCall(struct LinearizationMetadata m);
 
-int linearizeExpression(struct Scope *scope,
-						int currentTACIndex,
-						struct BasicBlock *currentBlock,
-						struct ASTNode *it,
-						int *tempNum);
+int linearizeSubExpression(struct LinearizationMetadata m,
+						   struct TACLine *parentExpression,
+						   int operandIndex);
 
-int linearizeAssignment(struct Scope *scope,
-						int currentTACIndex,
-						struct BasicBlock *currentBlock,
-						struct ASTNode *it,
-						int *tempNum);
+int linearizeExpression(struct LinearizationMetadata m);
 
-struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp, struct ASTNode *correspondingTree);
+int linearizeAssignment(struct LinearizationMetadata m);
 
-int linearizeDeclaration(struct Scope *scope,
-						 int currentTACIndex,
-						 struct BasicBlock *currentBlock,
-						 struct ASTNode *it);
+struct TACLine *linearizeConditionalJump(int currentTACIndex, char *cmpOp, struct AST *correspondingTree);
 
-struct Stack *linearizeIfStatement(struct Scope *scope,
-								   int currentTACIndex,
-								   struct BasicBlock *currentBlock,
+int linearizeDeclaration(struct LinearizationMetadata m);
+
+int linearizeConditionCheck(struct LinearizationMetadata m,
+							struct BasicBlock *ifFalse);
+
+struct Stack *linearizeIfStatement(struct LinearizationMetadata m,
 								   struct BasicBlock *afterIfBlock,
-								   struct ASTNode *it,
-								   int *tempNum,
 								   int *labelCount,
 								   struct Stack *scopenesting);
 
-struct LinearizationResult *linearizeWhileLoop(struct Scope *scope,
-											   int currentTACIndex,
-											   struct BasicBlock *currentBlock,
+struct LinearizationResult *linearizeWhileLoop(struct LinearizationMetadata m,
 											   struct BasicBlock *afterIfBlock,
-											   struct ASTNode *it,
-											   int *tempNum,
 											   int *labelCount,
 											   struct Stack *scopenesting);
 
-struct LinearizationResult *linearizeScope(struct Scope *scope,
-										   int currentTACIndex,
-										   struct BasicBlock *currentBlock,
+struct LinearizationResult *linearizeScope(struct LinearizationMetadata m,
 										   struct BasicBlock *controlConvergesTo,
-										   struct ASTNode *it,
-										   int *tempNum,
 										   int *labelCount,
 										   struct Stack *scopenesting);
 
-
 void collapseScopes(struct Scope *scope, struct Dictionary *dict, int depth);
 
-void linearizeProgram(struct ASTNode *it, struct Scope *globalScope, struct Dictionary *dict);
+void linearizeProgram(struct AST *it, struct Scope *globalScope, struct Dictionary *dict);

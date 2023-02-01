@@ -1,36 +1,23 @@
 asm{
 	entry code
-	;data@ data
 code:
-    call arrDeclare
-	hlt
+    call testInterrupts
+    hlt
 };
 
 fun print(var value)
 {
 	// store r0, pull the argument into a register, then output that register
 	asm{
-		push %r0
-		mov %r0, (%bp+8)
-		out %r0
-		pop %r0
+		push %rr
+		mov %rr, (%bp+8)
+		INT 0x05
+		pop %rr
 	};
 }
 
-fun arrDeclare()
+fun testInterrupts()
 {
-	var array[10];
-	//array[0] = 0;
-	//array[1] = 1;
-
-	var i = 0;
-	while(i < 10)
-	{
-		//print(i);
-		array[i] = i + 42;
-		i = i + 1;
-	}
-    print(array[4]);
+    print(108);
 }
-
 $$

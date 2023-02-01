@@ -34,7 +34,7 @@ struct Scope
 	struct Scope *parentScope;
 	struct FunctionEntry *parentFunction;
 	struct Stack *entries;
-	char subScopeCount;
+	unsigned char subScopeCount;
 	char *name; // duplicate pointer from ScopeMember for ease of use
 };
 
@@ -128,10 +128,10 @@ void SymbolTable_print(struct SymbolTable *it, char printTAC);
 void SymbolTable_free(struct SymbolTable *it);
 
 // AST walk functions
-void walkStatement(struct ASTNode *it, struct Scope *wip);
+void walkStatement(struct AST *it, struct Scope *wip);
 
-void walkScope(struct ASTNode *it, struct Scope *wip, char isMainScope);
+void walkScope(struct AST *it, struct Scope *wip, char isMainScope);
 
-void walkFunction(struct ASTNode *it, struct Scope *parentScope);
+void walkFunction(struct AST *it, struct Scope *parentScope);
 
-struct SymbolTable *walkAST(struct ASTNode *it);
+struct SymbolTable *walkAST(struct AST *it);

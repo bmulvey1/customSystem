@@ -19,7 +19,7 @@ void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum v
 	newArgument->name = name;
 
 	int argSize = Scope_getSizeOfVariable(func->mainScope, name);
-	newArgument->stackOffset = func->argStackSize + 4;
+	newArgument->stackOffset = func->argStackSize + 8;
 	func->argStackSize += argSize;
 
 	if (arraySize > 1)
@@ -32,7 +32,7 @@ void FunctionEntry_createArgument(struct FunctionEntry *func, char *name, enum v
 		objForArg->arraySize = arraySize;
 		char *modName = malloc(strlen(name) + 5);
 		sprintf(modName, "%s.obj", name);
-		Scope_insert(func->mainScope, DictionaryLookupOrInsert(parseDict, modName), objForArg, e_stackobj);
+		Scope_insert(func->mainScope, Dictionary_LookupOrInsert(parseDict, modName), objForArg, e_stackobj);
 		free(modName);
 	}
 	else
@@ -78,7 +78,7 @@ void SymbolTable_free(struct SymbolTable *it)
 struct Scope *Scope_new(struct Scope *parentScope, char *name)
 {
 	struct Scope *wip = malloc(sizeof(struct Scope));
-	wip->entries = Stack_new();
+	wip->entries = Stack_New();
 
 	// need to set this manually to handle when new functions are declared
 	// TODO: supports nested functions? ;)
@@ -103,7 +103,7 @@ void Scope_free(struct Scope *scope, int depth)
 		case e_function:
 		{
 			struct FunctionEntry *theFunction = examinedEntry->entry;
-			LinkedList_free(theFunction->BasicBlockList, NULL);
+			LinkedList_Free(theFunction->BasicBlockList, NULL);
 			Scope_free(theFunction->mainScope, depth);
 			free(theFunction);
 		}
@@ -128,7 +128,7 @@ void Scope_free(struct Scope *scope, int depth)
 
 		free(examinedEntry);
 	}
-	Stack_free(scope->entries);
+	Stack_Free(scope->entries);
 	free(scope);
 }
 
@@ -143,7 +143,7 @@ void Scope_insert(struct Scope *scope, char *name, void *newEntry, enum ScopeMem
 	wip->name = name;
 	wip->entry = newEntry;
 	wip->type = type;
-	Stack_push(scope->entries, wip);
+	Stack_Push(scope->entries, wip);
 }
 
 // create a variable within the given scope
@@ -174,7 +174,7 @@ void Scope_createVariable(struct Scope *scope, char *name, enum variableTypes ty
 		scope->parentFunction->localStackSize += varSize * arraySize;
 		char *modName = malloc(strlen(name) + 5);
 		sprintf(modName, "%s.obj", name);
-		Scope_insert(scope, DictionaryLookupOrInsert(parseDict, modName), objForvar, e_stackobj);
+		Scope_insert(scope, Dictionary_LookupOrInsert(parseDict, modName), objForvar, e_stackobj);
 		free(modName);
 	}
 	else
@@ -193,7 +193,7 @@ struct FunctionEntry *Scope_createFunction(struct Scope *scope, char *name)
 	newFunction->argStackSize = 0;
 	newFunction->localStackSize = 0;
 	newFunction->mainScope = Scope_new(scope, "");
-	newFunction->BasicBlockList = LinkedList_new();
+	newFunction->BasicBlockList = LinkedList_New();
 	newFunction->mainScope->parentFunction = newFunction;
 	newFunction->returnType = vt_var; // hardcoded... for now ;)
 	newFunction->name = name;
@@ -210,7 +210,7 @@ struct Scope *Scope_createSubScope(struct Scope *parentScope)
 	}
 	char *helpStr = malloc(3 + strlen(parentScope->name) + 1);
 	sprintf(helpStr, ".%02x", parentScope->subScopeCount);
-	char *newScopeName = DictionaryLookupOrInsert(parseDict, helpStr);
+	char *newScopeName = Dictionary_LookupOrInsert(parseDict, helpStr);
 	free(helpStr);
 	parentScope->subScopeCount++;
 
@@ -423,21 +423,21 @@ void Scope_addBasicBlock(struct Scope *scope, struct BasicBlock *b)
 {
 	char *blockName = malloc(10);
 	sprintf(blockName, "Block%d", b->labelNum);
-	Scope_insert(scope, DictionaryLookupOrInsert(parseDict, blockName), b, e_basicblock);
+	Scope_insert(scope, Dictionary_LookupOrInsert(parseDict, blockName), b, e_basicblock);
 	free(blockName);
 }
 
 void Function_addBasicBlock(struct FunctionEntry *function, struct BasicBlock *b)
 {
-	LinkedList_append(function->BasicBlockList, b);
+	LinkedList_Append(function->BasicBlockList, b);
 }
 
 /*
  * AST walk and symbol table generation functions
  */
-void walkStatement(struct ASTNode *it, struct Scope *wip)
+void walkStatement(struct AST *it, struct Scope *wip)
 {
-	struct ASTNode *runner;
+	struct AST *runner;
 	switch (it->type)
 	{
 	case t_scope:
@@ -445,6 +445,7 @@ void walkStatement(struct ASTNode *it, struct Scope *wip)
 		break;
 
 	case t_var:
+	{
 		char *varName;
 		int arraySize;
 		int indirectionLevel = 0;
@@ -493,27 +494,17 @@ void walkStatement(struct ASTNode *it, struct Scope *wip)
 		{
 			ErrorAndExit(ERROR_CODE, "Error - redeclaration of symbol [%s]\n", varName);
 		}
+	}
+	break;
 
-		break;
-
+		// ignore assignments as lifetime checks can be done more easily on TAC
 	case t_assign:
-		/*
-		ignore assignments as lifetime checks can be done more easily on TAC
-		runner = it->child;
-		while(runner->type == t_dereference){
-			runner = runner->child;
-		}
-		if (!SymbolTableContains(wip, runner->value))
-		{
-			printf("Error - variable [%s] assigned before declaration\n", runner->child->value);
-			exit(1);
-		}
-		*/
 		break;
 
 	case t_if:
+	{
 		// having fun yet?
-		struct ASTNode *ifRunner = it->child->sibling->child;
+		struct AST *ifRunner = it->child->sibling->child;
 		while (ifRunner != NULL)
 		{
 			walkStatement(ifRunner, wip);
@@ -530,17 +521,19 @@ void walkStatement(struct ASTNode *it, struct Scope *wip)
 				ifRunner = ifRunner->sibling;
 			}
 		}
-
-		break;
+	}
+	break;
 
 	case t_while:
-		struct ASTNode *whileRunner = it->child->sibling->child;
+	{
+		struct AST *whileRunner = it->child->sibling->child;
 		while (whileRunner != NULL)
 		{
 			walkStatement(whileRunner, wip);
 			whileRunner = whileRunner->sibling;
 		}
-		break;
+	}
+	break;
 
 	// function call/return and asm blocks can't create new symbols so ignore
 	case t_call:
@@ -554,9 +547,9 @@ void walkStatement(struct ASTNode *it, struct Scope *wip)
 	}
 }
 
-void walkScope(struct ASTNode *it, struct Scope *wipScope, char isMainScope)
+void walkScope(struct AST *it, struct Scope *wipScope, char isMainScope)
 {
-	struct ASTNode *scopeRunner = it->child;
+	struct AST *scopeRunner = it->child;
 	while (scopeRunner != NULL)
 	{
 		switch (scopeRunner->type)
@@ -572,8 +565,9 @@ void walkScope(struct ASTNode *it, struct Scope *wipScope, char isMainScope)
 			break;
 
 		case t_if:
+		{
 			// having fun yet?
-			struct ASTNode *ifRunner = scopeRunner->child->sibling->child;
+			struct AST *ifRunner = scopeRunner->child->sibling->child;
 			while (ifRunner != NULL)
 			{
 				walkStatement(ifRunner, wipScope);
@@ -590,17 +584,19 @@ void walkScope(struct ASTNode *it, struct Scope *wipScope, char isMainScope)
 					ifRunner = ifRunner->sibling;
 				}
 			}
-
-			break;
+		}
+		break;
 
 		case t_while:
-			struct ASTNode *whileRunner = scopeRunner->child->sibling->child;
+		{
+			struct AST *whileRunner = scopeRunner->child->sibling->child;
 			while (whileRunner != NULL)
 			{
 				walkStatement(whileRunner, wipScope);
 				whileRunner = whileRunner->sibling;
 			}
-			break;
+		}
+		break;
 
 		// otherwise we are looking at the body of the function, which is a statement list
 		default:
@@ -611,9 +607,9 @@ void walkScope(struct ASTNode *it, struct Scope *wipScope, char isMainScope)
 	}
 }
 
-void walkFunction(struct ASTNode *it, struct Scope *parentScope)
+void walkFunction(struct AST *it, struct Scope *parentScope)
 {
-	struct ASTNode *functionRunner = it->child;
+	struct AST *functionRunner = it->child;
 	struct FunctionEntry *func = Scope_createFunction(parentScope, functionRunner->value);
 	func->mainScope->parentScope = parentScope;
 	while (functionRunner != NULL)
@@ -623,7 +619,7 @@ void walkFunction(struct ASTNode *it, struct Scope *parentScope)
 		// looking at function name, which will have argument variables as children
 		case t_name:
 		{
-			struct ASTNode *argumentRunner = functionRunner->child;
+			struct AST *argumentRunner = functionRunner->child;
 			while (argumentRunner != NULL)
 			{
 
@@ -643,7 +639,7 @@ void walkFunction(struct ASTNode *it, struct Scope *parentScope)
 				char *argName;
 				int arraySize;
 				int indirectionLevel = 0;
-				struct ASTNode *runner = argumentRunner;
+				struct AST *runner = argumentRunner;
 				char scraping = 1;
 				while (scraping)
 				{
@@ -750,10 +746,10 @@ void walkFunction(struct ASTNode *it, struct Scope *parentScope)
 }
 
 // given an AST node for a program, walk the AST and generate a symbol table for the entire thing
-struct SymbolTable *walkAST(struct ASTNode *it)
+struct SymbolTable *walkAST(struct AST *it)
 {
 	struct SymbolTable *programTable = SymbolTable_new("Program");
-	struct ASTNode *runner = it;
+	struct AST *runner = it;
 	while (runner != NULL)
 	{
 		printf(".");
@@ -762,13 +758,15 @@ struct SymbolTable *walkAST(struct ASTNode *it)
 		// global variable declarations/definitions are allowed
 		// use walkStatement to handle this
 		case t_var:
+		{
 			walkStatement(runner, programTable->globalScope);
-			struct ASTNode *scraper = runner->child;
+			struct AST *scraper = runner->child;
 			while (scraper->type != t_name)
 			{
 				scraper = scraper->child;
 			}
-			break;
+		}
+		break;
 
 		case t_fun:
 			walkFunction(runner, programTable->globalScope);

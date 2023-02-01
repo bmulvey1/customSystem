@@ -8,7 +8,6 @@
 #include "symtab.h"
 #include "util.h"
 #include "linearizer.h"
-#include "asm.h"
 #include "codegen.h"
 #include "serialize.h"
 
@@ -28,13 +27,13 @@ int main(int argc, char **argv)
 	printf("Parsing program from %s\n", argv[1]);
 
 	printf("Generating output to %s\n", argv[2]);
-	parseDict = newDictionary(10);
-	struct ASTNode *program = parseProgram(argv[1], parseDict);
+	parseDict = Dictionary_New(10);
+	struct AST *program = ParseProgram(argv[1], parseDict);
 
 	serializeAST("astdump", program);
 	printf("\n");
 
-	ASTNode_print(program, 0);
+	AST_Print(program, 0);
 	printf("Generating symbol table from AST");
 	struct SymbolTable *theTable = walkAST(program);
 	printf("\n");
@@ -43,28 +42,45 @@ int main(int argc, char **argv)
 	printf("Symbol table before scope collapse:\n");
 	SymbolTable_print(theTable, 0);
 
+	
+
+
 	printf("Linearizing code to basic blocks\n");
 	linearizeProgram(program, theTable->globalScope, parseDict);
-	printf("Done linearizing code\n");
+
+	collapseScopes(theTable->globalScope, parseDict, 1);
+
+	printf("Symbol table after lienarization/scope collapse:\n");
 	SymbolTable_print(theTable, 1);
 
 	FILE *outFile = fopen(argv[2], "wb");
 
 	struct Stack *outputBlocks;
 	outputBlocks = generateCode(theTable, outFile);
-	fprintf(outFile, "#include \"CPU.asm\"\n");
+	fprintf(outFile, "#include \"CPU.asm\"\n#include \"INT.asm\"\n");
 	for(int i = 0; i < outputBlocks->size; i++)
 	{
-		ASMblock_output(outputBlocks->data[i], outFile);
-		ASMblock_free(outputBlocks->data[i]);
+		struct LinkedList *thisBlock = outputBlocks->data[i];
+		for(struct LinkedListNode *asmLine = thisBlock->head; asmLine != NULL; asmLine = asmLine->next)
+		{
+			char *s = asmLine->data;
+			if(s[strlen(s) - 1] != ':')
+			{
+				fprintf(outFile, "\t");	
+			}
+
+			fprintf(outFile, "%s\n", s);
+		}
+		// ASM_output(outputBlocks->data[i], outFile);
+		LinkedList_Free(thisBlock, free);
 	}
 	SymbolTable_free(theTable);
 
-	Stack_free(outputBlocks);
+	Stack_Free(outputBlocks);
 
 	fclose(outFile);
 	// freeDictionary(parseDict);
-	ASTNode_free(program);
+	AST_Free(program);
 
 	printf("done printing\n");
 }

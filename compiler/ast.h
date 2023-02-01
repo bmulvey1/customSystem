@@ -15,10 +15,18 @@ enum token
 	t_do,
 	t_name,
 	t_literal,
-	t_un_add,
-	t_un_sub,
-	t_binOp,
-	t_compOp,
+	t_bin_add,
+	t_bin_sub,
+	t_bin_lThan,
+	t_bin_gThan,
+	t_bin_lThanE,
+	t_bin_gThanE,
+	t_bin_equals,
+	t_bin_notEquals,
+	t_bin_log_and,
+	t_bin_log_or,
+	t_bin_log_xor,
+	t_un_log_not,
 	t_reference,
 	t_dereference,
 	t_assign,
@@ -36,24 +44,24 @@ enum token
 	t_EOF,
 };
 
-struct ASTNode
+struct AST
 {
 	char *value;
 	enum token type;
-	struct ASTNode *child;
-	struct ASTNode *sibling;
+	struct AST *child;
+	struct AST *sibling;
 	int sourceLine;
 	int sourceCol;
 };
 
-struct ASTNode *ASTNode_new(enum token t, char *value);
+struct AST *AST_New(enum token t, char *value);
 
-void ASTNode_insertSibling(struct ASTNode *it, struct ASTNode *newSibling);
+void AST_InsertSibling(struct AST *it, struct AST *newSibling);
 
-void ASTNode_insertChild(struct ASTNode *it, struct ASTNode *newChild);
+void AST_InsertChild(struct AST *it, struct AST *newChild);
 
-void ASTNode_print(struct ASTNode *it, int depth);
+void AST_Print(struct AST *it, int depth);
 
-void ASTNode_printHorizontal(struct ASTNode *it);
+void AST_PrintHorizontal(struct AST *it);
 
-void ASTNode_free(struct ASTNode *it);
+void AST_Free(struct AST *it);

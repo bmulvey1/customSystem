@@ -26,16 +26,8 @@
 ; lsb of opcode indicates length (0 for hword 1 for word)
 #ruledef{
 
-    nop             => 0x01000000
+    nop             => 0x01 @ 0x000000
     
-    
-    #fn calcjumpoffset(dst) =>
-    {
-        ; calculate offset, then rshift by 2 since instructions are 4 byte aligned
-        
-        reladdr`24
-    }
-
     jmp {dst:i32}  => 
     {
         reladdr = ((dst - $) - 4) >> 2
@@ -131,10 +123,10 @@
     movb (%{rbase: reg}), %{rs: reg}                             => 0xa4 @ rbase @ rs @ 0x0000
     
     movb %{rd: reg}, (%{rbase: reg}+%{offset: i16})              => 0xa5 @ rd @ rbase @ offset
-    movb (%{rbase: reg}+%{offset: i16}, %{rs: reg}               => 0xa7 @ rs @ rbase @ offset
+    movb (%{rbase: reg}+%{offset: i16}), %{rs: reg}               => 0xa7 @ rs @ rbase @ offset
 
-    movb %{rd: reg}, (%{rbase: reg}+%{roffset: reg}*{sclpow: i5}) => 0xa9 @ rd @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
-    movb (%{rbase: reg}+%{roffset: reg}*{sclpow:i5}), %{rs: reg}  => 0xab @ rs @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
+    movb %{rd: reg}, (%{rbase: reg}+%{roffset: reg},{sclpow: i5}) => 0xa9 @ rd @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
+    movb (%{rbase: reg}+%{roffset: reg},{sclpow:i5}), %{rs: reg}  => 0xab @ rs @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
 
     movb %{rd: reg}, ${imm: i8}                                  => 0xaf @ rd @ 0x0 @ imm
 
@@ -145,10 +137,10 @@
     movh (%{rbase: reg}), %{rs: reg}                             => 0xb4 @ rbase @ rs @ 0x0000
     
     movh %{rd: reg}, (%{rbase: reg}+%{offset: i16})              => 0xb5 @ rd @ rbase @ offset
-    movh (%{rbase: reg}+%{offset: i16}, %{rs: reg}               => 0xb7 @ rs @ rbase @ offset
+    movh (%{rbase: reg}+%{offset: i16}), %{rs: reg}              => 0xb7 @ rs @ rbase @ offset
 
-    movh %{rd: reg}, (%{rbase: reg}+%{roffset: reg}*{sclpow: i5}) => 0xb9 @ rd @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
-    movh (%{rbase: reg}+%{roffset: reg}*{sclpow:i5}), %{rs: reg}  => 0xbb @ rs @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
+    movh %{rd: reg}, (%{rbase: reg}+%{roffset: reg},{sclpow: i5})=> 0xb9 @ rd @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
+    movh (%{rbase: reg}+%{roffset: reg},{sclpow:i5}), %{rs: reg} => 0xbb @ rs @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
 
     movh %{rd: reg}, ${imm: i16}                                 => 0xbf @ rd @ 0x0 @ imm
 
@@ -162,9 +154,8 @@
     mov %{rd: reg}, (%{rbase: reg}+{offset: i16})                => 0xc5 @ rd @ rbase @ offset
     mov (%{rbase: reg}+{offset: i16}), %{rs: reg}                => 0xc7 @ rs @ rbase @ offset
 
-    mov %{rd: reg}, (%{rbase: reg}+%{roffset: reg}*{sclpow: i5}) => 0xc9 @ rd @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
-    mov (%{rbase: reg}+%{roffset: reg}*{sclpow:i5}), %{rs: reg}  => 0xcb @ rs @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
-
+    mov %{rd: reg}, (%{rbase: reg}+%{roffset: reg},{sclpow: i5}) => 0xc9 @ rd @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
+    mov (%{rbase: reg}+%{roffset: reg},{sclpow:i5}), %{rs: reg}  => 0xcb @ rs @ rbase @ 0x0 @ roffset @ 0b000 @ sclpow
 
     push %{rs: reg}                         => 0xd0 @ 0x0 @ rs @ 0x0000
     pushi ${imm: i24}                       => 0xd1 @ imm
@@ -174,12 +165,15 @@
     call {address: i32}                     => 0xd3 @ (address >> 8)`24
 
     ; wipe 'argw' number of bytes off the stack from arguments
-    ret {argw: i24}                          => 0xd4 @ argw
+    ret {argw: i24}                         => 0xd4 @ argw
     ret                                     => asm{ret 0}
+    
+    int {code: i8}                          => 0xd5 @ code @ 0x0000
+    reti                                    => 0xd6 @ 0x000000
 
-    out %{rs: reg}                          => 0xe2 @ 0x0 @ rs @ 0x0000
+    out {port: i8}, %{rs: reg}                         => 0xe2 @ port @ 0x0 @ rs @ 0x00
 
-    hlt                                     => 0xfe000000
+    hlt                                    => 0xfe000000
 
     entry {address: i32}    => address ; specify the entry point to the code
 

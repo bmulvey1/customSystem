@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -g -Werror -Wall
 programs: mcc
 
-mcc: compiler.o parser.o ast.o tac.o symtab.o util.o linearizer.o asm.o regalloc.o codegen.o serialize.o
+mcc: compiler.o parser.o ast.o tac.o symtab.o util.o linearizer.o regalloc.o codegen.o serialize.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 compiler.o: compiler.c
@@ -25,9 +25,6 @@ util.o: util.c util.h
 
 linearizer.o: linearizer.c linearizer.h
 	$(CC) -c $(CFLAGS) linearizer.c
-
-asm.o: asm.c asm.h
-	$(CC) -c $(CFLAGS) asm.c
 
 regalloc.o: regalloc.c regalloc.h
 	$(CC) -c $(CFLAGS) regalloc.c

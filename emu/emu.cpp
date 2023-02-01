@@ -1,8 +1,13 @@
 #include <iostream>
 #include <fstream>
 #include <cstdint>
+#include <chrono>
+#include <thread>
+
 #include "names.hpp"
 #include "memory.h"
+
+// #define PRINTEXECUTION
 
 SystemMemory memory;
 // uint8_t memory[0x10000] = {0};
@@ -87,14 +92,18 @@ union instructionData
 
 void printState()
 {
-    for (int i = 0; i < 17; i++)
+    for(int row = 0; row < 2; row++)
     {
-        printf("%8s|", registerNames[i].c_str());
-    }
-    std::cout << std::endl;
-    for (int i = 0; i < 17; i++)
-    {
-        printf("%8x|", registers[i]);
+        for (int i = 0; i < (9 - row); i++)
+        {
+            printf("%8s|", registerNames[(9 * row) + i].c_str());
+        }
+        std::cout << std::endl;
+        for (int i = 0; i < (9 - row); i++)
+        {
+            printf("%8x|", registers[(9 * row) + i]);
+        }
+        std::cout << std::endl;
     }
     printf("\nNF: %d ZF: %d CF: %d VF: %d\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
 
@@ -145,15 +154,14 @@ void jmpOp(uint32_t offset24bit)
 {
     static const uint64_t mask = 1U << (23);
     uint32_t relativeAddress = ((offset24bit ^ mask) - mask) << 2;
-    printf("Jmp by %d (raw offset was %u)\n", relativeAddress, offset24bit);
+    // printf("Jmp by %d (raw offset was %u)\n", relativeAddress, offset24bit);
     registers[ip] += relativeAddress;
-
 }
 
 void arithmeticOp(uint8_t RD, uint32_t S1, uint32_t S2, uint8_t opCode)
 {
-    printf("Arithmetic op with %d %d\n", S1, S2);
-    uint64_t result = 0;
+    // printf("Arithmetic op with %d %d\n", S1, S2);
+    uint64_t result = 0UL;
 
     // their compiler optimizes better than mine
     uint32_t invertedS2 = ~S2;
@@ -161,9 +169,11 @@ void arithmeticOp(uint8_t RD, uint32_t S1, uint32_t S2, uint8_t opCode)
     {
     case 0x1: // ADD
         result = S1 + S2;
+        flags[CF] = (result < S1);
         break;
     case 0x3: // SUB
         result = S1 + invertedS2 + 1;
+        flags[CF] = !(result > S1);
         break;
     case 0x5: // MUL
         result = S1 * S2;
@@ -189,17 +199,13 @@ void arithmeticOp(uint8_t RD, uint32_t S1, uint32_t S2, uint8_t opCode)
     case 0x13: // CMP
         // uint16_t result = registers[RD] - value;
         result = S1 + invertedS2 + 1;
+        flags[CF] = !(result > S1);
         break;
     }
 
     flags[ZF] = ((result & 0xffffffff) == 0);
     flags[NF] = ((result >> 31) & 1);
-    flags[CF] = ((result >> 32) > 0);
-    /*
-    flags[ZF] = ((result & 0xffff) == 0);
-    flags[NF] = ((result >> 15) & 1);
-    flags[CF] = ((result >> 16) > 0);
-    */
+    // flags[CF] = ((result >> 32) > 0);
 
     // this seems wrong... is it?
     flags[VF] = ((registers[RD] >> 31) ^ ((result >> 31) & 1)) && !(1 ^ (registers[RD] >> 31) ^ (S2 >> 31));
@@ -242,16 +248,21 @@ void movOp(instructionData instruction, int nBytes)
         uint8_t RS = instruction.byte.b1 >> 4;
         uint8_t RD = instruction.byte.b1 & 0b1111;
         uint32_t value;
+
+#ifdef PRINTEXECUTION
+        printf("%%r%d, %%r%d\n", RD, RS);
+#endif
+
         switch (nBytes)
         {
         case 1:
-            value = registers[RS] & 0xffffff00;
+            value = registers[RS] & 0x000000ff;
             break;
         case 2:
-            value = registers[RS] & 0xffff0000;
+            value = registers[RS] & 0x0000ffff;
             break;
         case 4:
-            value = registers[RS] & 0x00000000;
+            value = registers[RS] & 0xffffffff;
             break;
         default:
             printf("Illegal nBytes argument to movOp!\n");
@@ -267,19 +278,23 @@ void movOp(instructionData instruction, int nBytes)
         uint8_t RD = instruction.byte.b1 >> 4;
         uint8_t rBase = instruction.byte.b1 & 0b1111;
 
+#ifdef PRINTEXECUTION
+        printf("%%r%d, (%%r%d)\t(%08x)\n", RD, rBase, registers[rBase]);
+#endif
+
         switch (nBytes)
         {
         case 1:
             // registers[RD] &= 0xffffff00;
-            registers[RD] = readB(rBase);
+            registers[RD] = readB(registers[rBase]);
             break;
         case 2:
             // registers[RD] &= 0xffff0000;
-            registers[RD] = readH(rBase);
+            registers[RD] = readH(registers[rBase]);
             break;
         case 4:
             // registers[RD] &= 0x00000000;
-            registers[RD] = readW(rBase);
+            registers[RD] = readW(registers[rBase]);
             break;
         default:
             printf("Illegal nBytes argument to movOp!\n");
@@ -292,18 +307,22 @@ void movOp(instructionData instruction, int nBytes)
     case 0x4:
     {
         uint8_t rBase = instruction.byte.b1 >> 4;
-        uint8_t rs = instruction.byte.b1 & 0b1111;
+        uint8_t RS = instruction.byte.b1 & 0b1111;
+
+#ifdef PRINTEXECUTION
+        printf("(%%r%d), %%r%d\t(%08x)\n", rBase, RS, registers[rBase]);
+#endif
 
         switch (nBytes)
         {
         case 1:
-            writeB(registers[rBase], registers[rs]);
+            writeB(registers[rBase], registers[RS]);
             break;
         case 2:
-            writeH(registers[rBase], registers[rs]);
+            writeH(registers[rBase], registers[RS]);
             break;
         case 4:
-            writeW(registers[rBase], registers[rs]);
+            writeW(registers[rBase], registers[RS]);
             break;
         default:
             printf("Illegal nBytes argument to movOp!\n");
@@ -312,7 +331,7 @@ void movOp(instructionData instruction, int nBytes)
     }
     break;
 
-    // mov reg, (reg + off)
+    // mov reg, (reg + offimm)
     case 0x5:
     {
         uint8_t RD = instruction.byte.b1 >> 4;
@@ -323,6 +342,10 @@ void movOp(instructionData instruction, int nBytes)
         longAddress += offset;
         uint32_t address = longAddress;
 
+#ifdef PRINTEXECUTION
+        printf("%%r%d, (%%r%d+%d)\t(%08x)\n", RD, rBase, offset, address);
+#endif
+
         // printf("address %08x + %d = %08x\n", registers[rBase], offset, address);
 
         switch (nBytes)
@@ -343,7 +366,7 @@ void movOp(instructionData instruction, int nBytes)
     }
     break;
 
-    // mov (reg + off * sclpow), reg
+    // mov (reg + offimm), reg
     case 0x7:
     {
         uint8_t RS = instruction.byte.b1 >> 4;
@@ -353,6 +376,10 @@ void movOp(instructionData instruction, int nBytes)
         int64_t longaddress = registers[rBase] + offset;
         int32_t address = longaddress;
 
+#ifdef PRINTEXECUTION
+        printf("(%%r%d + %d), %%r%d\t(%08x)\n", rBase, offset, RS, address);
+#endif
+
         // printf("address %08x + %d = %08x\n", registers[rBase], offset, address);
 
         switch (nBytes)
@@ -373,18 +400,23 @@ void movOp(instructionData instruction, int nBytes)
     }
     break;
 
+    // mov reg, (reg + offreg * sclpow)
     case 0x9:
     {
         uint8_t RD = instruction.byte.b1 >> 4;
         uint8_t rBase = instruction.byte.b1 & 0b1111;
-        uint8_t sclPow = instruction.byte.b2 >> 4;
-        int16_t offset = ((instruction.byte.b2 & 0b1111) << 8) | instruction.byte.b3;
+
+        uint8_t rOff = instruction.byte.b2 & 0b1111;
+        uint8_t sclPow = instruction.byte.b3 & 0b11111;
+        uint32_t offset = registers[rOff];
 
         int64_t longaddress = registers[rBase];
         longaddress += (offset << sclPow);
         uint32_t address = longaddress;
 
-        // printf("address %08x + (%d * (2 ^ %d)) = %08x\n", registers[rBase], offset, sclPow, address);
+#ifdef PRINTEXECUTION
+        printf("%%r%d, (%%r%d+%%r%d*%d)\t(%08x)\n", RD, rBase, rOff, (1 << sclPow), address);
+#endif
 
         switch (nBytes)
         {
@@ -404,17 +436,37 @@ void movOp(instructionData instruction, int nBytes)
     }
     break;
 
+    // mov (reg + offreg * sclpow), reg
     case 0xb:
     {
         uint8_t RS = instruction.byte.b1 >> 4;
         uint8_t rBase = instruction.byte.b1 & 0b1111;
-        uint8_t sclPow = instruction.byte.b2 >> 4;
-        int16_t offset = ((instruction.byte.b2 & 0b1111) << 8) | instruction.byte.b3;
+
+        uint8_t rOff = instruction.byte.b2 & 0b1111;
+        uint8_t sclPow = instruction.byte.b3 & 0b11111;
+        uint32_t offset = registers[rOff];
 
         int64_t longaddress = registers[rBase];
         longaddress += (offset << sclPow);
         uint32_t address = longaddress;
-        // printf("address %08x + (%d * (2 ^ %d)) = %08x\n", registers[rBase], offset, sclPow, address);
+
+#ifdef PRINTEXECUTION
+        printf("(%%r%d+%%r%d*%d), %%r%d\t(%08x)<-", rBase, rOff, (1 << sclPow), RS, address);
+        switch (nBytes)
+        {
+        case 1:
+            printf("%02x (%d/%u)\n", registers[RS], registers[RS], registers[RS]);
+            break;
+        case 2:
+            printf("%04x (%d/%u)\n", registers[RS], registers[RS], registers[RS]);
+            break;
+        case 4:
+            printf("%08x (%d/%u)\n", registers[RS], registers[RS], registers[RS]);
+            break;
+        default:
+            break;
+        }
+#endif
 
         switch (nBytes)
         {
@@ -434,9 +486,14 @@ void movOp(instructionData instruction, int nBytes)
     }
     break;
 
+    // reg, imm
     case 0xf:
     {
         uint8_t RD = instruction.byte.b1 >> 4;
+#ifdef PRINTEXECUTION
+        printf("%%r%d, %d\n", RD, instruction.hword.h1);
+#endif
+
         switch (nBytes)
         {
         case 1:
@@ -459,6 +516,26 @@ void movOp(instructionData instruction, int nBytes)
     }
 }
 
+void SWI(uint8_t num)
+{
+    stackPush(registers[ip]);
+    registers[ip] = readW(num * 4);
+}
+
+void Output(uint8_t port, uint8_t byte)
+{
+    switch (port)
+    {
+    case 0x00:
+        putchar(byte);
+        fflush(stdout);
+        break;
+
+    default:
+        SWI(0x04);
+    }
+}
+
 int main(int argc, char *argv[])
 {
     if (argc < 1)
@@ -468,48 +545,60 @@ int main(int argc, char *argv[])
     }
     setupMemory(argv[1]);
     registers[sp] = 0xfffffffc;
-    registers[ip] = readW(0); // read the entry point to the code segment
+    registers[ip] = readW(65536); // read the entry point to the code segment
     printf("Read entry address of %08x\n", registers[ip]);
     bool running = true;
     uint32_t instructionCount = 0;
     while (running)
     {
-        instructionData instruction = {0};
+        instructionData instruction = {{0}};
+        if (registers[ip] & (0b11))
+        {
+            SWI(0x02); // throw INT 1 on misaligned PC
+        }
+
         instruction.word = consumeW(registers[ip]);
-
-        // instruction.byte.b0 = consumeB(registers[ip]);
-        // instruction.byte.b1 = consumeB(registers[ip]);
-        // {
-        // uint8_t swapped = instruction.byte.b0;
-        // instruction.byte.b0 = instruction.byte.b1;
-        // instruction.byte.b1 = swapped;
-        // }
-
         if (opcodeNames.count(instruction.byte.b0) == 0)
         {
-            printf("Unexpected opcode %2x at %08x\n", instruction.byte.b0, registers[ip] - 4);
-            exit(1);
+            SWI(0x03); // throw INT 2 on opcode with no name in names.h
         }
         else
         {
-            printf("%08x: %02x:%s\n", registers[ip] - 4, instruction.byte.b0, opcodeNames[instruction.byte.b0].c_str());
+#ifdef PRINTEXECUTION
+            std::string opcodeName = opcodeNames[instruction.byte.b0];
+            printf("%08x: %02x:%-4s ", registers[ip] - 4, instruction.byte.b0, opcodeName.substr(0, opcodeName.find(" ")).c_str());
+#endif
         }
 
         // printf("%02x, %02x, %02x, %02x | %04x, %04x | %08x\n", instruction.byte.b0, instruction.byte.b1, instruction.byte.b2, instruction.byte.b3, instruction.hword.h0, instruction.hword.h1, instruction.word);
 
         switch (instruction.byte.b0)
         {
-            // hlt/no instruction
+            // hlt instruction
         case 0x00:
+        {
+#ifdef PRINTEXECUTION
+            printf("\n");
+#endif
             running = 0;
-            break;
+        }
+        break;
 
         case 0x01: // nop
-            break;
+        {
+#ifdef PRINTEXECUTION
+            printf("\n");
+#endif
+        }
+        break;
 
         // JMP
         case 0x11:
         {
+#ifdef PRINTEXECUTION
+            printf("\n");
+#endif
+            // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
             jmpOp(instruction.word & 0x00ffffff);
         }
         break;
@@ -517,60 +606,126 @@ int main(int argc, char *argv[])
         // JE/JZ
         case 0x13:
         {
+            // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
+
             if (flags[ZF])
             {
+#ifdef PRINTEXECUTION
+                printf("TAKEN\n");
+#endif
                 jmpOp(instruction.word & 0x00ffffff);
             }
+#ifdef PRINTEXECUTION
+            else
+            {
+                printf("NOT TAKEN\n");
+            }
+#endif
         }
         break;
 
         // JNE/JNZ
         case 0x15:
         {
-            if (flags[ZF] == 0)
+            // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
+
+            if (!flags[ZF])
             {
+#ifdef PRINTEXECUTION
+                printf("TAKEN\n");
+#endif
                 jmpOp(instruction.word & 0x00ffffff);
             }
+#ifdef PRINTEXECUTION
+            else
+            {
+                printf("NOT TAKEN\n");
+            }
+#endif
         }
         break;
 
         // JG
         case 0x17:
         {
-            if ((flags[ZF] == 0) && flags[CF])
+            // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
+
+            if ((!flags[ZF]) && flags[CF])
             {
+#ifdef PRINTEXECUTION
+                printf("TAKEN\n");
+#endif
                 jmpOp(instruction.word & 0x00ffffff);
             }
+#ifdef PRINTEXECUTION
+            else
+            {
+                printf("NOT TAKEN\n");
+            }
+#endif
         }
         break;
 
         // JL
         case 0x19:
         {
-            if (flags[CF] == 0)
+            // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
+
+            if (!flags[CF])
             {
+#ifdef PRINTEXECUTION
+                printf("TAKEN\n");
+#endif
                 jmpOp(instruction.word & 0x00ffffff);
             }
+#ifdef PRINTEXECUTION
+            else
+            {
+                printf("NOT TAKEN\n");
+            }
+#endif
         }
         break;
 
         // JGE
         case 0x1b:
         {
+            // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
+
             if (flags[CF])
             {
+#ifdef PRINTEXECUTION
+                printf("TAKEN\n");
+#endif
                 jmpOp(instruction.word & 0x00ffffff);
             }
+#ifdef PRINTEXECUTION
+            else
+            {
+                printf("NOT TAKEN\n");
+            }
+#endif
         }
         break;
 
         // JLE
         case 0x1d:
         {
-            if (flags[ZF] || (flags[CF] == 0))
+            // printf("NF: %d ZF: %d CF: %d VF: %d\n\n", flags[NF], flags[ZF], flags[CF], flags[VF]);
+
+            if (flags[ZF] || (!flags[CF]))
             {
+#ifdef PRINTEXECUTION
+                printf("TAKEN\n");
+#endif
                 jmpOp(instruction.word & 0x00ffffff);
             }
+#ifdef PRINTEXECUTION
+            else
+            {
+                printf("NOT TAKEN\n");
+            }
+#endif
         }
         break;
 
@@ -589,6 +744,9 @@ int main(int argc, char *argv[])
             uint8_t RD = instruction.byte.b1 >> 4;
             uint8_t RS1 = instruction.byte.b1 & 0b1111;
             uint8_t RS2 = instruction.byte.b2 >> 4;
+#ifdef PRINTEXECUTION
+            printf("%%r%d, %%r%d, %%r%d\n", RD, RS1, RS2);
+#endif
             arithmeticOp(RD, registers[RS1], registers[RS2], instruction.byte.b0);
         }
         break;
@@ -597,6 +755,9 @@ int main(int argc, char *argv[])
         case 0x54:
         {
             uint8_t RD = instruction.byte.b1 >> 4;
+#ifdef PRINTEXECUTION
+            printf("%%r%d\n", RD);
+#endif
             registers[RD]++;
         }
         break;
@@ -605,6 +766,9 @@ int main(int argc, char *argv[])
         case 0x56:
         {
             uint8_t RD = instruction.byte.b1 >> 4;
+#ifdef PRINTEXECUTION
+            printf("%%r%d\n", RD);
+#endif
             registers[RD]--;
         }
         break;
@@ -614,6 +778,9 @@ int main(int argc, char *argv[])
         {
             uint8_t RD = instruction.byte.b1 >> 4;
             uint8_t RS1 = instruction.byte.b1 & 0b1111;
+#ifdef PRINTEXECUTION
+            printf("%%r%d, %%r%d\n", RD, RS1);
+#endif
             registers[RD] = ~registers[RS1];
         }
         break;
@@ -633,6 +800,9 @@ int main(int argc, char *argv[])
                 uint8_t RD = instruction.byte.b1 >> 4;
                 uint8_t RS1 = instruction.byte.b1 & 0b1111;
                 uint16_t imm = instruction.hword.h1;
+#ifdef PRINTEXECUTION
+                printf("%%r%d, %%r%d, %u\n", RD, RS1, imm);
+#endif
                 arithmeticOp(RD, registers[RS1], imm, instruction.byte.b0);
             }
             break;
@@ -683,27 +853,40 @@ int main(int argc, char *argv[])
         // PUSH
         case 0xd0:
         {
-            stackPush(registers[instruction.byte.b1 & 0b1111]);
+            uint8_t RS = instruction.byte.b1 & 0b1111;
+#ifdef PRINTEXECUTION
+            printf("%%r%d\n", RS);
+#endif
+            stackPush(registers[RS]);
         }
         break;
 
         // PUSHI
         case 0xd1:
         {
-            stackPush(instruction.word & 0x00ffffff);
+            uint32_t imm = instruction.word & 0x00ffffff;
+#ifdef PRINTEXECUTION
+            printf("%u\n", imm);
+#endif
+            stackPush(imm);
         }
         break;
 
         // POP
         case 0xd2:
         {
+            uint8_t RD = instruction.byte.b1 & 0b1111;
+#ifdef PRINTEXECUTION
+            printf("%%r%u\n", RD);
+#endif
             // fault condition by which attempt to pop from a completely empty stack
             if (registers[sp] >= 0xfffffffc)
             {
                 printf("Stack underflow fault\n");
                 exit(1);
             }
-            registers[instruction.byte.b1 & 0b1111] = stackPop();
+
+            registers[RD] = stackPop();
         }
         break;
 
@@ -711,7 +894,10 @@ int main(int argc, char *argv[])
         case 0xd3:
         {
             uint32_t callAddr = instruction.word << 8;
-            printf("call to %08x\n", callAddr);
+#ifdef PRINTEXECUTION
+            printf("%08x\n", callAddr);
+#endif
+            // printf("call to %08x\n", callAddr);
             stackPush(registers[bp]);
             stackPush(registers[ip]);
             registers[bp] = registers[sp];
@@ -719,365 +905,71 @@ int main(int argc, char *argv[])
         }
         break;
 
-        // RET (halfword)
+        // RET
         case 0xd4:
         {
+            uint32_t argw = instruction.word & 0x00ffffff;
+#ifdef PRINTEXECUTION
+            printf("%d\n", argw);
+#endif
             registers[ip] = stackPop();
             registers[bp] = stackPop();
-            registers[sp] += instruction.byte.b1;
+            registers[sp] += argw;
         }
         break;
 
-        // RET (word)
+        // INT
         case 0xd5:
         {
-            registers[ip] = stackPop();
-            printf("Return to %08x\n", registers[ip]);
-            registers[bp] = stackPop();
-            registers[sp] += instruction.word & 0x00ffffff;
+            uint8_t intNum = instruction.byte.b1;
+#ifdef PRINTEXECUTION
+            printf("%02x\n", intNum);
+#endif
+            SWI(intNum);
         }
         break;
 
-            /*
-            ase 0xd0: // CALL
-                {
-                    uint16_t callAddr = consumeWord(registers[ip]);
-                    stackPush(registers[bp]);
-                    stackPush(registers[ip]);
-                    registers[bp] = registers[sp];
-                    registers[ip] = callAddr;
-                }
-                break;
+        // RETI
+        case 0xd6:
+        {
+#ifdef PRINTEXECUTION
+            printf("\n");
+#endif
+            registers[ip] = stackPop();
+        }
+        break;
 
-                case 0xd1: // RET
-                {
-                    registers[ip] = stackPop();
-                    registers[bp] = stackPop();
-                }
-                break;
-
-                case 0xd2: // RET {argc}
-                {
-                    uint16_t argw = consumeWord(registers[ip]);
-                    registers[ip] = stackPop();
-                    registers[bp] = stackPop();
-                    registers[sp] += argw;
-                }
-                break;*/
-
-            /*
-            // MOVB (move byte)
-            case 0xa0: // register -> register MOV
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 >> 4;
-                uint8_t RD = insByte2 & 0b1111;
-                registers[RD] = registers[RS] & 0b11111111;
-            }
-            break;
-
-            case 0xa1: // dereferenced register -> register mov
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 >> 4;
-                uint8_t RD = insByte2 & 0b1111;
-                registers[RD] = readByte(registers[RS]);
-            }
-            break;
-
-            case 0xa2: // register -> dereferenced register mov
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 >> 4;
-                uint8_t RD = insByte2 & 0b1111;
-                writeByte(registers[RD], registers[RS] & 0b11111111);
-            }
-            break;
-
-            // dereferenced register + offset -> register
-            case 0xa3:
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 >> 4;
-                uint8_t RD = insByte2 & 0b1111;
-                int8_t offset = consumeByte(registers[ip]);
-                registers[RD] = readByte(registers[RS] + offset);
-            }
-            break;
-
-            case 0xa4:
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 >> 4;
-                uint8_t RD = insByte2 & 0b1111;
-                int8_t offset = consumeByte(registers[ip]);
-                writeByte(registers[RD] + offset, registers[RS] & 0b11111111);
-            }
-            break;
-
-            case 0xa5: // movb roffset(rd, scale), rd
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 >> 4;
-                uint8_t RD = insByte2 & 0b1111;
-                uint8_t RO = consumeByte(registers[ip]);
-                uint8_t scale = consumeByte(registers[ip]);
-                uint16_t address = registers[RS] + (scale * registers[RO]);
-                registers[RD] = readByte(address);
-            }
-            break;
-
-            case 0xa6: // movb rs, roffset(rd, scale)
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 >> 4;
-                uint8_t RD = insByte2 & 0b1111;
-                uint8_t RO = consumeByte(registers[ip]);
-                uint8_t scale = consumeByte(registers[ip]);
-                uint16_t address = registers[RD] + (scale * registers[RO]);
-                writeByte(address, registers[RS] & 0b11111111);
-            }
-            break;
-
-            case 0xa7:
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RD = insByte2 & 0b1111;
-                uint8_t imm = consumeByte(registers[ip]);
-                registers[RD] = imm;
-            }
-            break;
-            */
-            // MOVW (move word)
-
-            /*case 0xa8:
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint8_t RS = operands >> 11;
-                uint8_t RD = operands >> 6 & 0b11111;
-                registers[RD] = registers[RS];
-            }
-            break;
-
-            case 0xa9: // dereferenced register -> register mov
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint8_t RS = operands >> 11;
-                uint16_t sourceAddress = registers[RS];
-                uint8_t RD = operands >> 6 & 0b11111;
-                registers[RD] = readByte(sourceAddress) << 8;
-                registers[RD] |= readByte(sourceAddress + 1);
-            }
-            break;
-
-            case 0xaa: // register -> dereferenced register mov
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint8_t RS = operands >> 11;
-                uint16_t sourceAddress = registers[RS];
-                uint8_t RD = operands >> 6 & 0b11111;
-                writeByte(registers[RD], sourceAddress >> 8);
-                writeByte(registers[RD] + 1, sourceAddress);
-            }
-            break;
-
-            // (register + offset) dereferenced -> register
-            case 0xab: // MOV
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint8_t RS = operands >> 11;
-                uint16_t sourceAddress = registers[RS];
-                uint8_t RD = operands >> 6 & 0b11111;
-                int16_t offset = consumeWord(registers[ip]);
-                registers[RD] = readByte(sourceAddress + offset) << 8;
-                registers[RD] |= readByte(sourceAddress + offset + 1);
-            }
-            break;
-
-            case 0xac: // MOV offset(rd), rs
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint8_t RS = operands >> 11;
-                uint16_t sourceAddress = registers[RS];
-                uint8_t RD = (operands >> 6) & 0b11111;
-                int16_t offset = consumeWord(registers[ip]);
-                writeByte(registers[RD] + offset, sourceAddress >> 8);
-                writeByte(registers[RD] + offset + 1, sourceAddress & 0b11111111);
-            }
-            break;
-
-            case 0xad: // MOV rd, roffset(rs, scale)
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint8_t RS = operands >> 11;
-                uint8_t RD = operands >> 6 & 0b11111;
-                uint8_t RO = operands >> 1 & 0b11111;
-                uint8_t scale = consumeByte(registers[ip]);
-                uint16_t address = registers[RS] + (scale * registers[RO]);
-                registers[RD] = readByte(address) << 8;
-                registers[RD] |= readByte(address + 1);
-            }
-            break;
-
-            case 0xae: // MOV roffset(rd, scale), rS
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint8_t RS = operands >> 11;
-                uint16_t sourceAddress = registers[RS];
-                uint8_t RD = operands >> 6 & 0b11111;
-                uint8_t RO = operands >> 1 & 0b11111;
-                uint8_t scale = consumeByte(registers[ip]);
-
-                uint16_t address = registers[RD] + (scale * registers[RO]);
-                writeByte(address, sourceAddress >> 8);
-                writeByte(address + 1, sourceAddress & 0b11111111);
-            }
-            break;
-
-            case 0xaf: // MOV reg, imm
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RD = insByte2 & 0b11111;
-                uint16_t imm = consumeWord(registers[ip]);
-                registers[RD] = imm;
-            }
-            break;
-
-            case 0xb0:
-            {
-                uint16_t operands = consumeByte(registers[ip]);
-                uint16_t offset = consumeWord(registers[ip]);
-                uint16_t immediate = consumeWord(registers[ip]);
-                uint8_t RD = operands & 0b11111;
-
-                uint16_t address = registers[RD] + offset;
-                writeByte(address, immediate >> 8);
-                writeByte(address + 1, immediate & 0b11111111);
-            }
-            break;
-
-            case 0xb1:
-            {
-                uint16_t operands = consumeWord(registers[ip]);
-                uint16_t immediate = consumeWord(registers[ip]);
-                uint8_t RD = operands >> 6 & 0b11111;
-                uint8_t RO = operands >> 1 & 0b11111;
-                uint8_t scale = consumeByte(registers[ip]);
-
-                uint16_t address = registers[RD] + (scale * registers[RO]);
-                writeByte(address, immediate >> 8);
-                writeByte(address + 1, immediate & 0b11111111);
-            }
-            break;
-
-            case 0xc0: // PUSH
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                stackPush(registers[insByte2]);
-            }
-            break;
-
-            case 0xc1: // PUSH
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint16_t value = readWord(registers[insByte2]);
-                stackPush(value);
-            }
-            break;
-
-            case 0xc2: // PUSH
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                int8_t offset = consumeByte(registers[ip]);
-                uint16_t value = readWord(registers[insByte2] + offset);
-                stackPush(value);
-            }
-            break;
-
-            case 0xc3: // PUSH
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                uint8_t RS = insByte2 & 0b1111;
-                uint8_t RO = insByte2 >> 4;
-                uint8_t scale = consumeByte(registers[ip]);
-                uint16_t value = readWord(registers[RS] + (registers[RO] * scale));
-                stackPush(value);
-            }
-            break;
-
-            case 0xc4: // PUSH imm
-            {
-                uint16_t immediate = consumeWord(registers[ip]);
-                stackPush(immediate);
-            }
-            break;
-
-            case 0xcf: // POP
-            {
-                uint8_t insByte2 = consumeByte(registers[ip]);
-                registers[insByte2] = stackPop();
-            }
-            break;
-
-            case 0xd0: // CALL
-            {
-                uint16_t callAddr = consumeWord(registers[ip]);
-                stackPush(registers[bp]);
-                stackPush(registers[ip]);
-                registers[bp] = registers[sp];
-                registers[ip] = callAddr;
-            }
-            break;
-
-            case 0xd1: // RET
-            {
-                registers[ip] = stackPop();
-                registers[bp] = stackPop();
-            }
-            break;
-
-            case 0xd2: // RET {argc}
-            {
-                uint16_t argw = consumeWord(registers[ip]);
-                registers[ip] = stackPop();
-                registers[bp] = stackPop();
-                registers[sp] += argw;
-            }
-            break;
-
-            // OUT (bootleg print)
-            case 0xd3:
-            {
-                uint8_t rs = consumeByte(registers[ip]);
-                printf("%%r%d: %d\n", rs, registers[rs]);
-            }
-            break;
-            */
-
+        // OUT
         case 0xe2:
         {
-            uint8_t rs = instruction.byte.b1 & 0xf;
-            printf("%%r%d: %u\n", rs, registers[rs]);
+            uint8_t port = instruction.byte.b1;
+            uint8_t rs = instruction.byte.b2 & 0xf;
+            Output(port, registers[rs]);
+            // printf("\t\t%%r%d: %u\n", rs, registers[rs]);
         }
         break;
 
-        case 0xfe:
+        case 0xfe: // HLT
+        {
+#ifdef PRINTEXECUTION
+            printf("\n");
+#endif
             running = false;
-            break;
+        }
+        break;
 
         default:
-            printf("\n\n\nError: Undefined opcode %02x at memory loctaion %02x\n", instruction.byte.b0, registers[ip - 1]);
-            printf("Instruction was: %02x, %02x, %02x, %02x | %04x, %04x | %08x\n", instruction.byte.b0, instruction.byte.b1, instruction.byte.b2, instruction.byte.b3, instruction.hword.h0, instruction.hword.h1, instruction.word);
-            exit(1);
+            SWI(0x02); // throw INT 1 on undefined opcode
         }
 
         // printState();
         // printf("\n");
-        
-        for (int i = 0; i < 0xffffff; i++)
-        {
-        }
-        
+
+        // {
+        // using namespace std::chrono_literals;
+        // std::this_thread::sleep_for(250ms);
+        // }
+
         // printf("\n");
 
         instructionCount++;
@@ -1091,7 +983,7 @@ int main(int argc, char *argv[])
     for (uint32_t pageIndex : memory.ActivePages())
     {
         char pageHeader[17];
-        sprintf(pageHeader, "Page add%08x", pageIndex << PAGE_BIT_WIDTH);
+        snprintf(pageHeader, 16, "Page add%08x", pageIndex << PAGE_BIT_WIDTH);
         dumpFile << pageHeader;
         for (int i = 0; i < PAGE_SIZE; i++)
         {
